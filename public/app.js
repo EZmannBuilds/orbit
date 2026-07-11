@@ -1,9 +1,19 @@
 const $ = (selector) => document.querySelector(selector);
 
-const state = { symbols: [], chart: null, activeKind: "" };
+const state = { symbols: [], chart: null, activeKind: "", proposal: null };
 
 async function get(path) {
   const response = await fetch(path);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+async function post(path, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
@@ -180,6 +190,80 @@ function wireTools() {
   });
 }
 
+// ── Local Intelligence ──────────────────────────────────────────────────────
+async function loadLocalIntelligence() {
+  try {
+    const data = await get("/api/local-llm/status");
+    $("#llm-status").textContent = data.ok ? "Connected" : (data.message || "Unavailable");
+    $("#llm-model").textContent = data.selected_model || data.configured_model || "No model selected";
+    $("#llm-prompt-version").textContent = data.prompt_version || "—";
+  } catch (error) {
+    $("#llm-status").textContent = `Unavailable: ${error.message}`;
+    $("#llm-model").textContent = "—";
+  }
+
+  $("#intel-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await runIntelGenerate(false);
+  });
+  $("#proposal-button").addEventListener("click", async () => runIntelGenerate(true));
+}
+
+async function runIntelGenerate(propose) {
+  const prompt = $("#intel-prompt").value.trim();
+  if (!prompt) return;
+  $("#intel-output").textContent = "Retrieving approved project context…";
+  $("#proposal-panel").innerHTML = "";
+  try {
+    const data = propose
+      ? await post("/api/vault/edit-proposals", {
+          prompt,
+          query: "Orbit Axis roadmap",
+          operation: "create",
+          path: "07 Orbit App/Updates/Local LLM Integration Test.md",
+          title: "Local LLM Integration Test",
+          type: "app_update",
+          reason: "Local Intelligence UI proposal test",
+        })
+      : await post("/api/local-llm/generate", { prompt, query: prompt });
+    renderIntelResult(data);
+  } catch (error) {
+    $("#intel-output").textContent = `Local Intelligence failed: ${error.message}`;
+  }
+}
+
+function renderIntelResult(data) {
+  const response = data.response || {};
+  $("#intel-output").innerHTML = `<strong>Answer</strong><br/>${esc(response.answer || "No answer returned.")}`;
+  $("#intel-sources").innerHTML = `
+    <strong>Sources used</strong>
+    <ul>${(data.sources || response.sources || []).map(source => `<li>${esc(source.path)}${source.title ? ` — ${esc(source.title)}` : ""}</li>`).join("")}</ul>`;
+  if (data.proposal) renderProposal(data.proposal);
+}
+
+function renderProposal(proposal) {
+  state.proposal = proposal;
+  $("#proposal-panel").innerHTML = `
+    <div class="proposal-meta">
+      <strong>Target path</strong><br/>${esc(proposal.path)}<br/>
+      <strong>Reason</strong><br/>${esc(proposal.reason)}<br/>
+      <strong>Status</strong><br/><span id="proposal-status">${esc(proposal.status)}</span>
+    </div>
+    <pre>${esc(proposal.diff_text || "")}</pre>
+    <div class="proposal-actions">
+      <button type="button" data-action="approve">Approve</button>
+      <button type="button" data-action="reject">Reject</button>
+      <button type="button" data-action="apply">Apply</button>
+    </div>`;
+  $("#proposal-panel").querySelector(".proposal-actions").addEventListener("click", async (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    const action = button.dataset.action;
+    const result = await post(`/api/vault/edit-proposals/${proposal.id}/${action}`, {});
+    $("#proposal-status").textContent = result.proposal?.status || result.logRecord?.status || action;
+  });
+}
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 async function boot() {
   $("#topbar-date").textContent = new Date().toLocaleDateString("en-US", {
@@ -200,6 +284,7 @@ async function boot() {
   renderAtlas();
   renderEvents(eventsData.events);
   wireTools();
+  await loadLocalIntelligence();
 
   $("#disclaimer").textContent = `${chart.disclaimer} Sky timing is computed from mean cycles and is approximate.`;
 }

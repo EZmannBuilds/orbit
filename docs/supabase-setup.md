@@ -35,6 +35,8 @@ Migrations are in `supabase/migrations/`, applied in filename order:
 3. `*_tarot_journal_sync.sql` — tarot, journal/memory, vault sync tables
 4. `*_rls_policies.sql` — RLS + policies on all 14 tables
 5. `*_harden_function.sql` — pin `search_path` on the trigger fn
+6. `*_local_llm_vault_editing.sql` — local LLM runs, vault edit proposals,
+   note versions, and structured business metrics
 
 Apply them with the Supabase CLI once linked:
 
@@ -51,6 +53,8 @@ MCP tools — see the vault note **System/Migrations/supabase-initial-setup**.)
 - RLS is enabled on every table.
 - User data is scoped to `auth.uid()` via `owner_id` (child tables via the
   parent's `owner_id`).
+- Local LLM tables store metadata, hashes, diffs, statuses, and token
+  estimates. They do not store full private prompts by default.
 - `tarot_cards` and `celestial_events` are public read-only reference data.
 - Verified: anon can read public reference data, cannot read other users' rows
   (returns empty), and cannot write (401 RLS violation).

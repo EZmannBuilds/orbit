@@ -12,6 +12,18 @@ import {
 } from "./lib/symbols.js";
 import { chartNow, sunSeason, moonPhase, mercuryStatus, symbolOfTheDay, upcomingEvents, CHAKRAS } from "./lib/sky.js";
 import { orbitLlmReply, OLLAMA_MODEL } from "./lib/llm.js";
+import { createLocalLLMProvider } from "./lib/local-llm/provider.js";
+import { generateProjectAnswer } from "./lib/local-llm/assistant.js";
+import {
+  applyProposal,
+  collectProjectNotes,
+  getProjectNoteById,
+  listProposals,
+  readProposal,
+  updateProposalStatus,
+} from "./lib/local-llm/vault.js";
+import { localLlmConfig } from "./lib/local-llm/config.js";
+import { recordVaultVersion } from "./lib/local-llm/supabase.js";
 
 function skyContext() {
   const now = new Date();
@@ -69,6 +81,17 @@ function readBody(req) {
       try { resolve(JSON.parse(data || "{}")); } catch { resolve({}); }
     });
   });
+}
+
+function isLocalRequest(req) {
+  const address = req.socket.remoteAddress;
+  return ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(address);
+}
+
+function requireLocal(req, res) {
+  if (isLocalRequest(req)) return true;
+  json(res, 403, { ok: false, error: "Local intelligence routes are localhost-only by default." });
+  return false;
 }
 
 function serveStatic(res, urlPath) {
@@ -188,6 +211,77 @@ const server = http.createServer(async (req, res) => {
       const prompt = String(body.prompt ?? "");
       const { result, mode, model } = await resolveWithLlm(answerPrompt(prompt), prompt);
       return json(res, 200, { ok: true, ...result, mode, model, disclaimer: ORBIT_DISCLAIMER });
+    }
+    if (route === "/api/local-llm/status") {
+      if (!requireLocal(req, res)) return;
+      const health = await createLocalLLMProvider().health();
+      return json(res, 200, { ok: true, prompt_version: localLlmConfig().promptVersion, ...health });
+    }
+    if (route === "/api/local-llm/models") {
+      if (!requireLocal(req, res)) return;
+      return json(res, 200, { ok: true, models: await createLocalLLMProvider().listModels() });
+    }
+    if (route === "/api/local-llm/generate" && req.method === "POST") {
+      if (!requireLocal(req, res)) return;
+      const body = await readBody(req);
+      const result = await generateProjectAnswer({ prompt: String(body.prompt || ""), query: String(body.query || body.prompt || "") });
+      return json(res, 200, result);
+    }
+    if (route === "/api/vault/project-notes") {
+      if (!requireLocal(req, res)) return;
+      const notes = collectProjectNotes({
+        query: url.searchParams.get("q") || "",
+        type: url.searchParams.get("type") || "",
+        folder: url.searchParams.get("folder") || "",
+        limit: Number(url.searchParams.get("limit")) || 20,
+      });
+      return json(res, 200, { ok: true, notes });
+    }
+    if (route.startsWith("/api/vault/project-notes/")) {
+      if (!requireLocal(req, res)) return;
+      const id = decodeURIComponent(route.slice("/api/vault/project-notes/".length));
+      const note = getProjectNoteById(id);
+      return note ? json(res, 200, { ok: true, note }) : json(res, 404, { ok: false, error: "Project note not found" });
+    }
+    if (route === "/api/vault/edit-proposals" && req.method === "GET") {
+      if (!requireLocal(req, res)) return;
+      return json(res, 200, { ok: true, proposals: listProposals() });
+    }
+    if (route === "/api/vault/edit-proposals" && req.method === "POST") {
+      if (!requireLocal(req, res)) return;
+      const body = await readBody(req);
+      const result = await generateProjectAnswer({
+        prompt: String(body.prompt || body.reason || "Create a vault edit proposal."),
+        query: String(body.query || body.title || body.prompt || "Orbit"),
+        propose: {
+          operation: body.operation || "create",
+          path: body.path,
+          title: body.title || "Untitled Orbit Note",
+          type: body.type || "app_update",
+          reason: body.reason || body.prompt || "",
+          content: body.content,
+          appendContent: body.appendContent,
+          tags: body.tags,
+        },
+      });
+      return json(res, 200, result);
+    }
+    if (route.startsWith("/api/vault/edit-proposals/")) {
+      if (!requireLocal(req, res)) return;
+      const parts = route.slice("/api/vault/edit-proposals/".length).split("/");
+      const id = decodeURIComponent(parts[0]);
+      const action = parts[1] || "";
+      if (req.method === "GET" && !action) {
+        const proposal = readProposal(id);
+        return proposal ? json(res, 200, { ok: true, proposal }) : json(res, 404, { ok: false, error: "Proposal not found" });
+      }
+      if (req.method === "POST" && action === "approve") return json(res, 200, { ok: true, proposal: updateProposalStatus(id, "approved") });
+      if (req.method === "POST" && action === "reject") return json(res, 200, { ok: true, proposal: updateProposalStatus(id, "rejected") });
+      if (req.method === "POST" && action === "apply") {
+        const applied = applyProposal(id);
+        const supabase = await recordVaultVersion(applied);
+        return json(res, 200, { ok: true, ...applied, supabase });
+      }
     }
     if (route === "/api/health") {
       return json(res, 200, { ok: true, service: "orbit", port: PORT });

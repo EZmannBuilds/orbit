@@ -69,6 +69,35 @@
       </section>
     </div>
 
+    <section class="card local-intel">
+      <div class="intel-head">
+        <h2>Local Intelligence</h2>
+        <span class="local-pill">Local only</span>
+      </div>
+      <div class="intel-grid">
+        <div>
+          <div class="intel-label">Ollama</div>
+          <div id="llm-status" class="intel-value">Checking…</div>
+        </div>
+        <div>
+          <div class="intel-label">Selected model</div>
+          <div id="llm-model" class="intel-value">—</div>
+        </div>
+        <div>
+          <div class="intel-label">Prompt</div>
+          <div id="llm-prompt-version" class="intel-value">—</div>
+        </div>
+      </div>
+      <form id="intel-form" class="intel-form">
+        <input type="text" id="intel-prompt" value="Summarize the Orbit Axis roadmap." />
+        <button type="submit">Generate</button>
+        <button type="button" id="proposal-button">Propose note</button>
+      </form>
+      <div class="intel-output" id="intel-output"></div>
+      <div class="intel-sources" id="intel-sources"></div>
+      <div class="proposal-panel" id="proposal-panel"></div>
+    </section>
+
     <!-- Upcoming events -->
     <section class="card">
       <h2>Upcoming Sky Events</h2>

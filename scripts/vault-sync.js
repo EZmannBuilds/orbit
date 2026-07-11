@@ -38,6 +38,10 @@ const SUPPORTED_TYPES = new Set([
   "person", "birth_chart", "planet", "sign", "house", "aspect", "transit",
   "tarot_card", "tarot_reading", "journal_entry", "dream", "symbol", "research",
   "product_feature", "technical_decision", "project", "event",
+  "product_definition", "app_update", "release_note", "roadmap",
+  "implementation_plan", "ux_decision", "business_strategy", "market_research",
+  "pricing_plan", "revenue_plan", "operations_plan", "launch_plan",
+  "business_report", "retrospective",
 ]);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

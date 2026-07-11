@@ -9,18 +9,20 @@ prediction, medical, financial, or relationship advice.**
 - **Zero runtime dependencies.** Pure Node.js standard library (`http`, `fs`).
 - **Full-stack in one process.** The server serves both the JSON API and the
   static frontend from `public/`.
-- **Optional local LLM.** Free-text "Ask Orbit" queries the deterministic
-  engine first; only unresolved ones fall back to a local
-  [Ollama](https://ollama.com) model. If Ollama isn't running, Orbit returns a
-  canned reply — it never fails or calls any paid/cloud service.
+- **Optional local LLM.** Orbit supports local [Ollama](https://ollama.com)
+  only. If Ollama is unavailable, the app keeps running and uses deterministic
+  fallbacks. Anthropic and external astrology APIs are not required.
+- **Controlled vault intelligence.** The local model can summarize approved
+  project/business notes and propose vault edits, but every write requires a
+  preview, approval, backup, and audit log.
 
 ## Requirements
 
 - **Node.js 18+** to run the server.
 - **Node.js 20.6+** only if you want to load config from an env file with
   `--env-file` (see below). Otherwise no env file is needed at all.
-- (Optional) [Ollama](https://ollama.com) running locally with a model such as
-  `llama3.1:8b` for the LLM fallback.
+- (Optional) [Ollama](https://ollama.com) running locally with any installed
+  chat model. Set `ORBIT_LOCAL_MODEL` if you want a specific one.
 
 ## Setup
 
@@ -73,9 +75,12 @@ node server.js
 | Variable            | Default                   | Purpose                                             |
 | ------------------- | ------------------------- | --------------------------------------------------- |
 | `PORT`              | `3001`                    | HTTP port the server listens on.                    |
-| `OLLAMA_BASE`       | `http://localhost:11434`  | Local Ollama endpoint for the LLM fallback.         |
-| `OLLAMA_MODEL`      | `llama3.1:8b`             | Ollama model used for unresolved free-text queries. |
-| `OLLAMA_TIMEOUT_MS` | `20000`                   | Timeout for the Ollama request.                     |
+| `ORBIT_LOCAL_LLM_ENABLED` | `true` | Enables local LLM features; app still runs when Ollama is down. |
+| `ORBIT_LOCAL_LLM_PROVIDER` | `ollama` | Only supported LLM provider. |
+| `ORBIT_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Local Ollama endpoint. |
+| `ORBIT_LOCAL_MODEL` | first installed model | Optional model name. No model is downloaded automatically. |
+| `ORBIT_LOCAL_EMBEDDING_MODEL` | unset | Optional local embedding model. Keyword retrieval works without it. |
+| `ORBIT_VAULT_PATH` | `../Orbit vault` | Canonical Obsidian vault path. |
 
 **No secrets or API keys are required.** Never commit `.env` or `.env.local`
 (both are gitignored).
@@ -96,6 +101,11 @@ All responses are JSON and include a `disclaimer` field where relevant.
 | GET    | `/api/events?count=`              | Upcoming sky events.                    |
 | POST   | `/api/query`                      | Free-text query (`{ "prompt": "" }`).   |
 | GET    | `/api/chakra`, `/api/chakra/:id`  | Chakra reference data.                  |
+| GET    | `/api/local-llm/status`           | Local Ollama status.                    |
+| GET    | `/api/local-llm/models`           | Installed Ollama models.                |
+| POST   | `/api/local-llm/generate`         | Grounded local project answer.          |
+| GET    | `/api/vault/project-notes`        | Approved project-note retrieval.        |
+| POST   | `/api/vault/edit-proposals`       | Create a preview-only vault proposal.   |
 
 Quick check:
 
@@ -106,20 +116,22 @@ curl http://localhost:3001/api/chart/now
 
 ## Tests
 
-This project has **no automated test suite yet**. Verify manually:
+Run the built-in checks:
 
 ```bash
-npm start
-# in another terminal:
-curl -s http://localhost:3001/api/health
-curl -s "http://localhost:3001/api/sign-for-date?month=6&day=5"
+npm run lint
+npm test
 ```
 
-You can also syntax-check every source file without running it:
+Useful local intelligence commands:
 
 ```bash
-node --check server.js
-for f in lib/*.js public/app.js; do node --check "$f"; done
+npm run orbit:llm:status
+npm run orbit:llm:models
+npm run orbit:llm:test
+npm run orbit:vault:search -- "Orbit Axis roadmap"
+npm run orbit:vault:propose -- --type app_update --title "Local LLM Integration"
+npm run orbit:vault:proposals
 ```
 
 ## Project layout
@@ -131,7 +143,8 @@ orbit/
 ├── lib/
 │   ├── symbols.js     # Knowledge base + deterministic query algorithms
 │   ├── sky.js         # Sun season / moon phase / Mercury / events math
-│   └── llm.js         # Optional local Ollama fallback client
+│   ├── llm.js         # Optional local Ollama symbolic fallback
+│   └── local-llm/     # Ollama provider, vault retrieval, proposal workflow
 └── public/            # Static frontend (vanilla JS, no build step)
     ├── index.html
     ├── app.js
