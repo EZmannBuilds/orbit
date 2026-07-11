@@ -1,0 +1,11 @@
+{
+  "name": "orbit",
+  "version": "1.0.0",
+  "description": "Orbit — standalone astrology app and API. Zero runtime dependencies.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  }
+}

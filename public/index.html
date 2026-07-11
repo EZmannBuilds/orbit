@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orbit — Astro Signal Observatory</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌙</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-orb"></span>
+      <span class="brand-name">O R B I T</span>
+      <span class="brand-sub">Astro Signal Observatory</span>
+    </div>
+    <div class="topbar-right" id="topbar-date"></div>
+  </header>
+
+  <main>
+    <!-- Today's sky -->
+    <section class="sky-grid" id="sky-grid">
+      <div class="card sky-card" id="card-sun"><div class="card-loading">Reading the sky…</div></div>
+      <div class="card sky-card" id="card-moon"><div class="card-loading">Reading the sky…</div></div>
+      <div class="card sky-card" id="card-mercury"><div class="card-loading">Reading the sky…</div></div>
+      <div class="card sky-card" id="card-symbol"><div class="card-loading">Reading the sky…</div></div>
+    </section>
+
+    <div class="columns">
+      <!-- Zodiac wheel -->
+      <section class="card wheel-card">
+        <h2>Zodiac Wheel</h2>
+        <div class="wheel-wrap">
+          <svg id="zodiac-wheel" viewBox="0 0 320 320"></svg>
+        </div>
+        <div class="wheel-detail" id="wheel-detail">Select a sign on the wheel.</div>
+      </section>
+
+      <!-- Tools -->
+      <section class="tools-col">
+        <div class="card">
+          <h2>Birth Date → Sign</h2>
+          <form id="birth-form" class="tool-row">
+            <input type="date" id="birth-date" required />
+            <button type="submit">Look up</button>
+          </form>
+          <div class="tool-result" id="birth-result"></div>
+        </div>
+
+        <div class="card">
+          <h2>Compatibility Geometry</h2>
+          <form id="compat-form" class="tool-row">
+            <select id="compat-a"></select>
+            <span class="compat-x">×</span>
+            <select id="compat-b"></select>
+            <button type="submit">Compare</button>
+          </form>
+          <div class="tool-result" id="compat-result"></div>
+        </div>
+
+        <div class="card">
+          <h2>Ask Orbit</h2>
+          <form id="query-form" class="tool-row">
+            <input type="text" id="query-input" placeholder='Try "born June 5" or "courage and fire"…' />
+            <button type="submit">Ask</button>
+          </form>
+          <div class="tool-result" id="query-result"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Upcoming events -->
+    <section class="card">
+      <h2>Upcoming Sky Events</h2>
+      <div class="events" id="events"></div>
+    </section>
+
+    <!-- Symbol atlas -->
+    <section class="card">
+      <div class="atlas-head">
+        <h2>Symbol Atlas</h2>
+        <div class="atlas-filters" id="atlas-filters">
+          <button data-kind="" class="active">All</button>
+          <button data-kind="zodiac_sign">Signs</button>
+          <button data-kind="planet">Planets</button>
+          <button data-kind="aspect">Aspects</button>
+        </div>
+      </div>
+      <div class="atlas" id="atlas"></div>
+    </section>
+  </main>
+
+  <footer id="disclaimer"></footer>
+  <script src="/app.js"></script>
+</body>
+</html>

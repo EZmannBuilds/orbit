@@ -1,0 +1,28 @@
+# ── Dependencies ──
+node_modules/
+
+# ── Secrets & env (never commit) ──
+.env
+.env.local
+.env.*.local
+*.env
+# .env.example (placeholders only) IS tracked and is not matched above.
+
+# ── Keys / tokens / credentials ──
+*.pem
+*.key
+*.p12
+secrets/
+credentials/
+tokens/
+
+# ── Logs / cache / build ──
+*.log
+npm-debug.log*
+.cache/
+dist/
+build/
+
+# ── OS cruft ──
+.DS_Store
+._*
