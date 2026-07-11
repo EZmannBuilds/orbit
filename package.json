@@ -6,6 +6,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "orbit:vault:scan": "node scripts/vault-sync.js scan",
+    "orbit:vault:validate": "node scripts/vault-sync.js validate",
+    "orbit:vault:status": "node scripts/vault-sync.js status",
+    "orbit:vault:sync": "node scripts/vault-sync.js sync",
+    "orbit:vault:push": "node scripts/vault-sync.js sync --push"
   }
 }
