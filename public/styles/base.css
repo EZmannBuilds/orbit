@@ -1,0 +1,145 @@
+/* ============================================================================
+   Orbit Design System — Base
+   Reset, root typography, and the primitive typographic helpers. Everything
+   here reads exclusively from tokens.css.
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  font-weight: var(--weight-regular);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Media never forces horizontal scroll. */
+img, svg, canvas { max-width: 100%; }
+
+/* Consistent, visible focus for keyboard users only. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+:focus:not(:focus-visible) { outline: none; }
+
+::selection { background: var(--color-accent-soft); color: var(--color-primary); }
+
+/* Custom, unobtrusive scrollbars. */
+* { scrollbar-width: thin; scrollbar-color: var(--color-border-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Typography helpers — the Orbit type hierarchy ────────────────────────
+   Prefer these classes over ad-hoc font-size declarations so every screen
+   shares one scale. */
+.u-display {
+  font-size: var(--text-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+.u-title {
+  font-size: var(--text-title);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-primary);
+}
+.u-heading {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--color-primary);
+}
+.u-card-title {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--color-primary);
+}
+.u-body {
+  font-size: var(--text-body);
+  color: var(--color-secondary);
+}
+.u-caption {
+  font-size: var(--text-caption);
+  color: var(--color-muted);
+  line-height: var(--leading-snug);
+}
+.u-meta {
+  font-size: var(--text-meta);
+  color: var(--color-muted);
+}
+/* Eyebrow — the small all-caps label above a value or section. */
+.u-eyebrow {
+  font-size: var(--text-meta);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+.u-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.u-strong { color: var(--color-primary); font-weight: var(--weight-semibold); }
+.u-muted { color: var(--color-muted); }
+.u-tnum { font-variant-numeric: tabular-nums; }
+
+a { color: var(--color-accent); text-decoration: none; }
+a:hover { color: var(--color-accent-hover); }
+
+/* Screen-reader-only utility. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* Skip link — first focusable element, for keyboard/screen-reader users. */
+.skip-link {
+  position: fixed; top: var(--space-2); left: var(--space-2); z-index: 100;
+  transform: translateY(-150%);
+  background: var(--color-surface-elevated);
+  color: var(--color-primary);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.skip-link:focus { transform: translateY(0); }
+
+/* ── Reduced motion — honor the OS preference AND the in-app toggle. ─────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

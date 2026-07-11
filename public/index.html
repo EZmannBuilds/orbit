@@ -1,96 +1,285 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark" data-density="comfortable">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Orbit — Astro Signal Observatory</title>
-  <link rel="stylesheet" href="/style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🌙</text></svg>" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Orbit — Observatory</title>
+  <meta name="description" content="Orbit — a precise observatory for symbolic astrology." />
+  <link rel="stylesheet" href="/styles/tokens.css" />
+  <link rel="stylesheet" href="/styles/base.css" />
+  <link rel="stylesheet" href="/styles/components.css" />
+  <link rel="stylesheet" href="/styles/app.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='30' fill='none' stroke='%234f83ff' stroke-width='6'/><circle cx='78' cy='30' r='9' fill='%234f83ff'/></svg>" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-orb"></span>
-      <span class="brand-name">O R B I T</span>
-      <span class="brand-sub">Astro Signal Observatory</span>
-    </div>
-    <div class="topbar-right" id="topbar-date"></div>
-  </header>
+  <a class="skip-link" href="#workspace-title">Skip to content</a>
 
-  <main>
-    <!-- Today's sky -->
-    <section class="sky-grid" id="sky-grid">
-      <div class="card sky-card" id="card-sun"><div class="card-loading">Reading the sky…</div></div>
-      <div class="card sky-card" id="card-moon"><div class="card-loading">Reading the sky…</div></div>
-      <div class="card sky-card" id="card-mercury"><div class="card-loading">Reading the sky…</div></div>
-      <div class="card sky-card" id="card-symbol"><div class="card-loading">Reading the sky…</div></div>
-    </section>
+  <div class="app-shell">
+    <!-- ── Navigation rail (workspaces) ───────────────────────────────── -->
+    <nav class="rail" aria-label="Workspaces">
+      <div class="rail__brand">
+        <span class="rail__orb" aria-hidden="true"></span>
+        <span class="rail__wordmark">ORBIT</span>
+      </div>
 
-    <div class="columns">
-      <!-- Zodiac wheel -->
-      <section class="card wheel-card">
-        <h2>Zodiac Wheel</h2>
-        <div class="wheel-wrap">
-          <svg id="zodiac-wheel" viewBox="0 0 320 320"></svg>
-        </div>
-        <div class="wheel-detail" id="wheel-detail">Select a sign on the wheel.</div>
-      </section>
+      <div class="rail__section-label">Workspaces</div>
+      <div class="rail__nav" id="rail-nav" role="tablist" aria-orientation="vertical">
+        <!-- populated by app.js -->
+      </div>
 
-      <!-- Tools -->
-      <section class="tools-col">
-        <div class="card">
-          <h2>Birth Date → Sign</h2>
-          <form id="birth-form" class="tool-row">
-            <input type="date" id="birth-date" required />
-            <button type="submit">Look up</button>
-          </form>
-          <div class="tool-result" id="birth-result"></div>
-        </div>
+      <div class="rail__spacer"></div>
 
-        <div class="card">
-          <h2>Compatibility Geometry</h2>
-          <form id="compat-form" class="tool-row">
-            <select id="compat-a"></select>
-            <span class="compat-x">×</span>
-            <select id="compat-b"></select>
-            <button type="submit">Compare</button>
-          </form>
-          <div class="tool-result" id="compat-result"></div>
-        </div>
-
-        <div class="card">
-          <h2>Ask Orbit</h2>
-          <form id="query-form" class="tool-row">
-            <input type="text" id="query-input" placeholder='Try "born June 5" or "courage and fire"…' />
-            <button type="submit">Ask</button>
-          </form>
-          <div class="tool-result" id="query-result"></div>
-        </div>
-      </section>
-    </div>
-
-    <!-- Upcoming events -->
-    <section class="card">
-      <h2>Upcoming Sky Events</h2>
-      <div class="events" id="events"></div>
-    </section>
-
-    <!-- Symbol atlas -->
-    <section class="card">
-      <div class="atlas-head">
-        <h2>Symbol Atlas</h2>
-        <div class="atlas-filters" id="atlas-filters">
-          <button data-kind="" class="active">All</button>
-          <button data-kind="zodiac_sign">Signs</button>
-          <button data-kind="planet">Planets</button>
-          <button data-kind="aspect">Aspects</button>
+      <div class="rail__foot">
+        <button class="rail__link" id="rail-command" type="button">
+          <svg class="rail__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 9h6v6H9z"/></svg>
+          <span class="rail__label">Command</span>
+        </button>
+        <div class="u-caption" style="padding: var(--space-1) var(--space-3);">
+          <span class="o-pill o-pill--success" id="rail-status">Systems nominal</span>
         </div>
       </div>
-      <div class="atlas" id="atlas"></div>
-    </section>
-  </main>
+    </nav>
 
-  <footer id="disclaimer"></footer>
-  <script src="/app.js"></script>
+    <!-- ── Main area ──────────────────────────────────────────────────── -->
+    <div>
+      <header class="topnav">
+        <div>
+          <div class="topnav__title" id="workspace-title" tabindex="-1">Dashboard</div>
+          <div class="topnav__crumb" id="workspace-crumb">Orbit · Observatory</div>
+        </div>
+        <div class="topnav__spacer"></div>
+        <button class="topnav__search" id="topnav-search" type="button" aria-label="Open command palette">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <span class="topnav__search-label">Search Orbit…</span>
+          <kbd>⌘K</kbd>
+        </button>
+        <div class="topnav__date" id="topnav-date"></div>
+      </header>
+
+      <main class="workspace" id="workspace">
+        <!-- ── Dashboard ────────────────────────────────────────────── -->
+        <section class="workspace-panel" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard">
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">Dashboard</h1>
+              <p class="u-caption">A single view of today's sky and your observatory at a glance.</p>
+            </div>
+            <div class="o-section-head__actions">
+              <button class="o-btn o-btn--secondary" data-goto="research">Ask Orbit</button>
+              <button class="o-btn o-btn--primary" data-goto="charts">Open charts</button>
+            </div>
+          </div>
+
+          <!-- Zone: Today's Sky -->
+          <div class="stack-sm">
+            <div class="o-card-head"><h3 class="u-eyebrow">Today's Sky</h3><span class="u-meta" id="sky-updated"></span></div>
+            <div class="grid-tiles" id="sky-tiles">
+              <div class="o-tile"><div class="o-skel o-skel--title"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
+              <div class="o-tile"><div class="o-skel o-skel--title"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
+              <div class="o-tile"><div class="o-skel o-skel--title"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
+              <div class="o-tile"><div class="o-skel o-skel--title"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <!-- Zone: Upcoming Events -->
+            <div class="o-card">
+              <div class="o-card-head">
+                <h3 class="u-card-title">Upcoming Events</h3>
+                <button class="o-btn o-btn--ghost o-btn--sm" data-goto="transits">View all</button>
+              </div>
+              <div id="dash-events"><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
+            </div>
+
+            <div class="stack-sm">
+              <!-- Zone: Quick Actions -->
+              <div class="o-card">
+                <div class="o-card-head"><h3 class="u-card-title">Quick Actions</h3></div>
+                <div class="stack-sm" id="quick-actions">
+                  <button class="o-btn o-btn--secondary o-btn--block" data-goto="charts">Look up a birth sign</button>
+                  <button class="o-btn o-btn--secondary o-btn--block" data-goto="charts">Compare two signs</button>
+                  <button class="o-btn o-btn--secondary o-btn--block" data-goto="research">Search the symbol atlas</button>
+                </div>
+              </div>
+
+              <!-- Zone: System Status -->
+              <div class="o-card">
+                <div class="o-card-head"><h3 class="u-card-title">System Status</h3></div>
+                <div class="o-panel" id="system-status">
+                  <div class="o-kv"><span class="o-kv__k">Orbit engine</span><span class="o-kv__v"><span class="o-pill o-pill--success">Online</span></span></div>
+                  <div class="o-kv"><span class="o-kv__k">Symbol atlas</span><span class="o-kv__v" id="status-symbols">—</span></div>
+                  <div class="o-kv"><span class="o-kv__k">Data mode</span><span class="o-kv__v">Deterministic</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Charts ───────────────────────────────────────────────── -->
+        <section class="workspace-panel" id="panel-charts" role="tabpanel" aria-labelledby="tab-charts" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">Charts</h1>
+              <p class="u-caption">The zodiac wheel and chart tools. Every value is computed, never predicted.</p>
+            </div>
+            <div class="o-section-head__actions">
+              <div class="o-search" style="min-width: 220px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                <input class="o-input" id="charts-search" type="search" placeholder="Filter signs…" aria-label="Filter signs" />
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-split">
+            <div class="o-card">
+              <div class="o-card-head"><h3 class="u-card-title">Zodiac Wheel</h3></div>
+              <div class="wheel-wrap"><svg id="zodiac-wheel" viewBox="0 0 320 320" role="img" aria-label="Interactive zodiac wheel"></svg></div>
+              <div class="wheel-detail" id="wheel-detail">Select a sign on the wheel to inspect its geometry.</div>
+            </div>
+
+            <div class="stack-sm">
+              <div class="o-card">
+                <div class="o-card-head"><h3 class="u-card-title">Birth Date → Sign</h3></div>
+                <form id="birth-form" class="stack-sm">
+                  <div class="o-field">
+                    <label class="o-label" for="birth-date">Date of birth</label>
+                    <input class="o-input" type="date" id="birth-date" required />
+                  </div>
+                  <button class="o-btn o-btn--primary" type="submit">Look up sign</button>
+                </form>
+                <div class="o-body ask-result" id="birth-result"></div>
+              </div>
+
+              <div class="o-card">
+                <div class="o-card-head"><h3 class="u-card-title">Compatibility Geometry</h3></div>
+                <form id="compat-form" class="stack-sm">
+                  <div class="grid-2" style="gap: var(--space-3);">
+                    <div class="o-field"><label class="o-label" for="compat-a">First sign</label><select class="o-select" id="compat-a"></select></div>
+                    <div class="o-field"><label class="o-label" for="compat-b">Second sign</label><select class="o-select" id="compat-b"></select></div>
+                  </div>
+                  <button class="o-btn o-btn--primary" type="submit">Compare geometry</button>
+                </form>
+                <div class="o-body ask-result" id="compat-result"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Transits ─────────────────────────────────────────────── -->
+        <section class="workspace-panel" id="panel-transits" role="tabpanel" aria-labelledby="tab-transits" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">Transits</h1>
+              <p class="u-caption">The moving sky — current placements and the events approaching next.</p>
+            </div>
+            <div class="o-section-head__actions">
+              <button class="o-btn o-btn--secondary" id="transits-refresh">Refresh</button>
+            </div>
+          </div>
+
+          <div class="grid-tiles" id="transit-tiles"></div>
+
+          <div class="o-card">
+            <div class="o-card-head"><h3 class="u-card-title">Upcoming Sky Events</h3><span class="u-meta" id="events-count"></span></div>
+            <div class="o-timeline" id="events-timeline"></div>
+          </div>
+        </section>
+
+        <!-- ── Research ─────────────────────────────────────────────── -->
+        <section class="workspace-panel" id="panel-research" role="tabpanel" aria-labelledby="tab-research" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">Research</h1>
+              <p class="u-caption">Query the deterministic engine and browse the full symbol atlas.</p>
+            </div>
+          </div>
+
+          <div class="o-card o-card--elevated">
+            <div class="o-card-head"><h3 class="u-card-title">Ask Orbit</h3></div>
+            <form id="query-form" class="o-search" style="gap: var(--space-2);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="position:absolute;left:var(--space-3);width:16px;height:16px;color:var(--color-faint);"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input class="o-input" id="query-input" type="text" placeholder='Try "born June 5" or "courage and fire"…' aria-label="Ask Orbit" style="padding-left: var(--space-8);" />
+              <button class="o-btn o-btn--primary" type="submit" style="flex:none;">Ask</button>
+            </form>
+            <div class="o-body ask-result" id="query-result"></div>
+          </div>
+
+          <div class="stack-sm">
+            <div class="o-section-head" style="margin-bottom:0;">
+              <div class="o-section-head__text"><h3 class="u-card-title">Symbol Atlas</h3><p class="u-caption" id="atlas-count"></p></div>
+              <div class="o-section-head__actions">
+                <div class="o-search" style="min-width: 200px;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                  <input class="o-input" id="atlas-search" type="search" placeholder="Search symbols…" aria-label="Search symbols" />
+                </div>
+                <div class="o-tabs" id="atlas-filters" role="tablist" aria-label="Symbol kinds">
+                  <button class="o-tab" role="tab" data-kind="" aria-selected="true">All</button>
+                  <button class="o-tab" role="tab" data-kind="zodiac_sign" aria-selected="false">Signs</button>
+                  <button class="o-tab" role="tab" data-kind="planet" aria-selected="false">Planets</button>
+                  <button class="o-tab" role="tab" data-kind="aspect" aria-selected="false">Aspects</button>
+                </div>
+              </div>
+            </div>
+            <div class="atlas" id="atlas"></div>
+          </div>
+        </section>
+
+        <!-- ── Settings ─────────────────────────────────────────────── -->
+        <section class="workspace-panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">Settings</h1>
+              <p class="u-caption">Tune Orbit's presentation. Preferences are saved on this device.</p>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="o-card">
+              <div class="o-card-head"><h3 class="u-card-title">Appearance</h3></div>
+              <div class="o-panel">
+                <div class="o-kv"><span class="o-kv__k">Theme</span><span class="o-kv__v"><div class="o-segment" id="set-theme"><button data-value="dark" aria-pressed="true">Dark</button><button data-value="light" aria-pressed="false">Light</button></div></span></div>
+                <div class="o-kv"><span class="o-kv__k">Density</span><span class="o-kv__v"><div class="o-segment" id="set-density"><button data-value="comfortable" aria-pressed="true">Comfortable</button><button data-value="compact" aria-pressed="false">Compact</button></div></span></div>
+                <div class="o-kv"><span class="o-kv__k">Text size</span><span class="o-kv__v"><div class="o-segment" id="set-text"><button data-value="default" aria-pressed="true">Default</button><button data-value="large" aria-pressed="false">Large</button></div></span></div>
+                <div class="o-kv"><span class="o-kv__k">High contrast</span><span class="o-kv__v"><div class="o-segment" id="set-contrast"><button data-value="normal" aria-pressed="true">Off</button><button data-value="high" aria-pressed="false">On</button></div></span></div>
+                <div class="o-kv"><span class="o-kv__k">Motion</span><span class="o-kv__v"><div class="o-segment" id="set-motion"><button data-value="full" aria-pressed="true">Full</button><button data-value="reduced" aria-pressed="false">Reduced</button></div></span></div>
+              </div>
+            </div>
+
+            <div class="stack-sm">
+              <div class="o-card">
+                <div class="o-card-head"><h3 class="u-card-title">System</h3></div>
+                <div class="o-panel" id="settings-system">
+                  <div class="o-kv"><span class="o-kv__k">Service</span><span class="o-kv__v" id="set-service">—</span></div>
+                  <div class="o-kv"><span class="o-kv__k">Symbols loaded</span><span class="o-kv__v" id="set-symbols">—</span></div>
+                  <div class="o-kv"><span class="o-kv__k">Engine</span><span class="o-kv__v">Deterministic + local fallback</span></div>
+                </div>
+              </div>
+              <div class="o-card">
+                <div class="o-card-head"><h3 class="u-card-title">About Orbit</h3></div>
+                <p class="o-body u-muted" id="settings-disclaimer">Orbit is symbolic reflection for creative and brand work — never prediction, medical, financial, or relationship advice.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- ── Command palette ──────────────────────────────────────────────── -->
+  <div class="o-overlay" id="cmd-overlay" data-open="false" role="dialog" aria-modal="true" aria-label="Command palette">
+    <div class="o-cmd" role="none">
+      <div class="o-cmd__input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input class="o-cmd__input" id="cmd-input" type="text" placeholder="Search workspaces and actions…" aria-label="Command palette input" aria-controls="cmd-list" role="combobox" aria-expanded="true" autocomplete="off" />
+      </div>
+      <div class="o-cmd__list" id="cmd-list" role="listbox"></div>
+    </div>
+  </div>
+
+  <!-- ── Toast region ─────────────────────────────────────────────────── -->
+  <div class="o-toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="/app.js" type="module"></script>
 </body>
 </html>

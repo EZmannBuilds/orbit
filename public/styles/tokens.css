@@ -1,0 +1,262 @@
+/* ============================================================================
+   Orbit Design System — Design Tokens
+   ----------------------------------------------------------------------------
+   The single source of truth for every visual value in Orbit. Components never
+   hardcode colors, spacing, radius, type, motion, or elevation — they reference
+   these custom properties. Change a token here and it propagates everywhere.
+
+   Sections:
+     1. Primitive scales  (raw values — rarely used directly by components)
+     2. Semantic colors   (Primary, Surface, Border, Accent, Success, …)
+     3. Typography        (family, size scale, weight, leading, tracking)
+     4. Spacing / layout  (4px base scale, radii, containers)
+     5. Elevation         (subtle, layered shadows)
+     6. Motion            (durations, easings)
+     7. Breakpoints       (documented; used by media queries)
+     8. Density modes     (compact / comfortable)
+     9. Themes            (dark default, light, high-contrast)
+   ========================================================================== */
+
+:root {
+  /* ── 1. Primitive scales ─────────────────────────────────────────────── */
+  /* Neutral ink ramp — the observatory's grayscale foundation. */
+  --ink-950: #0a0c0f;
+  --ink-900: #0e1116;
+  --ink-850: #12161c;
+  --ink-800: #171c23;
+  --ink-750: #1d232c;
+  --ink-700: #252c37;
+  --ink-600: #333c4a;
+  --ink-500: #4a5566;
+  --ink-400: #6c7787;
+  --ink-300: #8b95a5;
+  --ink-200: #aeb6c2;
+  --ink-100: #d4d9e1;
+  --ink-050: #eef0f4;
+  --ink-000: #ffffff;
+
+  /* Accent — a single, calm, precise blue. No mystical purples or golds. */
+  --blue-600: #2f6bff;
+  --blue-500: #4f83ff;
+  --blue-400: #6f9bff;
+  --blue-300: #9db9ff;
+
+  /* Signal colors — muted, informational, never decorative. */
+  --green-500: #3fb27f;
+  --green-400: #5cc794;
+  --amber-500: #d99b30;
+  --amber-400: #e6b25a;
+  --red-500: #e0645f;
+  --red-400: #ec8480;
+
+  /* ── 3. Typography ───────────────────────────────────────────────────── */
+  --font-sans: "Inter", "SF Pro Text", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, "Cascadia Code",
+    "Roboto Mono", Menlo, Consolas, monospace;
+
+  /* Type scale — one consistent hierarchy across the whole app.
+     Emphasis comes from weight and size, not color. */
+  --text-display: 2.125rem;   /* 34px — hero numbers, empty-state headlines   */
+  --text-title: 1.5rem;       /* 24px — page / workspace title                */
+  --text-heading: 1.125rem;   /* 18px — section heading                       */
+  --text-card-title: 0.9375rem;/* 15px — card title                          */
+  --text-body: 0.875rem;      /* 14px — body copy                             */
+  --text-caption: 0.78125rem; /* 12.5px — captions, secondary meta            */
+  --text-meta: 0.6875rem;     /* 11px — labels, eyebrows, metadata            */
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.4;
+  --leading-normal: 1.6;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-caps: 0.08em;   /* eyebrows / all-caps labels */
+
+  /* ── 4. Spacing / layout ─────────────────────────────────────────────── */
+  /* 4px base grid. --space-N tokens are re-mapped by density mode below. */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  --border-width: 1px;
+
+  --rail-width: 236px;
+  --rail-width-collapsed: 68px;
+  --topbar-height: 60px;
+  --container-max: 1240px;
+
+  /* ── 6. Motion ───────────────────────────────────────────────────────── */
+  --duration-instant: 90ms;
+  --duration-fast: 140ms;
+  --duration-base: 200ms;
+  --duration-slow: 280ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0.1, 1);
+  --ease-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+
+  /* ── 7. Breakpoints (reference — used in @media queries) ─────────────────
+     --bp-sm:  640px   phone → large phone
+     --bp-md:  900px   tablet
+     --bp-lg:  1200px  laptop
+     --bp-xl:  1440px  desktop
+     (Custom properties can't drive @media, so these are documentation.)      */
+}
+
+/* ── 2 + 9. Semantic colors — DARK theme (default) ───────────────────────── */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: var(--ink-950);
+  --color-surface: var(--ink-850);
+  --color-surface-elevated: var(--ink-800);
+  --color-surface-sunken: var(--ink-900);
+  --color-surface-hover: var(--ink-750);
+
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.15);
+  --color-border-focus: var(--blue-500);
+
+  --color-primary: var(--ink-050);        /* highest-emphasis text          */
+  --color-secondary: var(--ink-200);       /* body text                      */
+  --color-muted: var(--ink-400);           /* secondary / metadata           */
+  --color-faint: var(--ink-500);           /* de-emphasized, placeholder     */
+  --color-on-accent: #ffffff;
+
+  --color-accent: var(--blue-500);
+  --color-accent-hover: var(--blue-400);
+  --color-accent-soft: rgba(79, 131, 255, 0.14);
+  --color-accent-border: rgba(79, 131, 255, 0.4);
+
+  --color-success: var(--green-400);
+  --color-success-soft: rgba(63, 178, 127, 0.15);
+  --color-warning: var(--amber-400);
+  --color-warning-soft: rgba(217, 155, 48, 0.15);
+  --color-error: var(--red-400);
+  --color-error-soft: rgba(224, 100, 95, 0.15);
+
+  /* Glass — used sparingly, only where it improves hierarchy (topbar, rail,
+     dialogs, command palette). */
+  --glass-bg: rgba(18, 22, 28, 0.72);
+  --glass-blur: 14px;
+
+  /* ── 5. Elevation — very subtle, layered ───────────────────────────────── */
+  --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-e2: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --shadow-e3: 0 18px 48px rgba(0, 0, 0, 0.55);
+  --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-border-focus);
+}
+
+/* ── 2 + 9. Semantic colors — LIGHT theme ───────────────────────────────── */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-sunken: #eef0f3;
+  --color-surface-hover: #f0f2f5;
+
+  --color-border: rgba(14, 20, 30, 0.1);
+  --color-border-strong: rgba(14, 20, 30, 0.18);
+  --color-border-focus: var(--blue-600);
+
+  --color-primary: #12161c;
+  --color-secondary: #3a434f;
+  --color-muted: #697485;
+  --color-faint: #9aa3b0;
+  --color-on-accent: #ffffff;
+
+  --color-accent: var(--blue-600);
+  --color-accent-hover: var(--blue-500);
+  --color-accent-soft: rgba(47, 107, 255, 0.1);
+  --color-accent-border: rgba(47, 107, 255, 0.35);
+
+  --color-success: var(--green-500);
+  --color-success-soft: rgba(63, 178, 127, 0.12);
+  --color-warning: var(--amber-500);
+  --color-warning-soft: rgba(217, 155, 48, 0.14);
+  --color-error: var(--red-500);
+  --color-error-soft: rgba(224, 100, 95, 0.12);
+
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-blur: 14px;
+
+  --shadow-e1: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-e2: 0 4px 14px rgba(16, 24, 40, 0.08);
+  --shadow-e3: 0 18px 48px rgba(16, 24, 40, 0.14);
+  --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-border-focus);
+}
+
+/* High-contrast preference — thicker borders, stronger text separation. */
+@media (prefers-contrast: more) {
+  :root {
+    --color-border: rgba(255, 255, 255, 0.28);
+    --color-border-strong: rgba(255, 255, 255, 0.5);
+    --color-muted: var(--ink-200);
+  }
+  :root[data-theme="light"] {
+    --color-border: rgba(14, 20, 30, 0.28);
+    --color-border-strong: rgba(14, 20, 30, 0.5);
+    --color-muted: #4a5461;
+  }
+}
+:root[data-contrast="high"] {
+  --color-border: rgba(255, 255, 255, 0.32);
+  --color-border-strong: rgba(255, 255, 255, 0.55);
+  --color-muted: var(--ink-100);
+}
+:root[data-theme="light"][data-contrast="high"] {
+  --color-border: rgba(14, 20, 30, 0.32);
+  --color-border-strong: rgba(14, 20, 30, 0.55);
+  --color-muted: #3a434f;
+}
+
+/* ── 8. Density modes — remap the spacing scale used by component padding ──
+   Components read --density-* tokens for their internal rhythm so the whole
+   app can switch between compact (professional / high information density)
+   and comfortable (default) without touching a single component. */
+:root,
+:root[data-density="comfortable"] {
+  --density-card-pad: var(--space-5);
+  --density-tile-pad: var(--space-5);
+  --density-row-pad: var(--space-3);
+  --density-gap: var(--space-5);
+  --density-stack: var(--space-4);
+  --control-height: 38px;
+}
+:root[data-density="compact"] {
+  --density-card-pad: var(--space-4);
+  --density-tile-pad: var(--space-3);
+  --density-row-pad: var(--space-2);
+  --density-gap: var(--space-3);
+  --density-stack: var(--space-3);
+  --control-height: 32px;
+}
+
+/* Large-text preference — bumps the base font size; the rem-based scale
+   grows proportionally. */
+:root[data-text="large"] {
+  font-size: 118%;
+}
