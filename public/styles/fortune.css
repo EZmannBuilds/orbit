@@ -1,0 +1,100 @@
+/* ============================================================================
+   Orbit Axis — Today's Fortune card + Tonight's Moon + Current Sky.
+   One clear primary card; progressive disclosure for detail.
+   ========================================================================== */
+
+.fortune-card {
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--axis-indigo) 12%, var(--color-surface-elevated)) 0%,
+                    var(--color-surface-elevated) 60%);
+  border: 1px solid color-mix(in oklab, var(--axis-lavender) 22%, var(--color-border));
+  border-radius: var(--axis-radius-lg);
+  padding: 24px;
+  margin-bottom: 18px;
+  box-shadow: var(--axis-glow-soft) color-mix(in oklab, var(--axis-indigo) 22%, transparent);
+}
+.fortune-card h2 { font-size: 22px; margin-bottom: 2px; }
+.fortune-card__sub { color: var(--color-secondary); font-size: 14px; margin-bottom: 16px; }
+
+.fortune-sections { display: grid; gap: 14px; }
+.fortune-section { display: grid; gap: 3px; }
+.fortune-section__label {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--axis-lavender); font-weight: 600;
+}
+.fortune-section__body { font-size: 16px; line-height: 1.5; color: var(--color-primary); }
+
+/* Lucky number + color row */
+.fortune-extras {
+  display: flex; gap: 24px; flex-wrap: wrap; align-items: center;
+  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--color-border);
+}
+.lucky-number { display: grid; }
+.lucky-number__label, .lucky-color__label {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--color-secondary);
+}
+.lucky-number__value {
+  font-size: 40px; font-weight: 700; line-height: 1;
+  color: var(--axis-moon); font-variant-numeric: tabular-nums;
+}
+.lucky-color { display: grid; }
+.lucky-color__chip { display: inline-flex; align-items: center; gap: 10px; margin-top: 4px; }
+.lucky-color__swatch {
+  width: 26px; height: 26px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.35);
+  box-shadow: var(--axis-glow-soft) currentColor;
+}
+.lucky-color__name { font-size: 16px; color: var(--color-primary); }
+.lucky-color__hex { font-size: 12px; color: var(--color-secondary); font-family: var(--font-mono, monospace); }
+
+/* Why this reading — progressive disclosure */
+.why-reading { margin-top: 16px; }
+.why-reading > summary {
+  cursor: pointer; color: var(--axis-blue); font-size: 15px; font-weight: 600;
+  list-style: none; padding: 10px 0; display: flex; align-items: center; gap: 8px;
+}
+.why-reading > summary::-webkit-details-marker { display: none; }
+.why-reading > summary::before { content: "✦"; color: var(--axis-lavender); }
+.why-reading[open] > summary::before { content: "✧"; }
+.why-list { list-style: none; display: grid; gap: 8px; padding: 8px 0 4px; }
+.why-list li {
+  display: flex; gap: 10px; align-items: flex-start; font-size: 15px; color: var(--color-primary);
+  padding: 8px 12px; background: var(--color-surface-sunken, #12152a); border-radius: 10px;
+}
+.why-list li::before { content: "•"; color: var(--axis-lavender); }
+
+/* ── Tonight's Moon card ──────────────────────────────────────────────────── */
+.moon-card { display: flex; gap: 22px; align-items: center; }
+.moon-card__body { display: grid; gap: 4px; }
+.moon-card__phase { font-size: 22px; font-weight: 600; color: var(--axis-moon); }
+.moon-card__meta { color: var(--color-secondary); font-size: 15px; }
+.moon-card__sign { color: var(--color-primary); font-size: 15px; }
+.moon-card__tz { color: var(--color-faint, #626b9e); font-size: 12px; }
+
+/* ── Current Sky card ─────────────────────────────────────────────────────── */
+.sky-facts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.sky-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--color-surface-sunken, #12152a); border: 1px solid var(--color-border);
+  border-radius: 999px; padding: 7px 13px; font-size: 14px; color: var(--color-primary);
+}
+.sky-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--axis-blue); }
+.sky-chip.retro .dot { background: var(--color-warning, #f0c674); }
+.sky-theme { margin-top: 12px; font-size: 15px; color: var(--color-primary); line-height: 1.5; }
+.sky-advanced { margin-top: 10px; }
+.sky-advanced summary { cursor: pointer; color: var(--axis-blue); font-size: 14px; }
+
+/* Ask Orbit Axis action */
+.axis-ask {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+.axis-ask__btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: linear-gradient(135deg, var(--axis-blue), var(--axis-indigo));
+  color: #0a0c18; border: 0; border-radius: 12px; padding: 12px 20px;
+  font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.axis-ask__hint { color: var(--color-secondary); font-size: 14px; }
+
+/* First-run / setup state */
+.fortune-setup { display: grid; gap: 12px; max-width: 520px; }
+.fortune-setup p { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
