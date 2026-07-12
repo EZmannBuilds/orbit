@@ -1,0 +1,51 @@
+/* ============================================================================
+   Orbit Axis — Fortune History workspace.
+   ========================================================================== */
+
+.history-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+.history-controls label { color: var(--color-secondary); font-size: 14px; }
+.history-controls select {
+  background: var(--color-surface-elevated); color: var(--color-primary);
+  border: 1px solid var(--color-border); border-radius: 10px; padding: 9px 12px;
+  font-size: 15px; min-height: 40px;
+}
+
+.history-list { display: grid; gap: 12px; }
+
+.history-entry {
+  background: var(--color-surface-elevated); border: 1px solid var(--color-border);
+  border-radius: var(--axis-radius-md); overflow: hidden;
+}
+.history-entry > summary {
+  cursor: pointer; list-style: none; padding: 16px 18px; display: grid; gap: 6px;
+}
+.history-entry > summary::-webkit-details-marker { display: none; }
+.history-entry__top {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.history-entry__date { font-size: 16px; font-weight: 600; color: var(--color-primary); }
+.history-entry__chart { font-size: 13px; color: var(--axis-lavender); }
+.history-entry__chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.history-entry__num {
+  font-variant-numeric: tabular-nums; font-weight: 700; color: var(--axis-moon);
+  background: var(--color-surface-sunken, #12152a); border-radius: 8px; padding: 3px 10px; font-size: 14px;
+}
+.history-entry__swatch { width: 18px; height: 18px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); }
+.history-entry__mood { color: var(--color-secondary); font-size: 14px; }
+.history-entry__love { color: var(--color-primary); font-size: 14px; opacity: 0.85; }
+
+.history-entry__detail {
+  padding: 4px 18px 18px; display: grid; gap: 10px;
+  border-top: 1px solid var(--color-border); margin-top: 4px;
+}
+.history-detail-row { display: grid; gap: 2px; }
+.history-detail-row .lbl {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--axis-lavender);
+}
+.history-detail-row .val { font-size: 15px; color: var(--color-primary); line-height: 1.45; }
+
+/* Empty state — soft, no streak pressure */
+.history-empty { display: grid; justify-items: center; text-align: center; gap: 16px; padding: 40px 20px; }
+.history-empty__art { position: relative; width: 120px; height: 120px; }
+.history-empty h2 { font-size: 20px; color: var(--color-primary); }
+.history-empty p { color: var(--color-secondary); font-size: 15px; max-width: 360px; line-height: 1.5; }

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "lint": "node --check server.js && node --check lib/*.js && node --check lib/local-llm/*.js && node --check lib/astro/*.js && node --check lib/charts/*.js && node --check public/app.js && node --check scripts/*.js",
+    "lint": "node --check server.js && node --check lib/*.js && node --check lib/local-llm/*.js && node --check lib/astro/*.js && node --check lib/charts/*.js && node --check lib/fortune/*.js && node --check public/app.js && node --check scripts/*.js",
     "typecheck": "npm run lint",
     "test": "node --test",
     "build": "npm run lint",

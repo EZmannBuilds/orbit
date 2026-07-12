@@ -46,6 +46,8 @@ const ICONS = {
   transits: '<path d="M12 3a9 9 0 1 0 9 9"/><circle cx="12" cy="12" r="3"/><path d="M20 4l-6 6"/>',
   research: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
   mychart: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  today: '<circle cx="12" cy="13" r="4"/><path d="M12 3v2M5.5 6.5l1.4 1.4M18.5 6.5l-1.4 1.4M3 13h2M19 13h2M4 20h16"/>',
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/>',
   intelligence: '<path d="M12 2l1.9 5.8L20 9l-5.1 1.8L12 16l-1.9-5.2L5 9l6.1-1.2z"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4.5a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 6.2 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 12 4.6V4.5a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 12H21a2 2 0 1 1 0 4h-.09z"/>',
 };
@@ -53,19 +55,23 @@ const icon = (name, cls = "rail__icon") =>
   `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] ?? ""}</svg>`;
 
 /* ── Workspace registry — the single source of the navigation model ────── */
+// `primary` workspaces show in the simple rail; the rest stay reachable via the
+// command palette + direct hash (no workspace is removed). Today is the default.
 const WORKSPACES = [
-  { id: "dashboard", label: "Dashboard", crumb: "Overview", icon: "dashboard" },
-  { id: "charts", label: "Charts", crumb: "Chart tools", icon: "charts" },
-  { id: "mychart", label: "My Chart", crumb: "Your chart", icon: "mychart" },
-  { id: "transits", label: "Transits", crumb: "The moving sky", icon: "transits" },
-  { id: "research", label: "Research", crumb: "Atlas & queries", icon: "research" },
-  { id: "intelligence", label: "Intelligence", crumb: "Local LLM", icon: "intelligence" },
-  { id: "settings", label: "Settings", crumb: "Preferences", icon: "settings" },
+  { id: "today", label: "Today", crumb: "Your day", icon: "today", primary: true },
+  { id: "mychart", label: "My Chart", crumb: "Your chart", icon: "mychart", primary: true },
+  { id: "charts", label: "Charts", crumb: "Chart tools", icon: "charts", primary: true },
+  { id: "history", label: "History", crumb: "Past readings", icon: "history", primary: true },
+  { id: "intelligence", label: "Ask Orbit Axis", crumb: "Local guide", icon: "intelligence", primary: true },
+  { id: "settings", label: "Settings", crumb: "Preferences", icon: "settings", primary: true },
+  { id: "dashboard", label: "Overview", crumb: "Overview", icon: "dashboard", primary: false },
+  { id: "transits", label: "Transits", crumb: "The moving sky", icon: "transits", primary: false },
+  { id: "research", label: "Research", crumb: "Atlas & queries", icon: "research", primary: false },
 ];
 
 /* ── Router ────────────────────────────────────────────────────────────── */
 function buildRail() {
-  $("#rail-nav").innerHTML = WORKSPACES.map(ws => `
+  $("#rail-nav").innerHTML = WORKSPACES.filter(ws => ws.primary).map(ws => `
     <a class="rail__link" id="tab-${ws.id}" role="tab" href="#${ws.id}" data-ws="${ws.id}"
        aria-controls="panel-${ws.id}" aria-selected="false">
       ${icon(ws.icon)}<span class="rail__label">${ws.label}</span>
@@ -74,7 +80,7 @@ function buildRail() {
 
 function currentWorkspace() {
   const hash = location.hash.replace("#", "");
-  return WORKSPACES.some(ws => ws.id === hash) ? hash : "dashboard";
+  return WORKSPACES.some(ws => ws.id === hash) ? hash : "today";
 }
 
 function navigate(id) {
@@ -95,8 +101,8 @@ function renderRoute() {
   });
 
   $("#workspace-title").textContent = ws.label;
-  $("#workspace-crumb").textContent = `Orbit · ${ws.crumb}`;
-  document.title = `Orbit — ${ws.label}`;
+  $("#workspace-crumb").textContent = `Orbit Axis · ${ws.crumb}`;
+  document.title = `Orbit Axis — ${ws.label}`;
   $("#workspace").scrollTo?.({ top: 0 });
   window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
 }
@@ -505,6 +511,9 @@ async function boot() {
   loadMoonTonight();
   loadLocalIntelligence();
 
+  // Orbit Axis daily experience (Today + History + detail levels).
+  axisInit();
+
   await refreshData();
 }
 
@@ -730,6 +739,249 @@ boot().catch(err => {
   document.querySelector("main").insertAdjacentHTML("afterbegin",
     `<div class="card" style="border-color:#7a2d44;color:#ff8fa8">Orbit failed to load: ${esc(err.message)}</div>`);
 });
+
+// ══ Orbit Axis daily experience ═════════════════════════════════════════════
+// Today workspace, Fortune, Tonight's Moon, Current Sky, History, and the
+// Simple/Balanced/Advanced detail level. Deterministic fortune comes from the
+// server; nothing here calculates astrology. Works in local dev via the
+// stateless preview; upgrades to persisted fortunes when signed in.
+const AXIS = { detail: "Simple", lastFortune: null, lastSky: null };
+const DETAILS = ["Simple", "Balanced", "Advanced"];
+
+function axisGetBirth() {
+  try { return JSON.parse(localStorage.getItem("oa_birth") || "null"); } catch { return null; }
+}
+function axisSetBirth(b) { localStorage.setItem("oa_birth", JSON.stringify(b)); }
+
+async function axisLoadDetail() {
+  const stored = localStorage.getItem("oa_detail");
+  if (DETAILS.includes(stored)) AXIS.detail = stored;
+  try {
+    const r = await get("/api/settings/detail");
+    if (r.persisted && DETAILS.includes(r.astrology_detail_level)) AXIS.detail = r.astrology_detail_level;
+  } catch { /* default/local is fine */ }
+  axisApplyDetail(false);
+}
+function axisApplyDetail(rerender = true) {
+  localStorage.setItem("oa_detail", AXIS.detail);
+  document.documentElement.setAttribute("data-detail", AXIS.detail);
+  for (const btn of $$(".axis-detail button")) {
+    btn.setAttribute("aria-pressed", String(btn.dataset.level === AXIS.detail));
+  }
+  if (rerender) {
+    if (AXIS.lastFortune) axisRenderFortune(AXIS.lastFortune);
+    if (AXIS.lastSky) axisRenderSky(AXIS.lastSky);
+  }
+}
+async function axisSetDetail(level) {
+  if (!DETAILS.includes(level)) return;
+  AXIS.detail = level;
+  axisApplyDetail(true);
+  try {
+    await fetch("/api/settings/detail", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ astrology_detail_level: level }) });
+  } catch { /* best effort */ }
+}
+
+function axisInit() {
+  if (!$("#panel-today")) return;
+  const today = new Date();
+  $("#today-date").textContent = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  for (const btn of $$(".axis-detail button")) {
+    btn.addEventListener("click", () => axisSetDetail(btn.dataset.level));
+  }
+  const scope = $("#history-scope");
+  if (scope) scope.addEventListener("change", () => axisLoadHistory(scope.value));
+  // History loads when its workspace opens (and once now if it's the route).
+  window.addEventListener("hashchange", () => { if (currentWorkspace() === "history") axisLoadHistory($("#history-scope")?.value || "active"); });
+
+  axisLoadDetail();
+  axisLoadToday();
+  if (currentWorkspace() === "history") axisLoadHistory("active");
+}
+
+// ── Today ────────────────────────────────────────────────────────────────────
+async function axisLoadToday() {
+  // Moon + Sky always render (they don't need a saved chart).
+  get("/api/moon/current").then(r => axisRenderMoon(r.moon)).catch(() => {});
+  get("/api/sky/current").then(r => { AXIS.lastSky = r.sky; axisRenderSky(r.sky); }).catch(() => {});
+
+  // Fortune: prefer the signed-in path; fall back to a local preview.
+  try {
+    const r = await get("/api/fortune/today");
+    AXIS.lastFortune = r.fortune;
+    if (r.detail_level && DETAILS.includes(r.detail_level)) { AXIS.detail = r.detail_level; axisApplyDetail(false); }
+    axisShowReadingFor(r.chart?.nickname || "My Chart");
+    axisRenderFortune(r.fortune);
+    return;
+  } catch { /* not signed in / no active chart → local preview */ }
+
+  const birth = axisGetBirth();
+  if (!birth) return axisRenderSetup();
+  try {
+    const r = await post("/api/fortune/preview", birth);
+    AXIS.lastFortune = r.fortune;
+    axisShowReadingFor(birth.nickname || "My Chart");
+    axisRenderFortune(r.fortune);
+  } catch (e) {
+    $("#today-fortune").innerHTML = `<div class="fortune-card"><h2>Today’s Fortune</h2><p class="fortune-card__sub">${esc(e.message)}</p></div>`;
+  }
+}
+
+function axisShowReadingFor(name) {
+  const el = $("#today-reading-for");
+  if (el) { el.hidden = false; $("#today-chart-name").textContent = name; }
+}
+
+function axisRenderFortune(F) {
+  const sections = [
+    ["Today’s Mood", F.mood], ["Love", F.love_reading],
+    ["Luck", F.luck_reading], ["Watch-Out", F.watch_out],
+  ].map(([label, body]) => `<div class="fortune-section"><div class="fortune-section__label">${label}</div><div class="fortune-section__body">${esc(body)}</div></div>`).join("");
+  const key = AXIS.detail === "Advanced" ? "advanced" : AXIS.detail === "Balanced" ? "balanced" : "simple";
+  const why = (F.factors || []).map(f => `<li>${esc(f[key])}</li>`).join("");
+  $("#today-fortune").innerHTML = `
+    <div class="fortune-card">
+      <h2>Today’s Fortune</h2>
+      <div class="fortune-card__sub">${esc(F.fortune_date || "")} · symbolic reflection, never prediction</div>
+      <div class="fortune-sections">${sections}</div>
+      <div class="fortune-extras">
+        <div class="lucky-number"><span class="lucky-number__label">Lucky Number</span><span class="lucky-number__value">${esc(F.lucky_number)}</span></div>
+        <div class="lucky-color"><span class="lucky-color__label">Lucky Color</span>
+          <span class="lucky-color__chip">
+            <span class="lucky-color__swatch" style="background:${esc(F.lucky_color.value)};color:${esc(F.lucky_color.value)}"></span>
+            <span><span class="lucky-color__name">${esc(F.lucky_color.name)}</span> <span class="lucky-color__hex">${esc(F.lucky_color.value)}</span></span>
+          </span>
+        </div>
+      </div>
+      <details class="why-reading"><summary>Why this reading?</summary><ul class="why-list">${why}</ul></details>
+    </div>`;
+}
+
+function axisRenderMoon(moon) {
+  if (!moon || !$("#today-moon")) return;
+  $("#today-moon").innerHTML = `
+    <div class="axis-moon" aria-hidden="true"><span class="axis-moon__halo"></span></div>
+    <div class="moon-card__body">
+      <div class="u-eyebrow">Tonight’s Moon</div>
+      <div class="moon-card__phase">${SIGN_GLYPH[moon.sign] || ""} ${esc(moon.phase_name)}</div>
+      <div class="moon-card__meta">${esc(moon.illumination_percent)}% illuminated · ${moon.waxing ? "waxing (growing)" : "waning (shrinking)"}</div>
+      <div class="moon-card__sign">Moon in ${esc(moon.sign)}</div>
+      <div class="moon-card__tz">Calculated locally · times in UTC</div>
+    </div>`;
+}
+
+function axisRenderSky(sky) {
+  if (!sky || !$("#today-sky")) return;
+  const chips = [
+    `<span class="sky-chip"><span class="dot"></span>${esc(sky.zodiac_season)} season</span>`,
+    `<span class="sky-chip"><span class="dot"></span>Moon in ${esc(sky.moon.sign)}</span>`,
+    `<span class="sky-chip"><span class="dot"></span>${esc(sky.moon.phase_name)}</span>`,
+    ...(sky.retrogrades || []).map(r => `<span class="sky-chip retro"><span class="dot"></span>${esc(r)} retrograde</span>`),
+  ].join("");
+  const theme = (sky.retrogrades || []).includes("Mercury")
+    ? "A slow-down-and-review kind of sky — good for tidying and second drafts."
+    : `${sky.moon.waxing ? "A building, lean-in" : "A settling, wind-down"} sky today.`;
+  let advanced = "";
+  if (AXIS.detail === "Advanced" && sky.planets) {
+    const rows = Object.values(sky.planets).map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.sign)} ${p.degrees}°${String(p.minutes).padStart(2, "0")}′</td><td>${p.retrograde ? "℞" : ""}</td></tr>`).join("");
+    advanced = `<details class="sky-advanced" open><summary>Technical sky</summary>
+      <table class="placements"><thead><tr><th>Body</th><th>Position</th><th>R</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+  }
+  $("#today-sky").innerHTML = `<h2>Current Sky</h2><div class="sky-facts">${chips}</div><div class="sky-theme">${theme}</div>${advanced}`;
+}
+
+function axisRenderSetup() {
+  $("#today-fortune").innerHTML = `
+    <div class="fortune-card">
+      <h2>Set up your chart</h2>
+      <div class="fortune-setup">
+        <p>Tell Orbit Axis when and where you were born, and it will read today’s sky just for you. Everything is calculated on your device — nothing leaves your machine.</p>
+        <form id="oa-setup" class="chart-form">
+          <div class="chart-form-grid">
+            <label>Nickname <input type="text" id="oa-nickname" placeholder="My Chart" /></label>
+            <label>Birth date <input type="date" id="oa-date" required /></label>
+            <label>Birth time <input type="time" id="oa-time" /></label>
+            <label>Time accuracy
+              <select id="oa-accuracy"><option value="exact">exact</option><option value="reported">reported</option><option value="approximate">approximate</option><option value="unknown">unknown</option></select>
+            </label>
+            <label>Latitude <input type="number" step="0.0001" id="oa-lat" placeholder="51.5074" required /></label>
+            <label>Longitude <input type="number" step="0.0001" id="oa-lon" placeholder="-0.1278" required /></label>
+            <label>Time zone <input type="text" id="oa-tz" placeholder="America/Chicago" /></label>
+            <label>UTC offset <input type="text" id="oa-offset" placeholder="+00:00" /></label>
+          </div>
+          <button type="submit">See today’s reading</button>
+        </form>
+      </div>
+    </div>`;
+  $("#oa-setup").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const acc = $("#oa-accuracy").value;
+    const birth = {
+      nickname: $("#oa-nickname").value.trim() || "My Chart",
+      birth_date: $("#oa-date").value,
+      birth_time: acc === "unknown" ? null : ($("#oa-time").value || null),
+      time_accuracy: acc,
+      latitude: parseFloat($("#oa-lat").value),
+      longitude: parseFloat($("#oa-lon").value),
+      timezone_name: $("#oa-tz").value.trim() || "UTC",
+      utc_offset_at_birth: $("#oa-offset").value.trim() || "+00:00",
+    };
+    axisSetBirth(birth);
+    axisLoadToday();
+  });
+}
+
+// ── History ──────────────────────────────────────────────────────────────────
+async function axisLoadHistory(scope = "active") {
+  const body = $("#history-body");
+  if (!body) return;
+  try {
+    const r = await get(`/api/fortune/history?scope=${encodeURIComponent(scope)}&limit=30`);
+    if (!r.fortunes || r.fortunes.length === 0) return axisRenderHistoryEmpty();
+    axisRenderHistory(r.fortunes);
+  } catch {
+    // Not signed in → no persisted history yet. Honest empty state (no fabrication).
+    axisRenderHistoryEmpty();
+  }
+}
+
+function axisRenderHistoryEmpty() {
+  $("#history-body").innerHTML = `
+    <div class="history-empty">
+      <div class="history-empty__art"><div class="axis-moon" style="--moon-size:96px" aria-hidden="true"><span class="axis-moon__halo"></span></div></div>
+      <h2>No readings yet</h2>
+      <p>Your daily readings will collect here as you return to Orbit Axis. Come back tomorrow to start your history.</p>
+    </div>`;
+}
+
+function axisRenderHistory(entries) {
+  const adv = AXIS.detail === "Advanced";
+  $("#history-body").innerHTML = `<div class="history-list">${entries.map(f => `
+    <details class="history-entry">
+      <summary>
+        <div class="history-entry__top">
+          <span class="history-entry__date">${esc(f.fortune_date)}</span>
+          <span class="history-entry__chips">
+            <span class="history-entry__num">#${esc(f.lucky_number)}</span>
+            <span class="history-entry__swatch" style="background:${esc(f.lucky_color?.value || "#888")}"></span>
+            <span class="history-entry__chart">${esc(f.chart_nickname || "")}</span>
+          </span>
+        </div>
+        <div class="history-entry__mood">${esc(f.mood || "")}</div>
+        <div class="history-entry__love">${esc((f.love_reading || "").slice(0, 90))}${(f.love_reading || "").length > 90 ? "…" : ""}</div>
+      </summary>
+      <div class="history-entry__detail">
+        ${histRow("Love", f.love_reading)}
+        ${histRow("Luck", f.luck_reading)}
+        ${histRow("Watch-Out", f.watch_out)}
+        ${histRow("Moon", `${f.sky_snapshot?.moon_phase || ""} in ${f.sky_snapshot?.moon_sign || ""} · ${f.sky_snapshot?.illumination_percent ?? ""}% lit`)}
+        ${adv ? histRow("Engine", f.fortune_engine_version) : ""}
+      </div>
+    </details>`).join("")}</div>`;
+}
+function histRow(label, val) {
+  return val ? `<div class="history-detail-row"><span class="lbl">${label}</span><span class="val">${esc(val)}</span></div>` : "";
+}
 
 boot().catch(err => {
   $("#workspace").insertAdjacentHTML("afterbegin",

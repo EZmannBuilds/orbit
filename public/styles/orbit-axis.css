@@ -1,0 +1,161 @@
+/* ============================================================================
+   Orbit Axis — daily-experience layer.
+   Beginner-first, calm, dreamy, space-themed. Extends the existing design
+   system tokens; adds only what's new. Do NOT flatten or replace the system.
+   ========================================================================== */
+
+:root {
+  /* Orbit Axis accent + glow tokens (used alongside the base design tokens). */
+  --axis-lavender: #b8a7ff;
+  --axis-periwinkle: #a6b1ff;
+  --axis-blue: #6fa8ff;
+  --axis-pink: #ffb7c5;
+  --axis-moon: #eaeeff;
+  --axis-indigo: #8c7bff;
+  --axis-glow: 0 0 40px;
+  --axis-glow-soft: 0 0 24px;
+  --axis-radius-lg: 22px;
+  --axis-radius-md: 16px;
+  /* animation timing (respect base --duration-* where present) */
+  --axis-float-duration: 7s;
+  --axis-glow-duration: 5s;
+}
+
+/* Soft cosmic wash behind the Today workspace only — atmospheric, not crowded. */
+#panel-today {
+  position: relative;
+}
+#panel-today::before {
+  content: "";
+  position: absolute;
+  inset: -8% -4% auto -4%;
+  height: 320px;
+  background:
+    radial-gradient(60% 80% at 78% 18%, color-mix(in oklab, var(--axis-indigo) 26%, transparent), transparent 70%),
+    radial-gradient(50% 70% at 20% 0%, color-mix(in oklab, var(--axis-blue) 18%, transparent), transparent 65%);
+  filter: blur(6px);
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 0 0 40px 40px;
+}
+#panel-today > * { position: relative; z-index: 1; }
+
+/* ── Today header ─────────────────────────────────────────────────────────── */
+.axis-today-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.axis-wordmark {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  background: linear-gradient(120deg, var(--axis-moon), var(--axis-lavender) 60%, var(--axis-periwinkle));
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+.axis-subtitle { color: var(--color-secondary); font-size: 15px; margin-top: 4px; }
+.axis-today-date { color: var(--color-secondary); font-size: 14px; }
+.axis-reading-for {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 8px; padding: 6px 12px;
+  background: color-mix(in oklab, var(--axis-lavender) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--axis-lavender) 30%, transparent);
+  border-radius: 999px; font-size: 14px; color: var(--color-primary);
+}
+.axis-reading-for strong { color: var(--axis-lavender); }
+
+/* ── Detail-level segmented control ───────────────────────────────────────── */
+.axis-detail {
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--color-surface-sunken, #12152a);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+.axis-detail button {
+  border: 0; background: transparent; color: var(--color-secondary);
+  padding: 7px 14px; border-radius: 999px; font-size: 13px; cursor: pointer;
+  min-height: 34px;
+}
+.axis-detail button[aria-pressed="true"] {
+  background: linear-gradient(135deg, var(--axis-blue), var(--axis-indigo));
+  color: #0a0c18; font-weight: 600;
+}
+.axis-detail button:focus-visible { outline: var(--focus-ring, 2px solid #6fa8ff); outline-offset: 2px; }
+
+/* ── Active chart selector ────────────────────────────────────────────────── */
+/* :not([hidden]) so the `hidden` attribute always wins without !important. */
+.axis-chart-picker:not([hidden]) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+.axis-chart-picker label { color: var(--color-secondary); font-size: 14px; }
+.axis-chart-picker select {
+  background: var(--color-surface-elevated); color: var(--color-primary);
+  border: 1px solid var(--color-border); border-radius: 10px; padding: 9px 12px;
+  font-size: 15px; min-height: 40px;
+}
+
+/* ── Card scaffold shared by Today modules ────────────────────────────────── */
+.axis-card {
+  background: color-mix(in oklab, var(--color-surface-elevated) 92%, var(--axis-indigo) 8%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--axis-radius-lg);
+  padding: 22px;
+  margin-bottom: 18px;
+}
+.axis-card h2 { font-size: 20px; margin-bottom: 4px; }
+.axis-card .axis-card-hint { color: var(--color-secondary); font-size: 14px; }
+
+/* ── Space graphic primitives (CSS/SVG, no external assets) ───────────────── */
+.axis-moon {
+  --moon-size: 96px;
+  position: relative; width: var(--moon-size); height: var(--moon-size);
+  border-radius: 50%; flex: 0 0 auto;
+  background:
+    radial-gradient(circle at 35% 32%, #ffffff 0%, var(--axis-moon) 34%, #c9d2f5 66%, #97a3d6 100%);
+  box-shadow: var(--axis-glow) color-mix(in oklab, var(--axis-lavender) 45%, transparent),
+              inset -10px -8px 20px rgba(20, 24, 54, 0.55);
+}
+.axis-moon__halo {
+  position: absolute; inset: -22%; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in oklab, var(--axis-lavender) 30%, transparent), transparent 62%);
+  z-index: -1;
+}
+.axis-orbit-ring {
+  position: absolute; border: 1px solid color-mix(in oklab, var(--axis-periwinkle) 35%, transparent);
+  border-radius: 50%; inset: -30%; z-index: -1;
+}
+.axis-starfield {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0; opacity: 0.7;
+  background-image:
+    radial-gradient(1px 1px at 12% 30%, #ffffffcc 50%, transparent 51%),
+    radial-gradient(1px 1px at 68% 18%, #ffffff99 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 42% 70%, #ffffffaa 50%, transparent 51%),
+    radial-gradient(1px 1px at 84% 56%, #ffffff88 50%, transparent 51%),
+    radial-gradient(1px 1px at 26% 88%, #ffffff77 50%, transparent 51%);
+}
+
+/* ── Accessibility: comfortable sizing, visible focus ─────────────────────── */
+#panel-today button, #panel-history button { min-height: 40px; }
+#panel-today a:focus-visible, #panel-today button:focus-visible,
+#panel-history a:focus-visible, #panel-history button:focus-visible {
+  outline: 2px solid var(--axis-blue); outline-offset: 2px; border-radius: 8px;
+}
+
+@media (max-width: 640px) {
+  .axis-today-head { flex-direction: column; }
+  .axis-moon { --moon-size: 76px; }
+}
+
+/* ── Detail level applied to My Chart presentation (data-detail on <html>) ──
+   Simple hides exact degrees + the technical placements table; Balanced and
+   Advanced progressively reveal them. The engine/calculations are untouched —
+   this only controls what a beginner sees by default. */
+:root[data-detail="Simple"] #panel-mychart .bt-deg { display: none; }
+:root[data-detail="Simple"] #panel-mychart .chart-details { display: none; }
+:root[data-detail="Balanced"] #panel-mychart .aspect-list { display: none; }
+
+/* `hidden` attribute must win over the flex display above. */
+.axis-chart-picker[hidden], .axis-reading-for[hidden] { display: none !important; }

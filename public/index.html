@@ -4,13 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
-  <title>Orbit — Observatory</title>
-  <meta name="description" content="Orbit — a precise observatory for symbolic astrology." />
+  <title>Orbit Axis — your daily sky</title>
+  <meta name="description" content="Orbit Axis — a calm, beginner-friendly daily astrology companion." />
   <link rel="stylesheet" href="/styles/tokens.css" />
   <link rel="stylesheet" href="/styles/base.css" />
   <link rel="stylesheet" href="/styles/components.css" />
   <link rel="stylesheet" href="/styles/app.css" />
   <link rel="stylesheet" href="/styles/features.css" />
+  <link rel="stylesheet" href="/styles/orbit-axis.css" />
+  <link rel="stylesheet" href="/styles/fortune.css" />
+  <link rel="stylesheet" href="/styles/history.css" />
+  <link rel="stylesheet" href="/styles/motion.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='30' fill='none' stroke='%234f83ff' stroke-width='6'/><circle cx='78' cy='30' r='9' fill='%234f83ff'/></svg>" />
 </head>
 <body>
@@ -21,7 +25,7 @@
     <nav class="rail" aria-label="Workspaces">
       <div class="rail__brand">
         <span class="rail__orb" aria-hidden="true"></span>
-        <span class="rail__wordmark">ORBIT</span>
+        <span class="rail__wordmark">ORBIT AXIS</span>
       </div>
 
       <div class="rail__section-label">Workspaces</div>
@@ -59,8 +63,45 @@
       </header>
 
       <main class="workspace" id="workspace">
-        <!-- ── Dashboard ────────────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard">
+        <!-- ── Today (Orbit Axis primary daily workspace) ───────────── -->
+        <section class="workspace-panel" id="panel-today" role="tabpanel" aria-labelledby="tab-today">
+          <div class="axis-starfield" aria-hidden="true"></div>
+
+          <div class="axis-today-head">
+            <div>
+              <div class="axis-wordmark">Orbit Axis</div>
+              <div class="axis-subtitle">Your sky today, in plain language.</div>
+              <div class="axis-reading-for" id="today-reading-for" hidden>Reading for: <strong id="today-chart-name">My Chart</strong></div>
+            </div>
+            <div class="axis-today-head__right">
+              <div class="axis-today-date" id="today-date"></div>
+              <div class="axis-detail" role="group" aria-label="Astrology detail level">
+                <button type="button" data-level="Simple" aria-pressed="true">Simple</button>
+                <button type="button" data-level="Balanced" aria-pressed="false">Balanced</button>
+                <button type="button" data-level="Advanced" aria-pressed="false">Advanced</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="axis-chart-picker" id="today-chart-picker" hidden>
+            <label for="today-chart-select">Reading for</label>
+            <select id="today-chart-select" aria-label="Active chart"></select>
+          </div>
+
+          <div id="today-fortune" class="axis-rise"><div class="axis-shimmer" style="height:240px"></div></div>
+          <div id="today-moon" class="axis-card moon-card axis-rise-2"><div class="axis-shimmer" style="height:96px"></div></div>
+          <div id="today-sky" class="axis-card axis-rise-3"><div class="axis-shimmer" style="height:80px"></div></div>
+
+          <div class="axis-card">
+            <div class="axis-ask">
+              <a class="axis-ask__btn" href="#intelligence">✦ Ask Orbit Axis</a>
+              <span class="axis-ask__hint">Curious about a word or placement? Ask in plain language — it runs on your machine.</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Dashboard (Overview) ─────────────────────────────────── -->
+        <section class="workspace-panel" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" hidden>
           <div class="o-section-head">
             <div class="o-section-head__text">
               <h1 class="u-title">Dashboard</h1>
@@ -302,6 +343,24 @@
             <div class="intel-sources" id="intel-sources"></div>
             <div class="proposal-panel" id="proposal-panel"></div>
           </div>
+        </section>
+
+        <!-- ── History (fortune log) ────────────────────────────────── -->
+        <section class="workspace-panel" id="panel-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">Fortune History</h1>
+              <p class="u-meta">Your recent daily readings — the latest 30.</p>
+            </div>
+          </div>
+          <div class="history-controls">
+            <label for="history-scope">Show</label>
+            <select id="history-scope" aria-label="History scope">
+              <option value="active">Active chart</option>
+              <option value="all">All saved charts</option>
+            </select>
+          </div>
+          <div id="history-body"><div class="axis-shimmer" style="height:120px"></div></div>
         </section>
 
         <!-- ── Settings ─────────────────────────────────────────────── -->

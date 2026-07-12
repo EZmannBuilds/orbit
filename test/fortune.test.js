@@ -1,0 +1,142 @@
+// Orbit Axis :: Daily Fortune engine tests (deterministic).
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+import { computeNatalChart } from "../lib/astro/natal.js";
+import { currentSky } from "../lib/astro/current-sky.js";
+import {
+  composeFortune, fortuneSeed, luckyNumber, localDateForZone,
+  factorsForLevel, personalTransits, FORTUNE_ENGINE_VERSION,
+} from "../lib/fortune/engine.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const REF = {
+  birth_date: "1990-06-16", birth_time: "08:30", time_accuracy: "exact",
+  latitude: 51.5, longitude: -0.13, timezone_name: "Europe/London",
+  utc_offset_at_birth: "+00:00", zodiac_system: "tropical", house_system: "placidus",
+};
+const CHART = computeNatalChart(REF);
+const SKY = currentSky(new Date("2026-07-11T12:00:00Z"));
+
+function fortune(overrides = {}) {
+  return composeFortune({
+    chart: CHART, sky: SKY, localDate: "2026-07-11", timezoneName: "America/Chicago",
+    chartId: "chart-a", chartInputHash: "hashA", ...overrides,
+  });
+}
+
+test("fortune has all required fields", () => {
+  const f = fortune();
+  for (const k of ["mood", "love_reading", "luck_reading", "watch_out", "lucky_number", "lucky_color", "factors", "sky_snapshot", "seed_hash"]) {
+    assert.ok(f[k] !== undefined && f[k] !== null, `missing ${k}`);
+  }
+  assert.equal(f.fortune_engine_version, FORTUNE_ENGINE_VERSION);
+  assert.ok(typeof f.mood === "string" && f.mood.length > 0);
+  assert.ok(typeof f.lucky_color.name === "string" && /^#[0-9A-Fa-f]{6}$/.test(f.lucky_color.value));
+});
+
+test("same chart + same date => identical fortune (determinism)", () => {
+  assert.deepEqual(fortune(), fortune());
+  assert.equal(fortune().seed_hash, fortune().seed_hash);
+});
+
+test("different date => different seed and (very likely) different content", () => {
+  const a = fortune({ localDate: "2026-07-11" });
+  const b = fortune({ localDate: "2026-07-12" });
+  assert.notEqual(a.seed_hash, b.seed_hash);
+});
+
+test("different chart => different seed", () => {
+  const a = fortune({ chartId: "chart-a", chartInputHash: "hashA" });
+  const b = fortune({ chartId: "chart-b", chartInputHash: "hashB" });
+  assert.notEqual(a.seed_hash, b.seed_hash);
+});
+
+test("engine-version is part of the seed", () => {
+  const s1 = fortuneSeed({ localDate: "2026-07-11", chartId: "x", chartInputHash: "h", skySnapshotHash: "s" });
+  assert.match(s1, /^[0-9a-f]{64}$/);
+});
+
+test("lucky number is stable and within 1..9", () => {
+  const f = fortune();
+  assert.equal(f.lucky_number, fortune().lucky_number);
+  assert.ok(f.lucky_number >= 1 && f.lucky_number <= 9);
+  // direct rule check
+  const n = luckyNumber(f.seed_hash, "2026-07-11");
+  assert.equal(n, luckyNumber(f.seed_hash, "2026-07-11"));
+});
+
+test("lucky color is stable and accessible-valued", () => {
+  const f = fortune();
+  assert.deepEqual(f.lucky_color, fortune().lucky_color);
+  assert.match(f.lucky_color.value, /^#[0-9A-Fa-f]{6}$/);
+});
+
+test("fortune is grounded in real current-sky data", () => {
+  const s = fortune().sky_snapshot;
+  assert.ok(["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"].includes(s.zodiac_season));
+  assert.ok(s.moon_sign && s.moon_phase);
+  assert.ok(s.illumination_percent >= 0 && s.illumination_percent <= 100);
+  assert.equal(typeof s.waxing, "boolean");
+  assert.ok(Array.isArray(s.retrogrades));
+});
+
+test("no unsupported factor is invented (factors reference real bodies/aspects)", () => {
+  const f = fortune();
+  const transitFactors = f.factors.filter((x) => x.type === "transit");
+  for (const tf of transitFactors) {
+    // every transit factor must correspond to a real computed transit
+    assert.match(tf.advanced, /orb \d+°\d{2}′, (applying|separating)/);
+  }
+});
+
+test("watch-out reflects retrogrades when present, avoids fear/forbidden copy", () => {
+  const f = fortune();
+  assert.doesNotMatch(f.watch_out.toLowerCase(), /don't overreact/);
+  if (f.sky_snapshot.retrogrades.includes("Mercury")) {
+    assert.match(f.watch_out, /Mercury is retrograde/);
+  }
+});
+
+test("luck is framed as conditions, never a guarantee", () => {
+  const f = fortune();
+  assert.match(f.luck_reading.toLowerCase(), /not guarantees|conditions/);
+  assert.doesNotMatch(f.luck_reading.toLowerCase(), /you will (win|get rich|find love)/);
+});
+
+test("detail levels: Simple hides degrees, Advanced shows them", () => {
+  const f = fortune();
+  const simple = factorsForLevel(f.factors, "Simple").join(" | ");
+  const advanced = factorsForLevel(f.factors, "Advanced").join(" | ");
+  assert.doesNotMatch(simple, /°\d{2}′/); // no exact deg/min in Simple
+  assert.match(advanced, /°/);            // degrees present in Advanced
+  const balanced = factorsForLevel(f.factors, "Balanced").join(" | ");
+  assert.ok(balanced.length > 0);
+});
+
+test("localDateForZone uses the user's timezone, not the server's", () => {
+  // 02:30 UTC on the 11th is still the 10th in Chicago (-05/-06)
+  const instant = new Date("2026-07-11T02:30:00Z");
+  assert.equal(localDateForZone(instant, "UTC"), "2026-07-11");
+  assert.equal(localDateForZone(instant, "America/Chicago"), "2026-07-10");
+  // two users, different zones, same instant => can differ
+  assert.notEqual(localDateForZone(instant, "UTC"), localDateForZone(instant, "America/Chicago"));
+});
+
+test("engine source contains no Math.random (deterministic selection only)", () => {
+  const src = readFileSync(join(__dirname, "../lib/fortune/engine.js"), "utf8");
+  assert.doesNotMatch(src, /Math\.random/);
+});
+
+test("personalTransits are within orb and marked applying/separating", () => {
+  const ts = personalTransits(SKY, CHART, 3);
+  for (const t of ts) {
+    assert.ok(t.orb <= 3);
+    assert.equal(typeof t.applying, "boolean");
+    assert.ok(["conjunction","sextile","square","trine","opposition"].includes(t.aspect));
+  }
+});

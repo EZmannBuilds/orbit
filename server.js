@@ -25,6 +25,7 @@ import {
 import { localLlmConfig } from "./lib/local-llm/config.js";
 import { recordVaultProposalStatus, recordVaultVersion } from "./lib/local-llm/supabase.js";
 import { handleChartsRoute } from "./lib/charts/api.js";
+import { handleFortuneRoute } from "./lib/fortune/api.js";
 
 function skyContext() {
   const now = new Date();
@@ -316,6 +317,17 @@ const server = http.createServer(async (req, res) => {
       const body = (req.method === "POST" || req.method === "PATCH" || req.method === "DELETE")
         ? await readBody(req) : {};
       const handled = await handleChartsRoute(req.method, route, url.searchParams, body);
+      if (handled) return json(res, handled.status, handled.body);
+    }
+
+    // Daily fortune + astrology detail-level setting. Owner-scoped user data is
+    // localhost-only; the stateless preview needs no owner.
+    if (route.startsWith("/api/fortune") || route === "/api/settings/detail") {
+      const publicPreview = route === "/api/fortune/preview";
+      if (!publicPreview && !requireLocal(req, res)) return;
+      const body = (req.method === "POST" || req.method === "PUT")
+        ? await readBody(req) : {};
+      const handled = await handleFortuneRoute(req.method, route, url.searchParams, body);
       if (handled) return json(res, handled.status, handled.body);
     }
 
