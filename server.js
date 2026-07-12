@@ -24,6 +24,7 @@ import {
 } from "./lib/local-llm/vault.js";
 import { localLlmConfig } from "./lib/local-llm/config.js";
 import { recordVaultProposalStatus, recordVaultVersion } from "./lib/local-llm/supabase.js";
+import { handleChartsRoute } from "./lib/charts/api.js";
 
 function skyContext() {
   const now = new Date();
@@ -304,6 +305,18 @@ const server = http.createServer(async (req, res) => {
     }
     if (route === "/api/health") {
       return json(res, 200, { ok: true, service: "orbit", port: PORT });
+    }
+
+    // Saved charts, current sky, and Moon. User-owned chart data is localhost-only
+    // and owner-scoped server-side; current-sky/Moon are public astronomy.
+    if (route === "/api/charts" || route.startsWith("/api/charts/")
+      || route === "/api/chart/preview"
+      || route === "/api/sky/current" || route === "/api/moon/current") {
+      if (route.startsWith("/api/charts") && !requireLocal(req, res)) return;
+      const body = (req.method === "POST" || req.method === "PATCH" || req.method === "DELETE")
+        ? await readBody(req) : {};
+      const handled = await handleChartsRoute(req.method, route, url.searchParams, body);
+      if (handled) return json(res, handled.status, handled.body);
     }
 
     if (route.startsWith("/api/")) return json(res, 404, { ok: false, error: "Unknown Orbit endpoint" });

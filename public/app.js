@@ -314,9 +314,125 @@ async function boot() {
   renderAtlas();
   renderEvents(eventsData.events);
   wireTools();
+  wireMyChart();
+  loadMoonTonight();
   await loadLocalIntelligence();
 
   $("#disclaimer").textContent = `${chart.disclaimer} Sky timing is computed from mean cycles and is approximate.`;
+}
+
+// ── My Chart ─────────────────────────────────────────────────────────────────
+const SIGN_GLYPH = {
+  Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍",
+  Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓",
+};
+const ELEMENT_CLASS = { Fire: "fire", Earth: "earth", Air: "air", Water: "water" };
+
+function degLabel(p) {
+  if (!p || p.unavailable) return "";
+  return `${p.degrees}° ${String(p.minutes).padStart(2, "0")}′`;
+}
+
+function renderBigThree(bt) {
+  const items = [
+    { glyph: "☉", label: "Sun", body: bt.sun },
+    { glyph: "☾", label: "Moon", body: bt.moon },
+    { glyph: "↑", label: "Rising", body: bt.rising },
+  ];
+  $("#bigthree").innerHTML = items.map(({ glyph, label, body }) => {
+    if (!body || body.unavailable) {
+      return `<div class="bigthree-item unavailable">
+        <div class="bt-glyph">${glyph}</div>
+        <div class="bt-label">${label}</div>
+        <div class="bt-sign">Unavailable</div>
+        <div class="bt-deg">${esc(body?.reason || "Birth time required")}</div></div>`;
+    }
+    return `<div class="bigthree-item">
+      <div class="bt-glyph">${glyph} ${SIGN_GLYPH[body.sign] || ""}</div>
+      <div class="bt-label">${label}</div>
+      <div class="bt-sign">${esc(body.sign)}</div>
+      <div class="bt-deg">${degLabel(body)}</div></div>`;
+  }).join("");
+}
+
+function renderBars(elId, percentages, classMap) {
+  const el = $(elId);
+  el.innerHTML = Object.entries(percentages).map(([key, pct]) => `
+    <div class="bar-row">
+      <span class="bar-key">${esc(key)}</span>
+      <span class="bar-track"><span class="bar-fill ${classMap ? (classMap[key] || "") : ""}" style="width:${pct}%"></span></span>
+      <span class="bar-pct">${pct}%</span>
+    </div>`).join("");
+}
+
+function renderPlacements(chart) {
+  const rows = Object.values(chart.planets).map((p) =>
+    `<tr><td>${esc(p.name)}</td><td>${SIGN_GLYPH[p.sign] || ""} ${esc(p.sign)}</td><td>${degLabel(p)}</td><td>${p.retrograde ? "℞" : ""}</td><td>${chart.planet_houses[p.name] ? "H" + chart.planet_houses[p.name] : ""}</td></tr>`
+  ).join("");
+  const asp = chart.aspects.slice(0, 12).map((a) =>
+    `<li>${esc(a.a)} ${esc(a.aspect.toLowerCase())} ${esc(a.b)} <span class="orb">(orb ${a.orb}°)</span></li>`
+  ).join("");
+  $("#chart-placements").innerHTML = `
+    <table class="placements">
+      <thead><tr><th>Body</th><th>Sign</th><th>Degree</th><th>R</th><th>House</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="chart-meta">Chart ruler: ${esc(chart.chart_ruler || "—")} · Dominant: ${esc(chart.element_balance.dominant)} / ${esc(chart.modality_balance.dominant)} · ${esc(chart.calculation_version)}</div>
+    <h4>Major aspects</h4><ul class="aspect-list">${asp}</ul>`;
+}
+
+function renderChart(chart, name) {
+  $("#mychart-name").textContent = name ? `· ${name}` : "· Preview";
+  const warn = $("#chart-warnings");
+  if (chart.warnings && chart.warnings.length) {
+    const human = { birth_time_unknown: "Birth time unknown — Rising and houses are hidden.", houses_unavailable: "Houses unavailable.", rising_unavailable: "Rising unavailable.", moon_approximate: "Moon position is approximate without a birth time." };
+    const seen = new Set();
+    warn.innerHTML = chart.warnings.filter((w) => !seen.has(w) && seen.add(w)).map((w) => `<span class="warn-chip">${esc(human[w] || w)}</span>`).join("");
+  } else warn.innerHTML = "";
+  renderBigThree(chart.big_three);
+  renderBars("#element-bars", chart.element_balance.percentages, ELEMENT_CLASS);
+  renderBars("#modality-bars", chart.modality_balance.percentages, null);
+  renderPlacements(chart);
+}
+
+function wireMyChart() {
+  const form = $("#chart-form");
+  if (!form) return;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const hint = $("#chart-form-hint");
+    const accuracy = $("#cf-accuracy").value;
+    const payload = {
+      nickname: $("#cf-nickname").value.trim() || undefined,
+      birth_date: $("#cf-date").value,
+      birth_time: accuracy === "unknown" ? null : ($("#cf-time").value || null),
+      time_accuracy: accuracy,
+      birthplace_name: $("#cf-place").value.trim() || undefined,
+      latitude: parseFloat($("#cf-lat").value),
+      longitude: parseFloat($("#cf-lon").value),
+      utc_offset_at_birth: $("#cf-offset").value.trim() || "+00:00",
+    };
+    hint.textContent = "Calculating…";
+    try {
+      const { chart } = await post("/api/chart/preview", payload);
+      renderChart(chart, payload.nickname);
+      hint.textContent = "Computed locally — not saved. Sign in to save charts.";
+    } catch (err) {
+      hint.textContent = err.message;
+    }
+  });
+}
+
+async function loadMoonTonight() {
+  try {
+    const { moon } = await get("/api/moon/current");
+    $("#moon-tonight").innerHTML = `
+      <div class="moon-phase">${SIGN_GLYPH[moon.sign] || ""} ${esc(moon.phase_name)}</div>
+      <div class="moon-illum">${moon.illumination_percent}% illuminated · ${moon.waxing ? "waxing" : "waning"}</div>
+      <div class="moon-sign">Moon in ${esc(moon.sign)} · times in UTC</div>`;
+  } catch {
+    $("#moon-tonight").textContent = "Moon data unavailable.";
+  }
 }
 
 boot().catch(err => {
