@@ -133,10 +133,19 @@ orbit/
 │   ├── sky.js         # Sun season / moon phase / Mercury / events math
 │   └── llm.js         # Optional local Ollama fallback client
 └── public/            # Static frontend (vanilla JS, no build step)
-    ├── index.html
-    ├── app.js
-    └── style.css
+    ├── index.html     # App shell + workspace panels
+    ├── app.js         # Router, data loading, renderers, command palette
+    └── styles/        # Orbit Design System
+        ├── tokens.css     # Design tokens (colors, type, spacing, motion…)
+        ├── base.css       # Reset, typography helpers, accessibility
+        ├── components.css # Reusable UI primitives (o-* component library)
+        └── app.css        # App shell layout + app-specific views
 ```
+
+The frontend is built on the **Orbit Design System** — a token-driven set of
+reusable UI primitives with dark/light themes, density/contrast/motion/text
+modes, a workspace navigation model, and a ⌘K command palette. See
+[`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) for the full component reference.
 
 ## License
 

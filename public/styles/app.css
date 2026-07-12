@@ -1,0 +1,183 @@
+/* ============================================================================
+   Orbit — Application Layout
+   ----------------------------------------------------------------------------
+   Composes the design-system primitives into Orbit's app shell: navigation
+   rail, top navigation, workspace surface, and the few app-specific views
+   (zodiac wheel, symbol atlas). App-specific rules still consume only tokens.
+   ========================================================================== */
+
+/* ── App shell ───────────────────────────────────────────────────────────── */
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--rail-width) 1fr;
+  min-height: 100vh;
+}
+
+/* ── Navigation rail (primary workspace switcher) ────────────────────────── */
+.rail {
+  position: sticky; top: 0; align-self: start;
+  height: 100vh;
+  display: flex; flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-3);
+  background: var(--color-surface);
+  border-right: var(--border-width) solid var(--color-border);
+}
+.rail__brand { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-2) var(--space-4); }
+.rail__orb {
+  width: 22px; height: 22px; border-radius: 50%; flex: none;
+  background: radial-gradient(circle at 35% 30%, var(--blue-300), var(--color-accent) 70%);
+  box-shadow: 0 0 0 4px var(--color-accent-soft);
+}
+.rail__wordmark { font-size: var(--text-card-title); font-weight: var(--weight-bold); letter-spacing: 0.16em; color: var(--color-primary); }
+.rail__nav { display: grid; gap: 2px; }
+.rail__section-label { padding: var(--space-3) var(--space-2) var(--space-1); font-size: var(--text-meta); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--color-faint); }
+.rail__link {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  font-size: var(--text-body); font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+.rail__link:hover { background: var(--color-surface-hover); color: var(--color-primary); }
+.rail__link[aria-current="page"] { background: var(--color-accent-soft); color: var(--color-primary); }
+.rail__link[aria-current="page"] .rail__icon { color: var(--color-accent); }
+.rail__icon { width: 18px; height: 18px; flex: none; color: var(--color-faint); }
+.rail__link:hover .rail__icon { color: var(--color-secondary); }
+.rail__label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rail__spacer { flex: 1; }
+.rail__foot { display: grid; gap: var(--space-1); padding-top: var(--space-3); border-top: var(--border-width) solid var(--color-border); }
+
+/* ── Top navigation ──────────────────────────────────────────────────────── */
+.topnav {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: var(--space-4);
+  height: var(--topbar-height);
+  padding: 0 var(--space-6);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+.topnav__title { font-size: var(--text-card-title); font-weight: var(--weight-semibold); color: var(--color-primary); }
+.topnav__crumb { font-size: var(--text-caption); color: var(--color-faint); }
+.topnav__spacer { flex: 1; }
+.topnav__search {
+  display: flex; align-items: center; gap: var(--space-2);
+  height: 34px; padding: 0 var(--space-3);
+  min-width: 200px;
+  color: var(--color-muted);
+  background: var(--color-surface-sunken);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer; font-size: var(--text-caption);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.topnav__search:hover { border-color: var(--color-border-strong); }
+.topnav__search svg { width: 15px; height: 15px; }
+.topnav__search kbd {
+  margin-left: auto; font-family: var(--font-mono); font-size: 10px;
+  padding: 1px 5px; color: var(--color-muted);
+  background: var(--color-surface); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm);
+}
+.topnav__date { font-size: var(--text-caption); color: var(--color-muted); font-variant-numeric: tabular-nums; }
+
+/* ── Workspace surface ───────────────────────────────────────────────────── */
+.workspace {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6) var(--space-16);
+  display: grid; gap: var(--density-gap);
+}
+.workspace-panel { display: grid; gap: var(--density-gap); }
+.workspace-panel[hidden] { display: none; }
+.workspace__intro { display: grid; gap: var(--space-2); }
+
+/* Reusable responsive grids. */
+.grid-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--density-gap); }
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--density-gap); align-items: start; }
+.grid-split { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: var(--density-gap); align-items: start; }
+.stack { display: grid; gap: var(--density-gap); }
+.stack-sm { display: grid; gap: var(--density-stack); }
+
+/* ── Zodiac wheel (Charts workspace) ─────────────────────────────────────── */
+.wheel-wrap { display: grid; place-items: center; padding: var(--space-2) 0; }
+#zodiac-wheel { width: 100%; max-width: 360px; }
+#zodiac-wheel .seg { fill: var(--color-surface-sunken); stroke: var(--color-border); stroke-width: 1; cursor: pointer; transition: fill var(--duration-fast) var(--ease-standard); }
+#zodiac-wheel .seg:hover { fill: var(--color-surface-hover); }
+#zodiac-wheel .seg.active { fill: var(--color-accent-soft); stroke: var(--color-accent); }
+#zodiac-wheel .seg-glyph { font-size: 17px; fill: var(--color-secondary); pointer-events: none; }
+#zodiac-wheel .hub { fill: var(--color-surface); stroke: var(--color-border); }
+#zodiac-wheel .hub-glyph { font-size: 24px; fill: var(--color-primary); }
+#zodiac-wheel .hub-now { font-size: 9px; fill: var(--color-faint); letter-spacing: 2px; }
+.wheel-detail { margin-top: var(--space-4); font-size: var(--text-caption); color: var(--color-muted); line-height: var(--leading-normal); min-height: 60px; }
+.wheel-detail strong { color: var(--color-primary); }
+
+/* ── Symbol atlas (Research workspace) ───────────────────────────────────── */
+.atlas { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--density-stack); }
+.symbol-card {
+  display: grid; gap: var(--space-2);
+  background: var(--color-surface-elevated);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.symbol-card:hover { border-color: var(--color-border-strong); }
+.symbol-card__top { display: flex; align-items: center; gap: var(--space-3); }
+.symbol-card__glyph { font-size: 22px; color: var(--color-primary); width: 28px; text-align: center; }
+.symbol-card__name { font-weight: var(--weight-semibold); font-size: var(--text-card-title); color: var(--color-primary); }
+.symbol-card__kind { margin-left: auto; }
+.symbol-card__meta { font-size: var(--text-meta); color: var(--color-accent); }
+.symbol-card__text { font-size: var(--text-caption); color: var(--color-muted); line-height: var(--leading-normal); }
+.symbol-card__keywords { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1); }
+
+/* Ask Orbit conversation result. */
+.ask-result { margin-top: var(--space-3); }
+.ask-result .score { font-size: var(--text-title); font-weight: var(--weight-bold); color: var(--color-primary); }
+
+/* Small helper for the sun-season progress caption row. */
+.tile-progress { display: grid; gap: var(--space-2); }
+
+/* ── Responsive layout ───────────────────────────────────────────────────── */
+
+/* Laptop — narrow the rail a touch. */
+@media (max-width: 1200px) {
+  .app-shell { grid-template-columns: var(--rail-width-collapsed) 1fr; }
+  .rail { padding: var(--space-4) var(--space-2); align-items: stretch; }
+  .rail__wordmark, .rail__label, .rail__section-label, .rail__foot .u-caption { display: none; }
+  .rail__brand { justify-content: center; padding: var(--space-2) 0 var(--space-4); }
+  .rail__link { justify-content: center; padding: var(--space-3) 0; }
+  .rail__foot { justify-items: center; }
+}
+
+/* Tablet — split layouts collapse to single column, rail becomes a top bar. */
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .rail {
+    position: sticky; top: 0; height: auto; z-index: 25;
+    flex-direction: row; align-items: center; gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border-right: none; border-bottom: var(--border-width) solid var(--color-border);
+    overflow-x: auto;
+  }
+  .rail__brand { display: flex; padding: 0 var(--space-2) 0 0; }
+  .rail__orb { width: 18px; height: 18px; }
+  .rail__nav { display: flex; gap: var(--space-1); }
+  .rail__section-label, .rail__spacer, .rail__foot { display: none; }
+  .rail__link { padding: var(--space-2) var(--space-3); }
+  .rail__label { display: inline; }
+  .grid-split, .grid-2 { grid-template-columns: 1fr; }
+  .workspace { padding: var(--space-6) var(--space-4) var(--space-12); }
+}
+
+/* Mobile — tighten the top navigation. */
+@media (max-width: 640px) {
+  .topnav { padding: 0 var(--space-4); gap: var(--space-2); }
+  .topnav__search { min-width: 0; }
+  .topnav__search .topnav__search-label, .topnav__date { display: none; }
+  .topnav__crumb { display: none; }
+  .rail__label { display: none; }
+  .rail__link { padding: var(--space-2); }
+}
