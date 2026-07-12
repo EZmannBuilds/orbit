@@ -12,6 +12,12 @@ The local model can propose vault edits, but it never writes notes directly.
 6. Orbit writes a timestamped backup, applies atomically, validates
    frontmatter, and appends an audit record.
 
+The proposal shows the generating model, prompt version, retrieved sources,
+validation result, current content, proposed content, and unified diff. A changed
+target hash marks the proposal stale and prevents application. Model-generated
+content must preserve stable IDs and `created_at`, increment versions exactly
+once, remain under the configured size limit, and use a supported note type.
+
 Audit log:
 
 ```text

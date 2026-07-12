@@ -19,10 +19,8 @@ prediction, medical, financial, or relationship advice.**
 ## Requirements
 
 - **Node.js 18+** to run the server.
-- **Node.js 20.6+** only if you want to load config from an env file with
-  `--env-file` (see below). Otherwise no env file is needed at all.
-- (Optional) [Ollama](https://ollama.com) running locally with any installed
-  chat model. Set `ORBIT_LOCAL_MODEL` if you want a specific one.
+- (Optional) [Ollama](https://ollama.com) running locally. The validated model is
+  `qwen3:14b`; install it with `ollama pull qwen3:14b`.
 
 ## Setup
 
@@ -58,18 +56,11 @@ file and edit it:
 cp .env.example .env.local
 ```
 
-Because Orbit has zero dependencies (no `dotenv`), load the file with Node's
-built-in flag (Node 20.6+):
+Orbit's local configuration module loads `.env.local` before it initializes the
+Ollama provider. Start the app normally:
 
 ```bash
-node --env-file=.env.local server.js
-```
-
-On older Node, export the variables in your shell instead:
-
-```bash
-export PORT=8080
-node server.js
+npm start
 ```
 
 | Variable            | Default                   | Purpose                                             |
@@ -79,6 +70,9 @@ node server.js
 | `ORBIT_LOCAL_LLM_PROVIDER` | `ollama` | Only supported LLM provider. |
 | `ORBIT_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Local Ollama endpoint. |
 | `ORBIT_LOCAL_MODEL` | first installed model | Optional model name. No model is downloaded automatically. |
+| `ORBIT_LOCAL_LLM_CONTEXT_LENGTH` | `8192` | Ollama context window for project intelligence. |
+| `ORBIT_LOCAL_LLM_TEMPERATURE` | `0.2` | Conservative structured-generation temperature. |
+| `ORBIT_LOCAL_LLM_TIMEOUT_MS` | `180000` | Local generation timeout. |
 | `ORBIT_LOCAL_EMBEDDING_MODEL` | unset | Optional local embedding model. Keyword retrieval works without it. |
 | `ORBIT_VAULT_PATH` | `../Orbit vault` | Canonical Obsidian vault path. |
 
@@ -133,6 +127,13 @@ npm run orbit:vault:search -- "Orbit Axis roadmap"
 npm run orbit:vault:propose -- --type app_update --title "Local LLM Integration"
 npm run orbit:vault:proposals
 ```
+
+`orbit:llm:test` is a strict real-model check: it rejects fallback output. The
+Local Intelligence panel always labels whether content came from the selected
+Ollama model or deterministic retrieval. Vault changes remain proposals until
+reviewed, approved, hash-checked, backed up, and applied. See
+[`docs/local-llm.md`](docs/local-llm.md) and
+[`docs/vault-editing.md`](docs/vault-editing.md).
 
 ## Project layout
 

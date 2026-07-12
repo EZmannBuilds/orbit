@@ -23,7 +23,7 @@ import {
   updateProposalStatus,
 } from "./lib/local-llm/vault.js";
 import { localLlmConfig } from "./lib/local-llm/config.js";
-import { recordVaultVersion } from "./lib/local-llm/supabase.js";
+import { recordVaultProposalStatus, recordVaultVersion } from "./lib/local-llm/supabase.js";
 
 function skyContext() {
   const now = new Date();
@@ -225,7 +225,7 @@ const server = http.createServer(async (req, res) => {
       if (!requireLocal(req, res)) return;
       const body = await readBody(req);
       const result = await generateProjectAnswer({ prompt: String(body.prompt || ""), query: String(body.query || body.prompt || "") });
-      return json(res, 200, result);
+      return json(res, result.ok ? 200 : 422, result);
     }
     if (route === "/api/vault/project-notes") {
       if (!requireLocal(req, res)) return;
@@ -264,7 +264,7 @@ const server = http.createServer(async (req, res) => {
           tags: body.tags,
         },
       });
-      return json(res, 200, result);
+      return json(res, result.ok ? 200 : 422, result);
     }
     if (route.startsWith("/api/vault/edit-proposals/")) {
       if (!requireLocal(req, res)) return;
@@ -275,12 +275,31 @@ const server = http.createServer(async (req, res) => {
         const proposal = readProposal(id);
         return proposal ? json(res, 200, { ok: true, proposal }) : json(res, 404, { ok: false, error: "Proposal not found" });
       }
-      if (req.method === "POST" && action === "approve") return json(res, 200, { ok: true, proposal: updateProposalStatus(id, "approved") });
-      if (req.method === "POST" && action === "reject") return json(res, 200, { ok: true, proposal: updateProposalStatus(id, "rejected") });
+      if (req.method === "POST" && action === "approve") {
+        const proposal = updateProposalStatus(id, "approved");
+        return json(res, 200, { ok: true, proposal, supabase: await recordVaultProposalStatus(proposal) });
+      }
+      if (req.method === "POST" && action === "reject") {
+        const proposal = updateProposalStatus(id, "rejected");
+        return json(res, 200, { ok: true, proposal, supabase: await recordVaultProposalStatus(proposal) });
+      }
       if (req.method === "POST" && action === "apply") {
-        const applied = applyProposal(id);
-        const supabase = await recordVaultVersion(applied);
-        return json(res, 200, { ok: true, ...applied, supabase });
+        let applied;
+        try {
+          applied = applyProposal(id);
+        } catch (error) {
+          const proposal = readProposal(id);
+          if (proposal?.status === "stale") {
+            await recordVaultProposalStatus(proposal);
+            return json(res, 409, { ok: false, error: error.message, proposal });
+          }
+          throw error;
+        }
+        const [versionRecord, proposalRecord] = await Promise.all([
+          recordVaultVersion(applied),
+          recordVaultProposalStatus(applied.proposal),
+        ]);
+        return json(res, 200, { ok: true, ...applied, supabase: { version: versionRecord, proposal: proposalRecord } });
       }
     }
     if (route === "/api/health") {

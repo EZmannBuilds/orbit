@@ -2,7 +2,7 @@
 import { createLocalLLMProvider } from "../lib/local-llm/provider.js";
 import { generateProjectAnswer } from "../lib/local-llm/assistant.js";
 import { collectProjectNotes, listProposals, readProposal, updateProposalStatus, applyProposal } from "../lib/local-llm/vault.js";
-import { recordVaultVersion } from "../lib/local-llm/supabase.js";
+import { recordVaultProposalStatus, recordVaultVersion } from "../lib/local-llm/supabase.js";
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -25,7 +25,7 @@ Usage:
   node scripts/local-llm.js models
   node scripts/local-llm.js test
   node scripts/local-llm.js search "Orbit Axis roadmap"
-  node scripts/local-llm.js propose --type app_update --title "Local LLM Integration"
+  node scripts/local-llm.js propose --operation create --type app_update --title "Local LLM Integration"
   node scripts/local-llm.js proposals
   node scripts/local-llm.js apply <proposal-id>
 `);
@@ -55,13 +55,16 @@ async function propose() {
   const title = flag("--title") || "Local LLM Integration";
   const type = flag("--type") || "app_update";
   const path = flag("--path") || `07 Orbit App/Updates/${title}.md`;
+  const operation = flag("--operation") || "create";
   const prompt = flag("--prompt") || `Create a grounded Orbit project note titled ${title}.`;
   const result = await generateProjectAnswer({
     prompt,
-    query: title,
-    propose: { operation: "create", path, title, type, reason: prompt, tags: ["orbit", "local-llm"] },
+    query: flag("--query") || title,
+    retrievalQueries: ["Orbit Axis roadmap", "Local LLM Architecture"],
+    propose: { operation, path, title, type, reason: prompt, tags: ["orbit", "local-llm", "ollama", "validation"] },
   });
   printResult(result);
+  if (!result.ok || !result.proposal) throw new Error(`Proposal generation failed: ${(result.validation?.errors || [result.raw_status]).join("; ")}`);
 }
 
 async function proposals() {
@@ -76,35 +79,40 @@ async function apply() {
   const proposal = readProposal(id);
   if (!proposal) throw new Error("Proposal not found.");
   if (proposal.status === "pending_review") updateProposalStatus(id, "approved");
-  const applied = applyProposal(id);
-  const supabase = await recordVaultVersion(applied);
-  console.log(JSON.stringify({ ...applied, supabase }, null, 2));
+  let applied;
+  try {
+    applied = applyProposal(id);
+  } catch (error) {
+    const stale = readProposal(id);
+    if (stale?.status === "stale") await recordVaultProposalStatus(stale);
+    throw error;
+  }
+  const [versionRecord, proposalRecord] = await Promise.all([
+    recordVaultVersion(applied),
+    recordVaultProposalStatus(applied.proposal),
+  ]);
+  console.log(JSON.stringify({ ...applied, supabase: { version: versionRecord, proposal: proposalRecord } }, null, 2));
 }
 
 async function test() {
   const health = await createLocalLLMProvider().health();
-  const notes = collectProjectNotes({ query: "Orbit Axis roadmap", limit: 1 });
   const result = await generateProjectAnswer({
-    prompt: "Summarize the Orbit Axis roadmap and create a draft local LLM integration test proposal.",
+    prompt: "Summarize the current Orbit Axis roadmap using only the supplied vault sources. Do not propose any vault changes. Return valid structured JSON.",
     query: "Orbit Axis roadmap",
-    propose: {
-      operation: "create",
-      path: "07 Orbit App/Updates/Local LLM Integration Test.md",
-      title: "Local LLM Integration Test",
-      type: "app_update",
-      reason: "First automated local LLM proposal test",
-      tags: ["orbit", "local-llm", "test"],
-    },
+    retrievalQueries: ["Orbit Axis roadmap", "Local LLM Architecture"],
+    allowFallback: false,
   });
   console.log(JSON.stringify({
     ollama: health,
-    retrieved_note: notes[0] || null,
-    proposal_id: result.proposal?.id || null,
-    proposal_status: result.proposal?.status || null,
-    proposal_validation: result.proposal?.validation || null,
-    wrote_vault_file: false,
+    generation: result.generation_label,
+    sources: result.sources.map(({ path, title }) => ({ path, title })),
+    validation: result.validation,
     used_fallback: result.used_fallback,
+    duration_ms: result.duration_ms,
+    response: result.response,
+    supabase_run: result.supabase_run,
   }, null, 2));
+  if (!result.ok || result.used_fallback) throw new Error("Genuine Ollama validation failed; deterministic fallback does not count as success.");
 }
 
 function flag(name) {
@@ -114,6 +122,12 @@ function flag(name) {
 
 function printResult(result) {
   console.log(JSON.stringify({
+    ok: result.ok,
+    generation: result.generation_label,
+    model: result.model,
+    used_fallback: result.used_fallback,
+    duration_ms: result.duration_ms,
+    validation: result.validation,
     response: result.response,
     sources: result.sources.map(({ path, title }) => ({ path, title })),
     proposal: result.proposal ? {

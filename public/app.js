@@ -14,8 +14,13 @@ async function post(path, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+  const data = await response.json();
+  if (!response.ok) {
+    const error = new Error(data.error || data.validation?.errors?.join("; ") || `HTTP ${response.status}`);
+    error.data = data;
+    throw error;
+  }
+  return data;
 }
 
 function esc(text) {
@@ -194,8 +199,12 @@ function wireTools() {
 async function loadLocalIntelligence() {
   try {
     const data = await get("/api/local-llm/status");
-    $("#llm-status").textContent = data.ok ? "Connected" : (data.message || "Unavailable");
+    $("#llm-status").textContent = data.reachable ? "Connected" : (data.message || "Unavailable");
+    $("#llm-provider").textContent = data.provider || "—";
     $("#llm-model").textContent = data.selected_model || data.configured_model || "No model selected";
+    $("#llm-installed").textContent = data.installed_model ? "Yes" : "No";
+    $("#llm-fallback").textContent = data.fallback_active ? "Active" : "Inactive";
+    $("#llm-context").textContent = data.context_length ? `${data.context_length} tokens` : "—";
     $("#llm-prompt-version").textContent = data.prompt_version || "—";
   } catch (error) {
     $("#llm-status").textContent = `Unavailable: ${error.message}`;
@@ -229,12 +238,18 @@ async function runIntelGenerate(propose) {
     renderIntelResult(data);
   } catch (error) {
     $("#intel-output").textContent = `Local Intelligence failed: ${error.message}`;
+    if (error.data?.proposal) renderProposal(error.data.proposal);
   }
 }
 
 function renderIntelResult(data) {
   const response = data.response || {};
-  $("#intel-output").innerHTML = `<strong>Answer</strong><br/>${esc(response.answer || "No answer returned.")}`;
+  $("#intel-output").innerHTML = `<strong>${esc(data.generation_label || "Local generation")}</strong><br/>${esc(response.answer || "No answer returned.")}`;
+  $("#intel-run-meta").innerHTML = `
+    <span><strong>Validation</strong> ${data.validation?.ok ? "passed" : "failed"}</span>
+    <span><strong>Duration</strong> ${Number(data.duration_ms || 0).toLocaleString()} ms</span>
+    <span><strong>Context</strong> ${esc(data.context_length || "—")}</span>
+    <span><strong>Prompt</strong> ${esc(data.prompt_version || "—")}</span>`;
   $("#intel-sources").innerHTML = `
     <strong>Sources used</strong>
     <ul>${(data.sources || response.sources || []).map(source => `<li>${esc(source.path)}${source.title ? ` — ${esc(source.title)}` : ""}</li>`).join("")}</ul>`;
@@ -248,8 +263,16 @@ function renderProposal(proposal) {
       <strong>Target path</strong><br/>${esc(proposal.path)}<br/>
       <strong>Reason</strong><br/>${esc(proposal.reason)}<br/>
       <strong>Status</strong><br/><span id="proposal-status">${esc(proposal.status)}</span>
+      ${proposal.status === "stale" ? '<div class="stale-warning">Target changed after proposal creation. Generate a fresh proposal.</div>' : ""}<br/>
+      <strong>Model</strong><br/>${esc(proposal.model || "—")}<br/>
+      <strong>Prompt</strong><br/>${esc(proposal.prompt_version || "—")}<br/>
+      <strong>Validation</strong><br/>${proposal.validation?.ok ? "Passed" : esc((proposal.validation?.errors || []).join("; "))}
     </div>
-    <pre>${esc(proposal.diff_text || "")}</pre>
+    <div class="proposal-preview">
+      <section><strong>Current</strong><pre>${esc(proposal.current_content || "New note")}</pre></section>
+      <section><strong>Proposed</strong><pre>${esc(proposal.proposed_content || "")}</pre></section>
+    </div>
+    <section><strong>Unified diff</strong><pre>${esc(proposal.diff_text || "")}</pre></section>
     <div class="proposal-actions">
       <button type="button" data-action="approve">Approve</button>
       <button type="button" data-action="reject">Reject</button>
@@ -259,8 +282,15 @@ function renderProposal(proposal) {
     const button = event.target.closest("button");
     if (!button) return;
     const action = button.dataset.action;
-    const result = await post(`/api/vault/edit-proposals/${proposal.id}/${action}`, {});
-    $("#proposal-status").textContent = result.proposal?.status || result.logRecord?.status || action;
+    try {
+      const result = await post(`/api/vault/edit-proposals/${proposal.id}/${action}`, {});
+      const status = result.proposal?.status || result.logRecord?.status || action;
+      $("#proposal-status").textContent = status;
+      if (status === "stale") renderProposal(result.proposal);
+    } catch (error) {
+      if (error.data?.proposal) renderProposal(error.data.proposal);
+      else $("#proposal-status").textContent = error.message;
+    }
   });
 }
 

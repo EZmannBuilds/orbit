@@ -76,12 +76,28 @@
       </div>
       <div class="intel-grid">
         <div>
-          <div class="intel-label">Ollama</div>
+          <div class="intel-label">Connection</div>
           <div id="llm-status" class="intel-value">Checking…</div>
+        </div>
+        <div>
+          <div class="intel-label">Provider</div>
+          <div id="llm-provider" class="intel-value">—</div>
         </div>
         <div>
           <div class="intel-label">Selected model</div>
           <div id="llm-model" class="intel-value">—</div>
+        </div>
+        <div>
+          <div class="intel-label">Installed</div>
+          <div id="llm-installed" class="intel-value">—</div>
+        </div>
+        <div>
+          <div class="intel-label">Fallback</div>
+          <div id="llm-fallback" class="intel-value">—</div>
+        </div>
+        <div>
+          <div class="intel-label">Context</div>
+          <div id="llm-context" class="intel-value">—</div>
         </div>
         <div>
           <div class="intel-label">Prompt</div>
@@ -94,6 +110,7 @@
         <button type="button" id="proposal-button">Propose note</button>
       </form>
       <div class="intel-output" id="intel-output"></div>
+      <div class="intel-run-meta" id="intel-run-meta"></div>
       <div class="intel-sources" id="intel-sources"></div>
       <div class="proposal-panel" id="proposal-panel"></div>
     </section>

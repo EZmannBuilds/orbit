@@ -139,11 +139,13 @@ main { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; paddin
   background: var(--surface-2); border: 1px solid var(--accent); color: var(--text);
   border-radius: 8px; padding: 9px 13px; cursor: pointer; font-size: 12.5px; font-family: inherit;
 }
-.intel-output, .intel-sources, .proposal-meta {
+.intel-output, .intel-sources, .intel-run-meta, .proposal-meta {
   font-size: 12.5px; color: var(--muted); line-height: 1.6;
 }
 .intel-output strong, .intel-sources strong, .proposal-meta strong { color: var(--text); }
 .intel-sources ul { margin: 6px 0 0 18px; }
+.intel-run-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.intel-run-meta strong { color: var(--text); }
 .proposal-panel { display: grid; gap: 10px; }
 .proposal-panel:empty { display: none; }
 .proposal-panel pre {
@@ -152,6 +154,9 @@ main { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; paddin
   padding: 12px; font-size: 11.5px; color: #cbd5ff;
 }
 .proposal-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.proposal-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+.proposal-preview section { min-width: 0; }
+.stale-warning { margin-top: 8px; color: #ffb4a2; }
 
 /* Events */
 .events { display: grid; gap: 0; }
