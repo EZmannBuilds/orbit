@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/styles/base.css" />
   <link rel="stylesheet" href="/styles/components.css" />
   <link rel="stylesheet" href="/styles/app.css" />
+  <link rel="stylesheet" href="/styles/features.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='30' fill='none' stroke='%234f83ff' stroke-width='6'/><circle cx='78' cy='30' r='9' fill='%234f83ff'/></svg>" />
 </head>
 <body>
@@ -222,6 +223,84 @@
               </div>
             </div>
             <div class="atlas" id="atlas"></div>
+          </div>
+        </section>
+
+        <!-- ── My Chart (Swiss Ephemeris) ───────────────────────────── -->
+        <section class="workspace-panel" id="panel-mychart" role="tabpanel" aria-labelledby="tab-mychart" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">My Chart <span class="mychart-name" id="mychart-name"></span></h1>
+              <p class="u-meta">Local ephemeris · Swiss Ephemeris 2.10.03 · computed on your machine</p>
+            </div>
+          </div>
+          <div class="o-card">
+            <form id="chart-form" class="chart-form">
+              <div class="chart-form-grid">
+                <label>Nickname <input type="text" id="cf-nickname" placeholder="My Chart" /></label>
+                <label>Birth date <input type="date" id="cf-date" required /></label>
+                <label>Birth time <input type="time" id="cf-time" /></label>
+                <label>Time accuracy
+                  <select id="cf-accuracy">
+                    <option value="exact">exact</option>
+                    <option value="reported">reported</option>
+                    <option value="approximate">approximate</option>
+                    <option value="unknown">unknown</option>
+                  </select>
+                </label>
+                <label>Birthplace <input type="text" id="cf-place" placeholder="City" /></label>
+                <label>Latitude <input type="number" step="0.0001" id="cf-lat" placeholder="51.5074" required /></label>
+                <label>Longitude <input type="number" step="0.0001" id="cf-lon" placeholder="-0.1278" required /></label>
+                <label>UTC offset <input type="text" id="cf-offset" placeholder="+00:00" /></label>
+              </div>
+              <button type="submit">Calculate chart</button>
+              <span class="chart-form-hint" id="chart-form-hint"></span>
+            </form>
+            <div class="chart-warnings" id="chart-warnings"></div>
+            <div class="bigthree" id="bigthree"></div>
+            <div class="balance-row">
+              <div class="balance-block"><h3>Element Balance</h3><div class="bars" id="element-bars"></div></div>
+              <div class="balance-block"><h3>Modality</h3><div class="bars" id="modality-bars"></div></div>
+              <div class="balance-block"><h3>Tonight's Moon</h3><div class="moon-tonight" id="moon-tonight">Reading the sky…</div></div>
+            </div>
+            <details class="chart-details">
+              <summary>Placements &amp; aspects</summary>
+              <div id="chart-placements"></div>
+            </details>
+          </div>
+        </section>
+
+        <!-- ── Intelligence (local LLM + controlled vault editing) ──── -->
+        <section class="workspace-panel" id="panel-intelligence" role="tabpanel" aria-labelledby="tab-intelligence" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">Local Intelligence</h1>
+              <p class="u-meta">Runs entirely on your machine · Ollama · controlled vault editing</p>
+            </div>
+          </div>
+          <div class="o-card local-intel">
+            <div class="intel-head">
+              <h2>Local Intelligence</h2>
+              <span class="local-pill">Local only</span>
+            </div>
+            <div class="intel-grid">
+              <div><div class="intel-label">Connection</div><div id="llm-status" class="intel-value">Checking…</div></div>
+              <div><div class="intel-label">Provider</div><div id="llm-provider" class="intel-value">—</div></div>
+              <div><div class="intel-label">Selected model</div><div id="llm-model" class="intel-value">—</div></div>
+              <div><div class="intel-label">Installed</div><div id="llm-installed" class="intel-value">—</div></div>
+              <div><div class="intel-label">Fallback</div><div id="llm-fallback" class="intel-value">—</div></div>
+              <div><div class="intel-label">Context</div><div id="llm-context" class="intel-value">—</div></div>
+              <div><div class="intel-label">Prompt</div><div id="llm-prompt-version" class="intel-value">—</div></div>
+            </div>
+            <form id="intel-form" class="intel-form">
+              <input type="text" id="intel-prompt" value="Summarize the Orbit Axis roadmap." />
+              <button type="submit">Generate</button>
+              <button type="button" id="proposal-button">Propose note</button>
+            </form>
+            <div class="intel-output" id="intel-output"></div>
+            <div class="intel-run-meta" id="intel-run-meta"></div>
+            <div class="intel-sources" id="intel-sources"></div>
+            <div class="proposal-panel" id="proposal-panel"></div>
           </div>
         </section>
 

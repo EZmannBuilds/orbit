@@ -18,6 +18,21 @@ async function get(path) {
   return response.json();
 }
 
+async function post(path, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    const error = new Error(data.error || data.validation?.errors?.join("; ") || `HTTP ${response.status}`);
+    error.data = data;
+    throw error;
+  }
+  return data;
+}
+
 function esc(text) {
   const div = document.createElement("div");
   div.textContent = String(text ?? "");
@@ -30,6 +45,8 @@ const ICONS = {
   charts: '<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 3"/>',
   transits: '<path d="M12 3a9 9 0 1 0 9 9"/><circle cx="12" cy="12" r="3"/><path d="M20 4l-6 6"/>',
   research: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  mychart: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  intelligence: '<path d="M12 2l1.9 5.8L20 9l-5.1 1.8L12 16l-1.9-5.2L5 9l6.1-1.2z"/>',
   settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4.5a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 6.2 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 12 4.6V4.5a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 12H21a2 2 0 1 1 0 4h-.09z"/>',
 };
 const icon = (name, cls = "rail__icon") =>
@@ -39,8 +56,10 @@ const icon = (name, cls = "rail__icon") =>
 const WORKSPACES = [
   { id: "dashboard", label: "Dashboard", crumb: "Overview", icon: "dashboard" },
   { id: "charts", label: "Charts", crumb: "Chart tools", icon: "charts" },
+  { id: "mychart", label: "My Chart", crumb: "Your chart", icon: "mychart" },
   { id: "transits", label: "Transits", crumb: "The moving sky", icon: "transits" },
   { id: "research", label: "Research", crumb: "Atlas & queries", icon: "research" },
+  { id: "intelligence", label: "Intelligence", crumb: "Local LLM", icon: "intelligence" },
   { id: "settings", label: "Settings", crumb: "Preferences", icon: "settings" },
 ];
 
@@ -480,8 +499,237 @@ async function boot() {
   window.addEventListener("hashchange", renderRoute);
   renderRoute();
 
+  // Feature panels carried over during branch integration (defensive: each
+  // no-ops if its DOM/backing service is absent, so the app never blocks).
+  wireMyChart();
+  loadMoonTonight();
+  loadLocalIntelligence();
+
   await refreshData();
 }
+
+
+// ══ Carried-over feature logic (branch integration) ═════════════════════════
+// Local Intelligence + My Chart, grafted onto the design-system shell. These
+// bind to the #panel-intelligence and #panel-mychart workspaces.
+
+// ── Local Intelligence ──────────────────────────────────────────────────────
+async function loadLocalIntelligence() {
+  try {
+    const data = await get("/api/local-llm/status");
+    $("#llm-status").textContent = data.reachable ? "Connected" : (data.message || "Unavailable");
+    $("#llm-provider").textContent = data.provider || "—";
+    $("#llm-model").textContent = data.selected_model || data.configured_model || "No model selected";
+    $("#llm-installed").textContent = data.installed_model ? "Yes" : "No";
+    $("#llm-fallback").textContent = data.fallback_active ? "Active" : "Inactive";
+    $("#llm-context").textContent = data.context_length ? `${data.context_length} tokens` : "—";
+    $("#llm-prompt-version").textContent = data.prompt_version || "—";
+  } catch (error) {
+    $("#llm-status").textContent = `Unavailable: ${error.message}`;
+    $("#llm-model").textContent = "—";
+  }
+
+  $("#intel-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await runIntelGenerate(false);
+  });
+  $("#proposal-button").addEventListener("click", async () => runIntelGenerate(true));
+}
+
+async function runIntelGenerate(propose) {
+  const prompt = $("#intel-prompt").value.trim();
+  if (!prompt) return;
+  $("#intel-output").textContent = "Retrieving approved project context…";
+  $("#proposal-panel").innerHTML = "";
+  try {
+    const data = propose
+      ? await post("/api/vault/edit-proposals", {
+          prompt,
+          query: "Orbit Axis roadmap",
+          operation: "create",
+          path: "07 Orbit App/Updates/Local LLM Integration Test.md",
+          title: "Local LLM Integration Test",
+          type: "app_update",
+          reason: "Local Intelligence UI proposal test",
+        })
+      : await post("/api/local-llm/generate", { prompt, query: prompt });
+    renderIntelResult(data);
+  } catch (error) {
+    $("#intel-output").textContent = `Local Intelligence failed: ${error.message}`;
+    if (error.data?.proposal) renderProposal(error.data.proposal);
+  }
+}
+
+function renderIntelResult(data) {
+  const response = data.response || {};
+  $("#intel-output").innerHTML = `<strong>${esc(data.generation_label || "Local generation")}</strong><br/>${esc(response.answer || "No answer returned.")}`;
+  $("#intel-run-meta").innerHTML = `
+    <span><strong>Validation</strong> ${data.validation?.ok ? "passed" : "failed"}</span>
+    <span><strong>Duration</strong> ${Number(data.duration_ms || 0).toLocaleString()} ms</span>
+    <span><strong>Context</strong> ${esc(data.context_length || "—")}</span>
+    <span><strong>Prompt</strong> ${esc(data.prompt_version || "—")}</span>`;
+  $("#intel-sources").innerHTML = `
+    <strong>Sources used</strong>
+    <ul>${(data.sources || response.sources || []).map(source => `<li>${esc(source.path)}${source.title ? ` — ${esc(source.title)}` : ""}</li>`).join("")}</ul>`;
+  if (data.proposal) renderProposal(data.proposal);
+}
+
+function renderProposal(proposal) {
+  state.proposal = proposal;
+  $("#proposal-panel").innerHTML = `
+    <div class="proposal-meta">
+      <strong>Target path</strong><br/>${esc(proposal.path)}<br/>
+      <strong>Reason</strong><br/>${esc(proposal.reason)}<br/>
+      <strong>Status</strong><br/><span id="proposal-status">${esc(proposal.status)}</span>
+      ${proposal.status === "stale" ? '<div class="stale-warning">Target changed after proposal creation. Generate a fresh proposal.</div>' : ""}<br/>
+      <strong>Model</strong><br/>${esc(proposal.model || "—")}<br/>
+      <strong>Prompt</strong><br/>${esc(proposal.prompt_version || "—")}<br/>
+      <strong>Validation</strong><br/>${proposal.validation?.ok ? "Passed" : esc((proposal.validation?.errors || []).join("; "))}
+    </div>
+    <div class="proposal-preview">
+      <section><strong>Current</strong><pre>${esc(proposal.current_content || "New note")}</pre></section>
+      <section><strong>Proposed</strong><pre>${esc(proposal.proposed_content || "")}</pre></section>
+    </div>
+    <section><strong>Unified diff</strong><pre>${esc(proposal.diff_text || "")}</pre></section>
+    <div class="proposal-actions">
+      <button type="button" data-action="approve">Approve</button>
+      <button type="button" data-action="reject">Reject</button>
+      <button type="button" data-action="apply">Apply</button>
+    </div>`;
+  $("#proposal-panel").querySelector(".proposal-actions").addEventListener("click", async (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    const action = button.dataset.action;
+    try {
+      const result = await post(`/api/vault/edit-proposals/${proposal.id}/${action}`, {});
+      const status = result.proposal?.status || result.logRecord?.status || action;
+      $("#proposal-status").textContent = status;
+      if (status === "stale") renderProposal(result.proposal);
+    } catch (error) {
+      if (error.data?.proposal) renderProposal(error.data.proposal);
+      else $("#proposal-status").textContent = error.message;
+    }
+  });
+}
+
+// ── My Chart ─────────────────────────────────────────────────────────────────
+const SIGN_GLYPH = {
+  Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍",
+  Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓",
+};
+const ELEMENT_CLASS = { Fire: "fire", Earth: "earth", Air: "air", Water: "water" };
+
+function degLabel(p) {
+  if (!p || p.unavailable) return "";
+  return `${p.degrees}° ${String(p.minutes).padStart(2, "0")}′`;
+}
+
+function renderBigThree(bt) {
+  const items = [
+    { glyph: "☉", label: "Sun", body: bt.sun },
+    { glyph: "☾", label: "Moon", body: bt.moon },
+    { glyph: "↑", label: "Rising", body: bt.rising },
+  ];
+  $("#bigthree").innerHTML = items.map(({ glyph, label, body }) => {
+    if (!body || body.unavailable) {
+      return `<div class="bigthree-item unavailable">
+        <div class="bt-glyph">${glyph}</div>
+        <div class="bt-label">${label}</div>
+        <div class="bt-sign">Unavailable</div>
+        <div class="bt-deg">${esc(body?.reason || "Birth time required")}</div></div>`;
+    }
+    return `<div class="bigthree-item">
+      <div class="bt-glyph">${glyph} ${SIGN_GLYPH[body.sign] || ""}</div>
+      <div class="bt-label">${label}</div>
+      <div class="bt-sign">${esc(body.sign)}</div>
+      <div class="bt-deg">${degLabel(body)}</div></div>`;
+  }).join("");
+}
+
+function renderBars(elId, percentages, classMap) {
+  const el = $(elId);
+  el.innerHTML = Object.entries(percentages).map(([key, pct]) => `
+    <div class="bar-row">
+      <span class="bar-key">${esc(key)}</span>
+      <span class="bar-track"><span class="bar-fill ${classMap ? (classMap[key] || "") : ""}" style="width:${pct}%"></span></span>
+      <span class="bar-pct">${pct}%</span>
+    </div>`).join("");
+}
+
+function renderPlacements(chart) {
+  const rows = Object.values(chart.planets).map((p) =>
+    `<tr><td>${esc(p.name)}</td><td>${SIGN_GLYPH[p.sign] || ""} ${esc(p.sign)}</td><td>${degLabel(p)}</td><td>${p.retrograde ? "℞" : ""}</td><td>${chart.planet_houses[p.name] ? "H" + chart.planet_houses[p.name] : ""}</td></tr>`
+  ).join("");
+  const asp = chart.aspects.slice(0, 12).map((a) =>
+    `<li>${esc(a.a)} ${esc(a.aspect.toLowerCase())} ${esc(a.b)} <span class="orb">(orb ${a.orb}°)</span></li>`
+  ).join("");
+  $("#chart-placements").innerHTML = `
+    <table class="placements">
+      <thead><tr><th>Body</th><th>Sign</th><th>Degree</th><th>R</th><th>House</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="chart-meta">Chart ruler: ${esc(chart.chart_ruler || "—")} · Dominant: ${esc(chart.element_balance.dominant)} / ${esc(chart.modality_balance.dominant)} · ${esc(chart.calculation_version)}</div>
+    <h4>Major aspects</h4><ul class="aspect-list">${asp}</ul>`;
+}
+
+function renderChart(chart, name) {
+  $("#mychart-name").textContent = name ? `· ${name}` : "· Preview";
+  const warn = $("#chart-warnings");
+  if (chart.warnings && chart.warnings.length) {
+    const human = { birth_time_unknown: "Birth time unknown — Rising and houses are hidden.", houses_unavailable: "Houses unavailable.", rising_unavailable: "Rising unavailable.", moon_approximate: "Moon position is approximate without a birth time." };
+    const seen = new Set();
+    warn.innerHTML = chart.warnings.filter((w) => !seen.has(w) && seen.add(w)).map((w) => `<span class="warn-chip">${esc(human[w] || w)}</span>`).join("");
+  } else warn.innerHTML = "";
+  renderBigThree(chart.big_three);
+  renderBars("#element-bars", chart.element_balance.percentages, ELEMENT_CLASS);
+  renderBars("#modality-bars", chart.modality_balance.percentages, null);
+  renderPlacements(chart);
+}
+
+function wireMyChart() {
+  const form = $("#chart-form");
+  if (!form) return;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const hint = $("#chart-form-hint");
+    const accuracy = $("#cf-accuracy").value;
+    const payload = {
+      nickname: $("#cf-nickname").value.trim() || undefined,
+      birth_date: $("#cf-date").value,
+      birth_time: accuracy === "unknown" ? null : ($("#cf-time").value || null),
+      time_accuracy: accuracy,
+      birthplace_name: $("#cf-place").value.trim() || undefined,
+      latitude: parseFloat($("#cf-lat").value),
+      longitude: parseFloat($("#cf-lon").value),
+      utc_offset_at_birth: $("#cf-offset").value.trim() || "+00:00",
+    };
+    hint.textContent = "Calculating…";
+    try {
+      const { chart } = await post("/api/chart/preview", payload);
+      renderChart(chart, payload.nickname);
+      hint.textContent = "Computed locally — not saved. Sign in to save charts.";
+    } catch (err) {
+      hint.textContent = err.message;
+    }
+  });
+}
+
+async function loadMoonTonight() {
+  try {
+    const { moon } = await get("/api/moon/current");
+    $("#moon-tonight").innerHTML = `
+      <div class="moon-phase">${SIGN_GLYPH[moon.sign] || ""} ${esc(moon.phase_name)}</div>
+      <div class="moon-illum">${moon.illumination_percent}% illuminated · ${moon.waxing ? "waxing" : "waning"}</div>
+      <div class="moon-sign">Moon in ${esc(moon.sign)} · times in UTC</div>`;
+  } catch {
+    $("#moon-tonight").textContent = "Moon data unavailable.";
+  }
+}
+
+boot().catch(err => {
+  document.querySelector("main").insertAdjacentHTML("afterbegin",
+    `<div class="card" style="border-color:#7a2d44;color:#ff8fa8">Orbit failed to load: ${esc(err.message)}</div>`);
+});
 
 boot().catch(err => {
   $("#workspace").insertAdjacentHTML("afterbegin",
