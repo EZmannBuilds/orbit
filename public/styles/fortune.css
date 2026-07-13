@@ -16,35 +16,64 @@
 .fortune-card h2 { font-size: 22px; margin-bottom: 2px; }
 .fortune-card__sub { color: var(--color-secondary); font-size: 14px; margin-bottom: 16px; }
 
-.fortune-sections { display: grid; gap: 14px; }
-.fortune-section { display: grid; gap: 3px; }
-.fortune-section__label {
-  font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em;
-  color: var(--axis-lavender); font-weight: 600;
+/* ── Fortune carousel: one topic card at a time ───────────────────────────── */
+.fortune-carousel { margin-top: 4px; }
+.fortune-carousel__nav {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 10px;
 }
-.fortune-section__body { font-size: 16px; line-height: 1.5; color: var(--color-primary); }
+.fortune-carousel__arrow {
+  display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto;
+  background: var(--color-surface-sunken, #12152a); border: 1px solid var(--color-border);
+  border-radius: 999px; color: var(--color-primary); cursor: pointer;
+}
+.fortune-carousel__arrow:hover { border-color: var(--axis-lavender); }
+.fortune-carousel__arrow svg { width: 18px; height: 18px; }
+.fortune-carousel__status {
+  font-size: 13px; color: var(--color-secondary); text-align: center; flex: 1;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.fortune-carousel__viewport {
+  min-height: 128px; display: flex; align-items: center;
+  border-radius: var(--axis-radius-md);
+  touch-action: pan-y; /* keep vertical page scroll; horizontal swipe drives the carousel */
+}
+.fortune-carousel__viewport:focus-visible {
+  outline: 2px solid var(--axis-blue); outline-offset: 4px; border-radius: var(--axis-radius-md);
+}
+.fortune-carousel__card { width: 100%; }
+.fortune-carousel__card.is-entering { animation: fortune-card-enter 260ms var(--ease-decelerate, ease-out); }
+@keyframes fortune-card-enter {
+  from { opacity: 0; transform: translateX(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.fortune-topic__body { font-size: 17px; line-height: 1.55; color: var(--color-primary); }
+.fortune-carousel__dots { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+.fortune-carousel__dot {
+  width: 10px; height: 10px; padding: 0; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--color-border-strong, #3a3f66);
+}
+.fortune-carousel__dot[aria-selected="true"] { background: var(--axis-lavender); }
+.fortune-carousel__dot:focus-visible { outline: 2px solid var(--axis-blue); outline-offset: 3px; }
 
-/* Lucky number + color row */
-.fortune-extras {
-  display: flex; gap: 24px; flex-wrap: wrap; align-items: center;
-  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--color-border);
+/* Lucky number + color, rendered as carousel cards */
+.lucky-number { display: grid; justify-items: start; gap: 6px; }
+.lucky-number__value {
+  font-size: 52px; font-weight: 700; line-height: 1;
+  color: var(--axis-moon); font-variant-numeric: tabular-nums;
 }
-.lucky-number { display: grid; }
 .lucky-number__label, .lucky-color__label {
   font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--color-secondary);
 }
-.lucky-number__value {
-  font-size: 40px; font-weight: 700; line-height: 1;
-  color: var(--axis-moon); font-variant-numeric: tabular-nums;
-}
-.lucky-color { display: grid; }
-.lucky-color__chip { display: inline-flex; align-items: center; gap: 10px; margin-top: 4px; }
+.lucky-color { display: flex; align-items: center; gap: 14px; }
 .lucky-color__swatch {
-  width: 26px; height: 26px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.35);
+  width: 44px; height: 44px; border-radius: 12px; flex: 0 0 auto;
+  border: 1px solid rgba(255,255,255,0.35);
   box-shadow: var(--axis-glow-soft) currentColor;
 }
-.lucky-color__name { font-size: 16px; color: var(--color-primary); }
-.lucky-color__hex { font-size: 12px; color: var(--color-secondary); font-family: var(--font-mono, monospace); }
+.lucky-color__text { display: grid; gap: 2px; }
+.lucky-color__name { font-size: 18px; color: var(--color-primary); }
+.lucky-color__hex { font-size: 13px; color: var(--color-secondary); font-family: var(--font-mono, monospace); }
 
 /* Why this reading — progressive disclosure */
 .why-reading { margin-top: 16px; }
@@ -62,15 +91,21 @@
 }
 .why-list li::before { content: "•"; color: var(--axis-lavender); }
 
-/* ── Tonight's Moon card ──────────────────────────────────────────────────── */
-.moon-card { display: flex; gap: 22px; align-items: center; }
-.moon-card__body { display: grid; gap: 4px; }
-.moon-card__phase { font-size: 22px; font-weight: 600; color: var(--axis-moon); }
-.moon-card__meta { color: var(--color-secondary); font-size: 15px; }
-.moon-card__sign { color: var(--color-primary); font-size: 15px; }
-.moon-card__tz { color: var(--color-faint, #626b9e); font-size: 12px; }
+/* ── Current Sky: unified panel, procedural Moon clipping the top-left ────── */
+.current-sky {
+  display: flex; align-items: flex-start; gap: 24px;
+  position: relative; overflow: visible;
+}
+.current-sky__moon {
+  flex: 0 0 auto; width: 132px; height: 132px;
+  margin: -34px 0 -10px -34px; /* pulls the disc into the panel's top-left corner */
+  filter: drop-shadow(var(--axis-glow-soft) color-mix(in oklab, var(--axis-lavender) 45%, transparent));
+}
+.current-sky-moon__svg { width: 100%; height: 100%; display: block; }
+.current-sky__body { flex: 1 1 auto; min-width: 0; }
+.current-sky__body h2 { font-size: 20px; margin-bottom: 4px; }
+.current-sky__local { color: var(--color-secondary); font-size: 14px; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
 
-/* ── Current Sky card ─────────────────────────────────────────────────────── */
 .sky-facts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .sky-chip {
   display: inline-flex; align-items: center; gap: 7px;
@@ -82,6 +117,26 @@
 .sky-theme { margin-top: 12px; font-size: 15px; color: var(--color-primary); line-height: 1.5; }
 .sky-advanced { margin-top: 10px; }
 .sky-advanced summary { cursor: pointer; color: var(--axis-blue); font-size: 14px; }
+
+.current-sky__personal {
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-border);
+}
+.current-sky__transit-list { list-style: none; display: grid; gap: 6px; margin-top: 6px; }
+.current-sky__transit-list li {
+  font-size: 14px; color: var(--color-primary); padding: 6px 10px;
+  background: var(--color-surface-sunken, #12152a); border-radius: 8px;
+}
+.current-sky__location {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-border);
+}
+.current-sky__location .u-caption { flex: 1 1 220px; }
+
+@media (max-width: 640px) {
+  .current-sky { flex-direction: column; align-items: center; text-align: center; }
+  .current-sky__moon { margin: 0 0 6px; width: 96px; height: 96px; }
+  .current-sky__location { justify-content: center; text-align: center; }
+}
 
 /* Ask Orbit Axis action */
 .axis-ask {

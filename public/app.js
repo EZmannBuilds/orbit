@@ -7,6 +7,8 @@
    JSON API and paints the design-system components.
    ========================================================================== */
 
+import { renderMoonSVG } from "./moon-phase.js";
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -722,9 +724,28 @@ async function loadSavedCharts() {
   }
 }
 
+// Home's "Viewing" selector — lists only the signed-in owner's charts
+// (already server-scoped by /api/charts) and mirrors the active one. A single
+// chart still shows its identity via a disabled select rather than hiding it.
+function axisRenderChartPicker() {
+  const picker = $("#today-chart-picker");
+  const select = $("#today-chart-select");
+  if (!picker || !select) return;
+  if (!authSignedIn() || !state.charts.length) {
+    picker.hidden = true;
+    return;
+  }
+  picker.hidden = false;
+  select.innerHTML = state.charts.map(chart =>
+    `<option value="${esc(chart.id)}" ${chart.id === state.activeChartId ? "selected" : ""}>${esc(chart.nickname || "Untitled Chart")}</option>`
+  ).join("");
+  select.disabled = state.charts.length <= 1;
+}
+
 function renderSavedCharts() {
   const status = $("#saved-charts-status");
   const list = $("#saved-charts-list");
+  axisRenderChartPicker();
   if (!status || !list) return;
   if (!authSignedIn()) {
     status.textContent = "Sign in to save and restore charts.";
@@ -850,7 +871,6 @@ function wireKeyboard() {
     }
   });
 
-  $("#topnav-search").addEventListener("click", openCommand);
   $("#rail-command").addEventListener("click", openCommand);
   $("#cmd-input").addEventListener("input", e => renderCommand(e.target.value));
   $("#cmd-overlay").addEventListener("click", e => { if (e.target === $("#cmd-overlay")) closeCommand(); });
@@ -1261,12 +1281,62 @@ async function loadMoonTonight() {
 }
 
 // ══ Orbit Axis daily experience ═════════════════════════════════════════════
-// Today workspace, Fortune, Tonight's Moon, Current Sky, History, and the
-// Simple/Balanced/Advanced detail level. Deterministic fortune comes from the
-// server; nothing here calculates astrology. Works in local dev via the
-// stateless preview; upgrades to persisted fortunes when signed in.
-const AXIS = { detail: "Simple", lastFortune: null, lastSky: null };
+// Today workspace, Fortune carousel, Current Sky (with the procedural Moon),
+// History, and the Simple/Balanced/Advanced detail level. Deterministic
+// fortune comes from the server; nothing here calculates astrology. Works in
+// local dev via the stateless preview; upgrades to persisted fortunes when
+// signed in.
+const AXIS = {
+  detail: "Simple",
+  lastFortune: null,
+  lastSky: null,
+  carousel: { key: null, index: 0, topics: [] },
+  currentTimezoneOverride: null, // session-only, set by "Use my current location"
+};
 const DETAILS = ["Simple", "Balanced", "Advanced"];
+
+// The user's *current* (browsing) timezone — always distinct from a saved
+// chart's birth timezone. Never falls back to the server's machine timezone.
+function axisResolveTimezone() {
+  if (AXIS.currentTimezoneOverride) return AXIS.currentTimezoneOverride;
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
+  catch { return "UTC"; }
+}
+
+// Best-effort: tell the server the device timezone so /api/fortune/today and
+// Current Sky can use it without a query param on every request. No-ops for
+// signed-out users (their preview posts carry the timezone directly).
+async function axisSyncCurrentTimezone() {
+  if (!authSignedIn()) return;
+  try { await put("/api/settings/current-timezone", { timezone_name: axisResolveTimezone(), source: "device" }); }
+  catch { /* best effort */ }
+}
+
+// Request geolocation only on this explicit user action — never on load.
+async function axisUseCurrentLocation() {
+  const status = $("#current-sky-location-status");
+  if (!("geolocation" in navigator)) {
+    if (status) status.textContent = "Location isn't available in this browser.";
+    return;
+  }
+  if (status) status.textContent = "Requesting your location…";
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      try {
+        const { timezone_name } = await post("/api/settings/current-location", {
+          latitude: position.coords.latitude, longitude: position.coords.longitude,
+        });
+        AXIS.currentTimezoneOverride = timezone_name;
+        if (status) status.textContent = `Using your current location's timezone (${timezone_name}).`;
+        await axisLoadToday();
+      } catch {
+        if (status) status.textContent = "Could not resolve a timezone for that location.";
+      }
+    },
+    () => { if (status) status.textContent = "Location permission denied — using your device timezone instead."; },
+    { timeout: 8000 },
+  );
+}
 
 function axisGetBirth() {
   try { return JSON.parse(localStorage.getItem("oa_birth") || "null"); } catch { return null; }
@@ -1302,6 +1372,71 @@ async function axisSetDetail(level) {
   } catch { /* best effort */ }
 }
 
+function axisWireChartPicker() {
+  const select = $("#today-chart-select");
+  if (!select || select._axisWired) return;
+  select._axisWired = true;
+  select.addEventListener("change", async (event) => {
+    const id = event.target.value;
+    const previousId = state.activeChartId;
+    if (!id || id === previousId) return;
+    select.disabled = true;
+    try {
+      await post(`/api/charts/${id}/activate`, {});
+      await loadSavedCharts();
+      await refreshActiveExperience();
+      toast(`${activeChart()?.nickname || "Chart"} is active`);
+    } catch (error) {
+      event.target.value = previousId;
+      toast(error.message);
+    } finally {
+      select.disabled = state.charts.length <= 1;
+    }
+  });
+}
+
+// Event delegation on the (stable) mount points below — their innerHTML is
+// replaced on every render, but the elements themselves persist, so wiring
+// once here keeps working across re-renders without rebinding listeners.
+function axisWireFortuneCarousel() {
+  const root = $("#today-fortune");
+  if (!root || root._axisWired) return;
+  root._axisWired = true;
+  root.addEventListener("click", (event) => {
+    if (event.target.closest("#fortune-prev")) return axisMoveCarousel(-1);
+    if (event.target.closest("#fortune-next")) return axisMoveCarousel(1);
+    const dot = event.target.closest(".fortune-carousel__dot");
+    if (dot) axisSetCarouselIndex(Number(dot.dataset.index));
+  });
+  root.addEventListener("keydown", (event) => {
+    if (!event.target.closest("#fortune-viewport")) return;
+    if (event.key === "ArrowRight") { event.preventDefault(); axisMoveCarousel(1); }
+    else if (event.key === "ArrowLeft") { event.preventDefault(); axisMoveCarousel(-1); }
+    else if (event.key === "Home") { event.preventDefault(); axisSetCarouselIndex(0); }
+    else if (event.key === "End") { event.preventDefault(); axisSetCarouselIndex(AXIS.carousel.topics.length - 1); }
+  });
+  let touchX = null;
+  root.addEventListener("touchstart", (event) => {
+    touchX = event.target.closest("#fortune-viewport") ? event.touches[0].clientX : null;
+  }, { passive: true });
+  root.addEventListener("touchend", (event) => {
+    if (touchX == null) return;
+    const dx = event.changedTouches[0].clientX - touchX;
+    touchX = null;
+    if (Math.abs(dx) < 40) return; // swipe threshold
+    axisMoveCarousel(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
+
+function axisWireSkyControls() {
+  const root = $("#today-sky");
+  if (!root || root._axisWired) return;
+  root._axisWired = true;
+  root.addEventListener("click", (event) => {
+    if (event.target.closest("#current-sky-use-location")) axisUseCurrentLocation();
+  });
+}
+
 function axisInit() {
   if (!$("#panel-home")) return;
   const today = new Date();
@@ -1314,6 +1449,10 @@ function axisInit() {
   // History loads when its workspace opens (and once now if it's the route).
   window.addEventListener("hashchange", () => { if (currentWorkspace() === "history") axisLoadHistory($("#history-scope")?.value || "active"); });
 
+  axisWireChartPicker();
+  axisWireFortuneCarousel();
+  axisWireSkyControls();
+  axisSyncCurrentTimezone();
   axisLoadDetail();
   axisLoadToday();
   if (currentWorkspace() === "history") axisLoadHistory("active");
@@ -1321,9 +1460,9 @@ function axisInit() {
 
 // ── Today ────────────────────────────────────────────────────────────────────
 async function axisLoadToday() {
-  // Moon + Sky always render (they don't need a saved chart).
-  get("/api/moon/current").then(r => axisRenderMoon(r.moon)).catch(() => {});
-  get("/api/sky/current").then(r => { AXIS.lastSky = r.sky; axisRenderSky(r.sky); }).catch(() => {});
+  // Sky (incl. the Moon) always renders — it doesn't need a saved chart.
+  const tz = axisResolveTimezone();
+  get(`/api/sky/current?tz=${encodeURIComponent(tz)}`).then(r => { AXIS.lastSky = r.sky; axisRenderSky(r.sky); }).catch(() => {});
 
   // Fortune: prefer the signed-in path; fall back to a local preview.
   try {
@@ -1343,7 +1482,7 @@ async function axisLoadToday() {
   const birth = axisGetBirth();
   if (!birth) return axisRenderSetup();
   try {
-    const r = await post("/api/fortune/preview", birth);
+    const r = await post("/api/fortune/preview", { ...birth, current_timezone_name: tz });
     AXIS.lastFortune = r.fortune;
     axisShowReadingFor(birth.nickname || "My Chart");
     axisRenderFortune(r.fortune);
@@ -1358,62 +1497,159 @@ function axisShowReadingFor(name) {
   setActiveChartName(name);
 }
 
+// ── Today's Fortune: one navigable card per topic ─────────────────────────
+// Wrap-around navigation (last → first, first → last): nothing in the
+// existing UX favors a bounded/disabled-arrow model, and wrapping keeps
+// keyboard/swipe input simple (no dead-end states to special-case).
+function axisCarouselTopics(F) {
+  return [
+    { label: "Mood", body: () => `<p class="fortune-topic__body">${esc(F.mood)}</p>` },
+    { label: "Love", body: () => `<p class="fortune-topic__body">${esc(F.love_reading)}</p>` },
+    { label: "Luck", body: () => `<p class="fortune-topic__body">${esc(F.luck_reading)}</p>` },
+    { label: "Watch Out", body: () => `<p class="fortune-topic__body">${esc(F.watch_out)}</p>` },
+    { label: "Lucky Number", body: () => `
+      <div class="lucky-number">
+        <span class="lucky-number__value">${esc(F.lucky_number)}</span>
+        <span class="lucky-number__label">Lucky Number</span>
+      </div>` },
+    { label: "Lucky Color", body: () => `
+      <div class="lucky-color">
+        <span class="lucky-color__swatch" style="background:${esc(F.lucky_color.value)}" aria-hidden="true"></span>
+        <span class="lucky-color__text">
+          <span class="lucky-color__name">${esc(F.lucky_color.name)}</span>
+          <span class="lucky-color__hex">${esc(F.lucky_color.value)}</span>
+          <span class="lucky-color__label">Lucky Color</span>
+        </span>
+      </div>` },
+  ];
+}
+
+function axisMoveCarousel(delta) {
+  const total = AXIS.carousel.topics.length;
+  if (!total) return;
+  axisSetCarouselIndex((AXIS.carousel.index + delta + total) % total);
+}
+
+function axisSetCarouselIndex(index) {
+  const total = AXIS.carousel.topics.length;
+  if (!total) return;
+  AXIS.carousel.index = Math.max(0, Math.min(index, total - 1));
+  axisPaintCarouselCard();
+}
+
+function axisPaintCarouselCard() {
+  const { topics, index } = AXIS.carousel;
+  const topic = topics[index];
+  if (!topic) return;
+  const card = $("#fortune-card-body");
+  const status = $("#fortune-position");
+  const dots = $("#fortune-dots");
+  if (card) {
+    card.innerHTML = topic.body();
+    card.setAttribute("aria-label", `${topic.label}, slide ${index + 1} of ${topics.length}`);
+    card.classList.remove("is-entering");
+    void card.offsetWidth; // reflow so the entrance animation restarts on every card change
+    card.classList.add("is-entering");
+  }
+  if (status) status.textContent = `${topic.label} — ${index + 1} of ${topics.length}`;
+  if (dots) dots.querySelectorAll(".fortune-carousel__dot").forEach((dot, i) => dot.setAttribute("aria-selected", String(i === index)));
+}
+
 function axisRenderFortune(F) {
-  const sections = [
-    ["Today’s Mood", F.mood], ["Love", F.love_reading],
-    ["Luck", F.luck_reading], ["Watch-Out", F.watch_out],
-  ].map(([label, body]) => `<div class="fortune-section"><div class="fortune-section__label">${label}</div><div class="fortune-section__body">${esc(body)}</div></div>`).join("");
-  const key = AXIS.detail === "Advanced" ? "advanced" : AXIS.detail === "Balanced" ? "balanced" : "simple";
-  const why = (F.factors || []).map(f => `<li>${esc(f[key])}</li>`).join("");
+  // Reset to the first card only when the underlying fortune actually
+  // changes (different chart or different local date) — not on harmless
+  // rerenders like a detail-level toggle, which calls this with the same F.
+  const key = `${F.chart_id || "local"}|${F.fortune_date || ""}`;
+  if (AXIS.carousel.key !== key) {
+    AXIS.carousel.key = key;
+    AXIS.carousel.index = 0;
+  }
+  AXIS.carousel.topics = axisCarouselTopics(F);
+  AXIS.carousel.index = Math.min(AXIS.carousel.index, AXIS.carousel.topics.length - 1);
+
+  const detailKey = AXIS.detail === "Advanced" ? "advanced" : AXIS.detail === "Balanced" ? "balanced" : "simple";
+  const why = (F.factors || []).map(f => `<li>${esc(f[detailKey])}</li>`).join("");
+
   $("#today-fortune").innerHTML = `
     <div class="fortune-card">
       <h2>Today’s Fortune</h2>
       <div class="fortune-card__sub">${esc(F.fortune_date || "")} · symbolic reflection, never prediction</div>
-      <div class="fortune-sections">${sections}</div>
-      <div class="fortune-extras">
-        <div class="lucky-number"><span class="lucky-number__label">Lucky Number</span><span class="lucky-number__value">${esc(F.lucky_number)}</span></div>
-        <div class="lucky-color"><span class="lucky-color__label">Lucky Color</span>
-          <span class="lucky-color__chip">
-            <span class="lucky-color__swatch" style="background:${esc(F.lucky_color.value)};color:${esc(F.lucky_color.value)}"></span>
-            <span><span class="lucky-color__name">${esc(F.lucky_color.name)}</span> <span class="lucky-color__hex">${esc(F.lucky_color.value)}</span></span>
-          </span>
+      <div class="fortune-carousel" role="region" aria-roledescription="carousel" aria-label="Today's Fortune topics">
+        <div class="fortune-carousel__nav">
+          <button type="button" class="fortune-carousel__arrow" id="fortune-prev" aria-label="Previous fortune topic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          </button>
+          <div class="fortune-carousel__status" id="fortune-position" aria-live="polite" aria-atomic="true"></div>
+          <button type="button" class="fortune-carousel__arrow" id="fortune-next" aria-label="Next fortune topic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+        <div class="fortune-carousel__viewport" id="fortune-viewport" tabindex="0" aria-label="Swipe or use the left and right arrow keys to browse fortune topics. Home and End jump to the first and last topic.">
+          <div class="fortune-carousel__card" id="fortune-card-body"></div>
+        </div>
+        <div class="fortune-carousel__dots" id="fortune-dots" role="tablist" aria-label="Jump to a fortune topic">
+          ${AXIS.carousel.topics.map((t, i) => `<button type="button" class="fortune-carousel__dot" role="tab" aria-selected="false" aria-label="${esc(t.label)}" data-index="${i}"></button>`).join("")}
         </div>
       </div>
       <details class="why-reading"><summary>Why this reading?</summary><ul class="why-list">${why}</ul></details>
     </div>`;
+  axisPaintCarouselCard();
 }
 
-function axisRenderMoon(moon) {
-  if (!moon || !$("#today-moon")) return;
-  $("#today-moon").innerHTML = `
-    <div class="axis-moon" aria-hidden="true"><span class="axis-moon__halo"></span></div>
-    <div class="moon-card__body">
-      <div class="u-eyebrow">Tonight’s Moon</div>
-      <div class="moon-card__phase">${SIGN_GLYPH[moon.sign] || ""} ${esc(moon.phase_name)}</div>
-      <div class="moon-card__meta">${esc(moon.illumination_percent)}% illuminated · ${moon.waxing ? "waxing (growing)" : "waning (shrinking)"}</div>
-      <div class="moon-card__sign">Moon in ${esc(moon.sign)}</div>
-      <div class="moon-card__tz">Calculated locally · times in UTC</div>
-    </div>`;
-}
-
+// ── Current Sky: one unified panel (Moon + Sun + season + local time) ──────
 function axisRenderSky(sky) {
   if (!sky || !$("#today-sky")) return;
+  const moonSvg = renderMoonSVG({ illumination: sky.moon.illumination_percent, waxing: sky.moon.waxing, phaseName: sky.moon.phase_name });
+  const localTime = sky.local_time_iso
+    ? new Date(sky.local_time_iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "";
+
   const chips = [
     `<span class="sky-chip"><span class="dot"></span>${esc(sky.zodiac_season)} season</span>`,
+    `<span class="sky-chip"><span class="dot"></span>Sun in ${esc(sky.sun.sign)}</span>`,
     `<span class="sky-chip"><span class="dot"></span>Moon in ${esc(sky.moon.sign)}</span>`,
-    `<span class="sky-chip"><span class="dot"></span>${esc(sky.moon.phase_name)}</span>`,
+    `<span class="sky-chip"><span class="dot"></span>${esc(sky.moon.phase_name)} · ${Math.round(sky.moon.illumination_percent)}% lit</span>`,
     ...(sky.retrogrades || []).map(r => `<span class="sky-chip retro"><span class="dot"></span>${esc(r)} retrograde</span>`),
   ].join("");
+
   const theme = (sky.retrogrades || []).includes("Mercury")
     ? "A slow-down-and-review kind of sky — good for tidying and second drafts."
     : `${sky.moon.waxing ? "A building, lean-in" : "A settling, wind-down"} sky today.`;
+
+  const detailKey = AXIS.detail === "Advanced" ? "advanced" : AXIS.detail === "Balanced" ? "balanced" : "simple";
+  const transitFactors = (AXIS.lastFortune?.factors || []).filter(f => f.type === "transit").slice(0, 3);
+  const personal = transitFactors.length ? `
+    <div class="current-sky__personal">
+      <div class="u-eyebrow">For ${esc(state.activeChartName)}</div>
+      <ul class="current-sky__transit-list">${transitFactors.map(f => `<li>${esc(f[detailKey])}</li>`).join("")}</ul>
+    </div>` : "";
+
   let advanced = "";
   if (AXIS.detail === "Advanced" && sky.planets) {
     const rows = Object.values(sky.planets).map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.sign)} ${p.degrees}°${String(p.minutes).padStart(2, "0")}′</td><td>${p.retrograde ? "℞" : ""}</td></tr>`).join("");
-    advanced = `<details class="sky-advanced" open><summary>Technical sky</summary>
+    advanced = `<details class="sky-advanced"><summary>Technical sky</summary>
       <table class="placements"><thead><tr><th>Body</th><th>Position</th><th>R</th></tr></thead><tbody>${rows}</tbody></table></details>`;
   }
-  $("#today-sky").innerHTML = `<h2>Current Sky</h2><div class="sky-facts">${chips}</div><div class="sky-theme">${theme}</div>${advanced}`;
+
+  const summary = `${sky.moon.phase_name} Moon, ${Math.round(sky.moon.illumination_percent)}% illuminated and ${sky.moon.waxing ? "waxing" : "waning"}, in ${sky.moon.sign}. Sun in ${sky.zodiac_season}.${(sky.retrogrades || []).length ? ` ${sky.retrogrades.join(", ")} retrograde.` : ""}`;
+
+  $("#today-sky").innerHTML = `
+    <div class="current-sky">
+      <div class="current-sky__moon" aria-hidden="true">${moonSvg}</div>
+      <div class="current-sky__body">
+        <h2>Current Sky</h2>
+        <p class="sr-only">${esc(summary)}</p>
+        ${localTime ? `<div class="current-sky__local">${esc(localTime)} · your local time</div>` : ""}
+        <div class="sky-facts">${chips}</div>
+        <div class="sky-theme">${theme}</div>
+        ${personal}
+        <div class="current-sky__location">
+          <span class="u-caption" id="current-sky-location-status">Using your device timezone. Sharing your location can refine this to where you are right now.</span>
+          <button type="button" class="o-btn o-btn--ghost o-btn--sm" id="current-sky-use-location">Use my current location</button>
+        </div>
+        ${advanced}
+      </div>
+    </div>`;
 }
 
 function axisRenderSetup(message = "Tell Orbit Axis when and where you were born, and it will read today’s sky just for you. Sign in to save this as My Chart.") {

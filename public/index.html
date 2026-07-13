@@ -61,11 +61,6 @@
           <div class="topnav__crumb" id="workspace-crumb">Orbit · Observatory</div>
         </div>
         <div class="topnav__spacer"></div>
-        <button class="topnav__search" id="topnav-search" type="button" aria-label="Open command palette">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <span class="topnav__search-label">Search Orbit…</span>
-          <kbd>⌘K</kbd>
-        </button>
         <div class="topnav__date" id="topnav-date"></div>
       </header>
 
@@ -91,13 +86,12 @@
           </div>
 
           <div class="axis-chart-picker" id="today-chart-picker" hidden>
-            <label for="today-chart-select">Reading for</label>
-            <select id="today-chart-select" aria-label="Active chart"></select>
+            <label for="today-chart-select">Viewing</label>
+            <select id="today-chart-select"></select>
           </div>
 
-          <div id="today-fortune" class="axis-rise"><div class="axis-shimmer" style="height:240px"></div></div>
-          <div id="today-moon" class="axis-card moon-card axis-rise-2"><div class="axis-shimmer" style="height:96px"></div></div>
-          <div id="today-sky" class="axis-card axis-rise-3"><div class="axis-shimmer" style="height:80px"></div></div>
+          <div id="today-sky" class="axis-card axis-rise-2"><div class="axis-shimmer" style="height:180px"></div></div>
+          <div id="today-fortune" class="axis-rise-3"><div class="axis-shimmer" style="height:240px"></div></div>
 
           <div class="axis-card">
             <div class="axis-ask">
