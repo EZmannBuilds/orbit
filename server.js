@@ -461,9 +461,10 @@ const server = http.createServer(async (req, res) => {
       if (handled) return json(res, handled.status, handled.body, auth?.setCookie ? { "Set-Cookie": auth.setCookie } : {});
     }
 
-    // Daily fortune + astrology detail-level setting. Owner-scoped user data
-    // requires a Supabase Auth session; the stateless preview needs no owner.
-    if (route.startsWith("/api/fortune") || route === "/api/settings/detail") {
+    // Daily fortune + astrology detail-level / current-timezone / current-location
+    // settings. Owner-scoped user data requires a Supabase Auth session; the
+    // stateless preview needs no owner.
+    if (route.startsWith("/api/fortune") || route.startsWith("/api/settings/")) {
       const publicPreview = route === "/api/fortune/preview";
       let auth = null;
       if (!publicPreview) {

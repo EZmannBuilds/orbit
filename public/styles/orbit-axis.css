@@ -88,14 +88,22 @@
 }
 .axis-detail button:focus-visible { outline: var(--focus-ring, 2px solid #6fa8ff); outline-offset: 2px; }
 
-/* ── Active chart selector ────────────────────────────────────────────────── */
+/* ── Active chart selector ("Viewing") ────────────────────────────────────── */
 /* :not([hidden]) so the `hidden` attribute always wins without !important. */
-.axis-chart-picker:not([hidden]) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
-.axis-chart-picker label { color: var(--color-secondary); font-size: 14px; }
+.axis-chart-picker:not([hidden]) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; max-width: 100%; }
+.axis-chart-picker label { color: var(--color-secondary); font-size: 14px; flex: 0 0 auto; }
 .axis-chart-picker select {
   background: var(--color-surface-elevated); color: var(--color-primary);
   border: 1px solid var(--color-border); border-radius: 10px; padding: 9px 12px;
-  font-size: 15px; min-height: 40px;
+  font-size: 15px; min-height: 44px; max-width: 100%;
+  text-overflow: ellipsis;
+}
+.axis-chart-picker select:disabled {
+  opacity: 0.85; cursor: default; color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-surface-elevated) 85%, transparent);
+}
+@media (max-width: 640px) {
+  .axis-chart-picker select { flex: 1 1 auto; min-width: 0; }
 }
 
 /* ── Card scaffold shared by Today modules ────────────────────────────────── */

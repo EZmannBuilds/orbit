@@ -63,24 +63,6 @@
 .topnav__title { font-size: var(--text-card-title); font-weight: var(--weight-semibold); color: var(--color-primary); }
 .topnav__crumb { font-size: var(--text-caption); color: var(--color-faint); }
 .topnav__spacer { flex: 1; }
-.topnav__search {
-  display: flex; align-items: center; gap: var(--space-2);
-  height: 34px; padding: 0 var(--space-3);
-  min-width: 200px;
-  color: var(--color-muted);
-  background: var(--color-surface-sunken);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  cursor: pointer; font-size: var(--text-caption);
-  transition: border-color var(--duration-fast) var(--ease-standard);
-}
-.topnav__search:hover { border-color: var(--color-border-strong); }
-.topnav__search svg { width: 15px; height: 15px; }
-.topnav__search kbd {
-  margin-left: auto; font-family: var(--font-mono); font-size: 10px;
-  padding: 1px 5px; color: var(--color-muted);
-  background: var(--color-surface); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm);
-}
 .topnav__date { font-size: var(--text-caption); color: var(--color-muted); font-variant-numeric: tabular-nums; }
 
 /* ── Workspace surface ───────────────────────────────────────────────────── */
@@ -175,8 +157,7 @@
 /* Mobile — tighten the top navigation. */
 @media (max-width: 640px) {
   .topnav { padding: 0 var(--space-4); gap: var(--space-2); }
-  .topnav__search { min-width: 0; }
-  .topnav__search .topnav__search-label, .topnav__date { display: none; }
+  .topnav__date { display: none; }
   .topnav__crumb { display: none; }
   .rail__label { display: none; }
   .rail__link { padding: var(--space-2); }
