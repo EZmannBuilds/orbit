@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OllamaProvider, selectModel } from "../lib/local-llm/ollama.js";
+import { buildActiveChartContext } from "../lib/local-llm/context.js";
 import { buildManagedNote, createProposal, validateManagedNoteContent, validateVaultWritePath, applyProposal, updateProposalStatus } from "../lib/local-llm/vault.js";
 import { parseFrontmatter, formatFrontmatter } from "../lib/local-llm/markdown.js";
 import { parseStructuredOutput, validateStructuredOutput } from "../lib/local-llm/structured-output.js";
@@ -17,6 +18,22 @@ test("Ollama unavailable returns health failure instead of throwing", async () =
 
 test("configured Ollama model must be installed", () => {
   assert.equal(selectModel([{ name: "other:latest" }], "qwen3:14b"), null);
+});
+
+test("Ask context includes active chart, current sky, and detail level only", () => {
+  const context = buildActiveChartContext({
+    activeChart: {
+      nickname: "Active Validation",
+      summary: { sun: "Aries", moon: "Cancer", rising: "Libra" },
+    },
+    currentSky: "Sun in Cancer, waxing moon, Mercury direct.",
+    detailLevel: "Balanced",
+  });
+  assert.match(context, /Active chart: Active Validation/);
+  assert.match(context, /Sun Aries, Moon Cancer, Rising Libra/);
+  assert.match(context, /Current sky: Sun in Cancer/);
+  assert.match(context, /Astrology detail level: Balanced/);
+  assert.doesNotMatch(context, /Other Saved Chart/);
 });
 
 test("vault path security accepts approved project paths", () => {

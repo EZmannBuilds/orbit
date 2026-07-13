@@ -24,6 +24,7 @@ import {
 } from "./lib/local-llm/vault.js";
 import { localLlmConfig, supabaseConfig } from "./lib/local-llm/config.js";
 import { recordVaultProposalStatus, recordVaultVersion } from "./lib/local-llm/supabase.js";
+import { buildActiveChartContext } from "./lib/local-llm/context.js";
 import { handleChartsRoute } from "./lib/charts/api.js";
 import { handleFortuneRoute } from "./lib/fortune/api.js";
 import {
@@ -313,9 +314,12 @@ const server = http.createServer(async (req, res) => {
       if (auth.ok) {
         const handled = await handleChartsRoute("GET", "/api/charts", new URLSearchParams(), {}, authContext(auth));
         const active = handled?.body?.charts?.find(chart => chart.is_active);
-        if (active) {
-          context = `Active chart: ${active.nickname}. Sun ${active.summary?.sun || "unknown"}, Moon ${active.summary?.moon || "unknown"}, Rising ${active.summary?.rising || "unavailable"}.`;
-        }
+        const detail = await handleFortuneRoute("GET", "/api/settings/detail", new URLSearchParams(), {}, authContext(auth));
+        context = buildActiveChartContext({
+          activeChart: active || null,
+          currentSky: skyContext(),
+          detailLevel: detail?.body?.astrology_detail_level || "",
+        });
       }
       const result = await generateProjectAnswer({
         prompt: `${context ? `${context}\n\n` : ""}${String(body.prompt || "")}`,

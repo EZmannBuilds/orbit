@@ -21,6 +21,7 @@ tokens/
 npm-debug.log*
 .cache/
 .orbit/
+supabase/.temp/
 dist/
 build/
 
