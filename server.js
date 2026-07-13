@@ -27,6 +27,7 @@ import { recordVaultProposalStatus, recordVaultVersion } from "./lib/local-llm/s
 import { buildActiveChartContext } from "./lib/local-llm/context.js";
 import { handleChartsRoute } from "./lib/charts/api.js";
 import { handleFortuneRoute } from "./lib/fortune/api.js";
+import { LocationError, searchGeoapify } from "./lib/locations/geoapify.js";
 import {
   authenticateRequest,
   clearSessionCookie,
@@ -63,6 +64,7 @@ async function resolveWithLlm(result, prompt) {
 
 const PORT = Number(process.env.PORT || process.argv[2] || 3001);
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
+const LOCATION_RATE = new Map();
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -79,10 +81,25 @@ function json(res, status, body, headers = {}) {
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
     ...headers,
   });
   res.end(payload);
+}
+
+function rateLimitLocation(req, ownerId) {
+  const key = `${ownerId}:${req.socket.remoteAddress || "local"}`;
+  const now = Date.now();
+  const windowMs = 60_000;
+  const max = 45;
+  const item = LOCATION_RATE.get(key);
+  if (!item || now - item.start > windowMs) {
+    LOCATION_RATE.set(key, { start: now, count: 1 });
+    return null;
+  }
+  item.count += 1;
+  if (item.count > max) return { status: 429, retryAfter: Math.ceil((windowMs - (now - item.start)) / 1000) };
+  return null;
 }
 
 function readBody(req) {
@@ -255,6 +272,28 @@ const server = http.createServer(async (req, res) => {
     if (route.startsWith("/api/chakra/")) {
       const chakra = CHAKRAS.find(entry => entry.id === route.slice("/api/chakra/".length));
       return chakra ? json(res, 200, { ok: true, chakra }) : json(res, 404, { ok: false, error: "Unknown chakra" });
+    }
+
+    if (route === "/api/locations/search" && req.method === "GET") {
+      const auth = await requireAuth(req, res);
+      if (!auth) return;
+      const limited = rateLimitLocation(req, auth.user.id);
+      if (limited) {
+        return json(res, 429, { ok: false, error: "Location search is temporarily rate limited.", code: "rate_limited" },
+          { "Retry-After": String(limited.retryAfter) });
+      }
+      try {
+        const results = await searchGeoapify(url.searchParams.get("q") || "", {
+          limit: Number(url.searchParams.get("limit")) || 5,
+        });
+        return json(res, 200, { ok: true, results }, auth.setCookie ? { "Set-Cookie": auth.setCookie } : {});
+      } catch (error) {
+        if (error instanceof LocationError) {
+          return json(res, error.status || 400, { ok: false, error: error.message, code: error.code },
+            auth.setCookie ? { "Set-Cookie": auth.setCookie } : {});
+        }
+        throw error;
+      }
     }
 
     // ── Orbit's own app API ────────────────────────────────────────────────

@@ -1,13 +1,13 @@
 {
   "name": "orbit",
   "version": "1.0.0",
-  "description": "Orbit — standalone astrology app and API. Zero runtime dependencies.",
+  "description": "Orbit — standalone astrology app and API.",
   "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "lint": "node --check server.js && node --check lib/*.js && node --check lib/auth/*.js && node --check lib/local-llm/*.js && node --check lib/astro/*.js && node --check lib/charts/*.js && node --check lib/fortune/*.js && node --check public/app.js && node --check scripts/*.js",
+    "lint": "node --check server.js && node --check lib/*.js && node --check lib/auth/*.js && node --check lib/local-llm/*.js && node --check lib/astro/*.js && node --check lib/charts/*.js && node --check lib/fortune/*.js && node --check lib/locations/*.js && node --check public/app.js && node --check scripts/*.js",
     "typecheck": "npm run lint",
     "test": "node --test",
     "build": "npm run lint",
@@ -23,5 +23,9 @@
     "orbit:vault:status": "node scripts/vault-sync.js status",
     "orbit:vault:sync": "node scripts/vault-sync.js sync",
     "orbit:vault:push": "node scripts/vault-sync.js sync --push"
+  },
+  "dependencies": {
+    "luxon": "^3.7.2",
+    "tz-lookup": "^6.1.25"
   }
 }

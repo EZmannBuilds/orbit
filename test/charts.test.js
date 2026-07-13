@@ -3,14 +3,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createChartService, ChartError, PRIMARY_NAME } from "../lib/charts/service.js";
+import { safePlaceForClient } from "../lib/locations/geoapify.js";
 
 // In-memory store mirroring the Supabase store interface, owner-scoped.
 function memStore() {
   const profiles = new Map();       // id -> row
   const active = new Map();          // ownerId -> birth_profile_id
+  const profileNames = new Map();    // ownerId -> {first_name,last_name}
   const calcs = [];                  // {birth_profile_id, calculation_version, input_hash, chart_data}
   return {
     _profiles: profiles,
+    _calcs: calcs,
+    _profileNames: profileNames,
     async listProfiles(ownerId) {
       return [...profiles.values()].filter((p) => p.owner_id === ownerId)
         .sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -44,6 +48,7 @@ function memStore() {
     },
     async getActiveId(ownerId) { return active.get(ownerId) || null; },
     async setActiveId(ownerId, id) { if (id === null) active.delete(ownerId); else active.set(ownerId, id); },
+    async upsertProfileNames(ownerId, firstName, lastName) { profileNames.set(ownerId, { first_name: firstName, last_name: lastName }); },
     async getCalculation(bpId, ver, hash) {
       return calcs.find((c) => c.birth_profile_id === bpId && c.calculation_version === ver && c.input_hash === hash) || null;
     },
@@ -60,6 +65,18 @@ const INPUT = {
   timezone_name: "Europe/London", utc_offset_at_birth: "+00:00",
 };
 
+const PLACE = {
+  provider: "geoapify",
+  provider_place_id: "unit-london",
+  label: "London, England, United Kingdom",
+  city: "London",
+  region: "England",
+  country: "United Kingdom",
+  country_code: "gb",
+  latitude: 51.5,
+  longitude: -0.13,
+};
+
 test("first chart is auto-named 'My Chart', marked primary and active", async () => {
   const store = memStore();
   const svc = createChartService(store);
@@ -68,6 +85,25 @@ test("first chart is auto-named 'My Chart', marked primary and active", async ()
   assert.equal(profile.is_primary, true);
   assert.equal(became_primary, true);
   assert.equal(await store.getActiveId(OWNER), profile.id);
+});
+
+test("selected birthplace is verified and profile names persist for My Chart", async () => {
+  process.env.GEOAPIFY_API_KEY = "unit-test-location-secret";
+  const store = memStore();
+  const svc = createChartService(store);
+  const { profile } = await svc.create(OWNER, {
+    first_name: "Test",
+    last_name: "User",
+    birth_date: "1990-06-16",
+    birth_time: "08:30",
+    time_accuracy: "exact",
+    birthplace: safePlaceForClient(PLACE),
+  });
+  assert.equal(profile.first_name, "Test");
+  assert.equal(profile.birthplace_name, PLACE.label);
+  assert.equal(profile.timezone_name, "Europe/London");
+  assert.equal(profile.utc_offset_at_birth, "+01:00");
+  assert.deepEqual(store._profileNames.get(OWNER), { first_name: "Test", last_name: "User" });
 });
 
 test("a second chart does NOT recreate 'My Chart'", async () => {
@@ -90,6 +126,23 @@ test("custom nicknames persist and don't need to be legal names", async () => {
     const { profile } = await svc.create(OWNER, { ...INPUT, nickname: n });
     assert.equal(profile.nickname, n);
   }
+});
+
+test("secondary saved charts require a nickname", async () => {
+  const store = memStore();
+  const svc = createChartService(store);
+  await svc.create(OWNER, INPUT);
+  await assert.rejects(() => svc.create(OWNER, { ...INPUT }), (e) => e.code === "invalid_input");
+});
+
+test("name-only updates reuse the cached calculation", async () => {
+  const store = memStore();
+  const svc = createChartService(store);
+  const { profile } = await svc.create(OWNER, INPUT);
+  assert.equal(store._calcs.length, 1);
+  const updated = await svc.update(OWNER, profile.id, { first_name: "Orbit", last_name: "Axis" });
+  assert.equal(updated.profile.first_name, "Orbit");
+  assert.equal(store._calcs.length, 1);
 });
 
 test("active chart can be switched and persists", async () => {
