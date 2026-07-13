@@ -5,7 +5,7 @@
  * the legacy variables these rules rely on are scoped to the two feature panels
  * only, so the design-system tokens are left completely untouched. This is a
  * carry-over, not a redesign. */
-#panel-mychart, #panel-intelligence {
+#panel-me, #panel-more {
   --bg: #0a0c18; --surface: #12152a; --surface-2: #1a1e3a; --border: #262b52;
   --text: #e6e9ff; --muted: #9aa3d0; --dim: #626b9e; --accent: #7c9aff;
   --gold: #f0c674; --violet: #a78bfa;

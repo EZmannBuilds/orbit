@@ -1,0 +1,169 @@
+/* Orbit Axis primary navigation: six sections plus central Ask action. */
+.rail {
+  background:
+    radial-gradient(circle at 45% 0%, color-mix(in oklab, var(--axis-indigo, #8c7bff) 16%, transparent), transparent 36%),
+    color-mix(in oklab, var(--color-surface) 92%, #080b1c 8%);
+}
+
+.rail__link {
+  min-height: 44px;
+  border: 1px solid transparent;
+}
+
+.rail__link--ask {
+  position: relative;
+  margin: var(--space-3) 0;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255,255,255,0.28), transparent 30%),
+    linear-gradient(135deg, var(--axis-blue, #6fa8ff), var(--axis-indigo, #8c7bff));
+  color: #080b18;
+  box-shadow: 0 0 28px color-mix(in oklab, var(--axis-indigo, #8c7bff) 38%, transparent);
+}
+
+.rail__link--ask .rail__icon,
+.rail__link--ask:hover .rail__icon,
+.rail__link--ask[aria-current="page"] .rail__icon {
+  color: currentColor;
+}
+
+.rail__link--ask:hover,
+.rail__link--ask[aria-current="page"] {
+  color: #080b18;
+  border-color: rgba(255,255,255,0.34);
+}
+
+.rail__link--ask::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgba(255,255,255,0.32);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+@media (min-width: 901px) and (max-width: 1200px) {
+  .app-shell { grid-template-columns: var(--rail-width) 1fr; }
+  .rail { padding: var(--space-4) var(--space-3); align-items: stretch; }
+  .rail__brand { justify-content: flex-start; padding: var(--space-2) var(--space-2) var(--space-4); }
+  .rail__wordmark,
+  .rail__label,
+  .rail__section-label,
+  .rail__foot .u-caption {
+    display: block;
+  }
+  .rail__link { justify-content: flex-start; padding: var(--space-2) var(--space-3); }
+}
+
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 1fr; }
+
+  .rail {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 60;
+    height: auto;
+    display: block;
+    padding: 8px max(10px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-right));
+    border-right: 0;
+    border-top: 1px solid color-mix(in oklab, var(--axis-lavender, #b8a7ff) 22%, var(--color-border));
+    border-bottom: 0;
+    overflow: visible;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+
+  .rail__brand,
+  .rail__section-label,
+  .rail__spacer,
+  .rail__foot {
+    display: none;
+  }
+
+  .rail__nav {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+    align-items: end;
+  }
+
+  .rail__link {
+    display: grid;
+    place-items: center;
+    gap: 3px;
+    min-width: 0;
+    min-height: 52px;
+    padding: 5px 2px;
+    border-radius: 14px;
+    font-size: 11px;
+    line-height: 1.1;
+  }
+
+  .rail__icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .rail__label {
+    display: block;
+    width: 100%;
+    max-width: 48px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rail__label::before {
+    content: attr(data-mobile-label);
+  }
+
+  .rail__label {
+    font-size: 0;
+  }
+
+  .rail__label::before {
+    font-size: 11px;
+  }
+
+  .rail__link--ask {
+    min-height: 66px;
+    margin: 0;
+    transform: translateY(-13px);
+    border-radius: 20px;
+    box-shadow: 0 0 30px color-mix(in oklab, var(--axis-indigo, #8c7bff) 48%, transparent);
+  }
+
+  .rail__link--ask .rail__icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .workspace {
+    padding-bottom: calc(132px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 380px) {
+  .rail__label::before { font-size: 10px; }
+  .rail__icon { width: 18px; height: 18px; }
+  .rail__link { min-height: 50px; }
+  .rail__link--ask { min-height: 62px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rail__link--ask {
+    animation: axisAskGlow 5s ease-in-out infinite;
+  }
+}
+
+@keyframes axisAskGlow {
+  0%, 100% { box-shadow: 0 0 22px color-mix(in oklab, var(--axis-indigo, #8c7bff) 34%, transparent); }
+  50% { box-shadow: 0 0 34px color-mix(in oklab, var(--axis-blue, #6fa8ff) 45%, transparent); }
+}
+
+:root[data-motion="reduced"] .rail__link--ask {
+  animation: none;
+}

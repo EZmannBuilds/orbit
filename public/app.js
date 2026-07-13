@@ -10,7 +10,15 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-const state = { symbols: [], chart: null, events: [], activeKind: "", atlasQuery: "", ready: false };
+const state = {
+  symbols: [],
+  chart: null,
+  events: [],
+  activeKind: "",
+  atlasQuery: "",
+  ready: false,
+  activeChartName: "My Chart",
+};
 
 async function get(path) {
   const response = await fetch(path);
@@ -41,6 +49,13 @@ function esc(text) {
 
 /* ── Inline icon set (stroke, 24-grid) ─────────────────────────────────── */
 const ICONS = {
+  home: '<circle cx="12" cy="13" r="4"/><path d="M12 3v2M5.5 6.5l1.4 1.4M18.5 6.5l-1.4 1.4M3 13h2M19 13h2M4 20h16"/>',
+  me: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  tarot: '<path d="M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M12 7l1.2 3.2L16 12l-2.8 1.8L12 17l-1.2-3.2L8 12l2.8-1.8z"/>',
+  ask: '<circle cx="12" cy="12" r="3"/><path d="M4 12c2.5-4 13.5-4 16 0M4 12c2.5 4 13.5 4 16 0"/><path d="M12 2l1.1 3.2L16 6l-2.9.8L12 10l-1.1-3.2L8 6l2.9-.8z"/>',
+  learn: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  news: '<path d="M4 5h13a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h7M8 13h8M8 17h5"/>',
+  more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   dashboard: '<path d="M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z"/>',
   charts: '<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 3"/>',
   transits: '<path d="M12 3a9 9 0 1 0 9 9"/><circle cx="12" cy="12" r="3"/><path d="M20 4l-6 6"/>',
@@ -58,12 +73,15 @@ const icon = (name, cls = "rail__icon") =>
 // `primary` workspaces show in the simple rail; the rest stay reachable via the
 // command palette + direct hash (no workspace is removed). Today is the default.
 const WORKSPACES = [
-  { id: "today", label: "Today", crumb: "Your day", icon: "today", primary: true },
-  { id: "mychart", label: "My Chart", crumb: "Your chart", icon: "mychart", primary: true },
-  { id: "charts", label: "Charts", crumb: "Chart tools", icon: "charts", primary: true },
-  { id: "history", label: "History", crumb: "Past readings", icon: "history", primary: true },
-  { id: "intelligence", label: "Ask Orbit Axis", crumb: "Local guide", icon: "intelligence", primary: true },
-  { id: "settings", label: "Settings", crumb: "Preferences", icon: "settings", primary: true },
+  { id: "home", label: "Home", crumb: "Your day", icon: "home", primary: true },
+  { id: "me", label: "Me", crumb: "Your chart", icon: "me", primary: true },
+  { id: "tarot", label: "Tarot", crumb: "Daily cards", icon: "tarot", primary: true },
+  { id: "ask", label: "Ask", desktopLabel: "Ask Orbit Axis", crumb: "Chat", icon: "ask", primary: true, central: true },
+  { id: "learn", label: "Learn", crumb: "Courses", icon: "learn", primary: true },
+  { id: "news", label: "News", crumb: "Verified articles", icon: "news", primary: true },
+  { id: "more", label: "More", crumb: "Tools & settings", icon: "more", primary: true },
+  { id: "history", label: "History", crumb: "Past readings", icon: "history", primary: false },
+  { id: "settings", label: "Settings", crumb: "Preferences", icon: "settings", primary: false },
   { id: "dashboard", label: "Overview", crumb: "Overview", icon: "dashboard", primary: false },
   { id: "transits", label: "Transits", crumb: "The moving sky", icon: "transits", primary: false },
   { id: "research", label: "Research", crumb: "Atlas & queries", icon: "research", primary: false },
@@ -72,15 +90,15 @@ const WORKSPACES = [
 /* ── Router ────────────────────────────────────────────────────────────── */
 function buildRail() {
   $("#rail-nav").innerHTML = WORKSPACES.filter(ws => ws.primary).map(ws => `
-    <a class="rail__link" id="tab-${ws.id}" role="tab" href="#${ws.id}" data-ws="${ws.id}"
-       aria-controls="panel-${ws.id}" aria-selected="false">
-      ${icon(ws.icon)}<span class="rail__label">${ws.label}</span>
+    <a class="rail__link ${ws.central ? "rail__link--ask" : ""}" id="tab-${ws.id}" role="tab" href="#${ws.id}" data-ws="${ws.id}"
+       aria-controls="panel-${ws.id}" aria-selected="false" aria-label="${esc(ws.desktopLabel || ws.label)}">
+      ${icon(ws.icon)}<span class="rail__label" data-mobile-label="${esc(ws.label)}">${esc(ws.desktopLabel || ws.label)}</span>
     </a>`).join("");
 }
 
 function currentWorkspace() {
   const hash = location.hash.replace("#", "");
-  return WORKSPACES.some(ws => ws.id === hash) ? hash : "today";
+  return WORKSPACES.some(ws => ws.id === hash) ? hash : "home";
 }
 
 function navigate(id) {
@@ -333,7 +351,7 @@ const cmd = { open: false, index: 0, items: [] };
 function commandItems() {
   const nav = WORKSPACES.map(ws => ({ group: "Go to", label: ws.label, glyph: "→", hint: `#${ws.id}`, run: () => navigate(ws.id) }));
   const actions = [
-    { group: "Actions", label: "Ask Orbit a question", glyph: "?", run: () => { navigate("research"); setTimeout(() => $("#query-input").focus(), 60); } },
+    { group: "Actions", label: "Ask Orbit Axis", glyph: "?", run: () => { navigate("ask"); setTimeout(() => $("#chat-prompt").focus(), 60); } },
     { group: "Actions", label: "Look up a birth sign", glyph: "☉", run: () => { navigate("charts"); setTimeout(() => $("#birth-date").focus(), 60); } },
     { group: "Actions", label: "Toggle theme", glyph: "◐", run: () => settings.set("theme", document.documentElement.dataset.theme === "dark" ? "light" : "dark") },
     { group: "Actions", label: "Toggle density", glyph: "▤", run: () => settings.set("density", document.documentElement.dataset.density === "compact" ? "comfortable" : "compact") },
@@ -448,7 +466,7 @@ function wireKeyboard() {
 
     // Number keys jump between workspaces when not typing.
     const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
-    if (!typing && !meta && /^[1-5]$/.test(e.key)) {
+    if (!typing && !meta && /^[1-7]$/.test(e.key)) {
       navigate(WORKSPACES[Number(e.key) - 1].id);
     }
   });
@@ -457,6 +475,91 @@ function wireKeyboard() {
   $("#rail-command").addEventListener("click", openCommand);
   $("#cmd-input").addEventListener("input", e => renderCommand(e.target.value));
   $("#cmd-overlay").addEventListener("click", e => { if (e.target === $("#cmd-overlay")) closeCommand(); });
+}
+
+/* ── Central Orbit Axis chat ───────────────────────────────────────────── */
+const chatState = { messages: [] };
+
+function setActiveChartName(name) {
+  state.activeChartName = name || "My Chart";
+  const chatChart = $("#chat-active-chart");
+  if (chatChart) chatChart.textContent = state.activeChartName;
+}
+
+function wireChat() {
+  const form = $("#chat-form");
+  if (!form) return;
+  const prompt = $("#chat-prompt");
+
+  $$("[data-chat-prompt]").forEach(button => {
+    button.addEventListener("click", () => {
+      navigate("ask");
+      setTimeout(() => {
+        prompt.value = button.dataset.chatPrompt;
+        prompt.focus();
+      }, 60);
+    });
+  });
+
+  $("#chat-new")?.addEventListener("click", () => {
+    chatState.messages = [];
+    $("#chat-log").innerHTML = "";
+    $("#chat-welcome").hidden = false;
+    prompt.value = "";
+    prompt.focus();
+  });
+
+  $("#chat-close")?.addEventListener("click", () => navigate("home"));
+
+  $("#chat-history")?.addEventListener("click", () => {
+    toast("Conversation history is coming soon.");
+  });
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const text = prompt.value.trim();
+    if (!text) return;
+    prompt.value = "";
+    await runChatTurn(text);
+  });
+}
+
+function chatMessage(role, body, meta = "") {
+  return `<article class="chat-message chat-message--${role}">
+    <div class="chat-message__label">${role === "user" ? "You" : "Orbit Axis"}</div>
+    <div class="chat-message__body">${body}</div>
+    ${meta ? `<div class="chat-message__meta">${meta}</div>` : ""}
+  </article>`;
+}
+
+async function runChatTurn(prompt) {
+  $("#chat-welcome").hidden = true;
+  const log = $("#chat-log");
+  log.insertAdjacentHTML("beforeend", chatMessage("user", esc(prompt)));
+  const pendingId = `chat-pending-${Date.now()}`;
+  log.insertAdjacentHTML("beforeend", `<article class="chat-message chat-message--axis" id="${pendingId}">
+    <div class="chat-message__label">Orbit Axis</div>
+    <div class="chat-typing" aria-label="Orbit Axis is thinking"><span></span><span></span><span></span></div>
+  </article>`);
+  log.scrollTop = log.scrollHeight;
+
+  try {
+    const data = await post("/api/local-llm/generate", { prompt, query: prompt });
+    const response = data.response || {};
+    const answer = response.answer || "I could not produce an answer from the local model.";
+    const sources = (data.sources || response.sources || []).slice(0, 3);
+    const meta = sources.length
+      ? `Sources: ${sources.map(source => esc(source.title || source.path || "project context")).join(", ")}`
+      : "";
+    $(`#${pendingId}`).outerHTML = chatMessage("axis", esc(answer), meta);
+  } catch (error) {
+    $(`#${pendingId}`).outerHTML = chatMessage(
+      "axis",
+      esc(`I could not reach Local Intelligence right now: ${error.message}`),
+      "Technical details are available in More → Local Intelligence Diagnostics."
+    );
+  }
+  log.scrollTop = log.scrollHeight;
 }
 
 /* ── Data ──────────────────────────────────────────────────────────────── */
@@ -497,6 +600,7 @@ async function boot() {
   buildRail();
   wireSettings();
   wireKeyboard();
+  wireChat();
 
   $("#topnav-date").textContent = new Date().toLocaleDateString("en-US", {
     weekday: "short", month: "short", day: "numeric",
@@ -520,7 +624,7 @@ async function boot() {
 
 // ══ Carried-over feature logic (branch integration) ═════════════════════════
 // Local Intelligence + My Chart, grafted onto the design-system shell. These
-// bind to the #panel-intelligence and #panel-mychart workspaces.
+// bind to the More diagnostics and Me workspaces.
 
 // ── Local Intelligence ──────────────────────────────────────────────────────
 async function loadLocalIntelligence() {
@@ -735,11 +839,6 @@ async function loadMoonTonight() {
   }
 }
 
-boot().catch(err => {
-  document.querySelector("main").insertAdjacentHTML("afterbegin",
-    `<div class="card" style="border-color:#7a2d44;color:#ff8fa8">Orbit failed to load: ${esc(err.message)}</div>`);
-});
-
 // ══ Orbit Axis daily experience ═════════════════════════════════════════════
 // Today workspace, Fortune, Tonight's Moon, Current Sky, History, and the
 // Simple/Balanced/Advanced detail level. Deterministic fortune comes from the
@@ -783,7 +882,7 @@ async function axisSetDetail(level) {
 }
 
 function axisInit() {
-  if (!$("#panel-today")) return;
+  if (!$("#panel-home")) return;
   const today = new Date();
   $("#today-date").textContent = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
   for (const btn of $$(".axis-detail button")) {
@@ -830,6 +929,7 @@ async function axisLoadToday() {
 function axisShowReadingFor(name) {
   const el = $("#today-reading-for");
   if (el) { el.hidden = false; $("#today-chart-name").textContent = name; }
+  setActiveChartName(name);
 }
 
 function axisRenderFortune(F) {

@@ -21,11 +21,12 @@
   --axis-glow-duration: 5s;
 }
 
-/* Soft cosmic wash behind the Today workspace only — atmospheric, not crowded. */
-#panel-today {
+/* Soft cosmic wash behind the Home workspace only — atmospheric, not crowded. */
+#panel-home {
   position: relative;
+  overflow: hidden;
 }
-#panel-today::before {
+#panel-home::before {
   content: "";
   position: absolute;
   inset: -8% -4% auto -4%;
@@ -38,7 +39,7 @@
   z-index: 0;
   border-radius: 0 0 40px 40px;
 }
-#panel-today > * { position: relative; z-index: 1; }
+#panel-home > * { position: relative; z-index: 1; }
 
 /* ── Today header ─────────────────────────────────────────────────────────── */
 .axis-today-head {
@@ -138,8 +139,8 @@
 }
 
 /* ── Accessibility: comfortable sizing, visible focus ─────────────────────── */
-#panel-today button, #panel-history button { min-height: 40px; }
-#panel-today a:focus-visible, #panel-today button:focus-visible,
+#panel-home button, #panel-history button { min-height: 40px; }
+#panel-home a:focus-visible, #panel-home button:focus-visible,
 #panel-history a:focus-visible, #panel-history button:focus-visible {
   outline: 2px solid var(--axis-blue); outline-offset: 2px; border-radius: 8px;
 }
@@ -153,9 +154,9 @@
    Simple hides exact degrees + the technical placements table; Balanced and
    Advanced progressively reveal them. The engine/calculations are untouched —
    this only controls what a beginner sees by default. */
-:root[data-detail="Simple"] #panel-mychart .bt-deg { display: none; }
-:root[data-detail="Simple"] #panel-mychart .chart-details { display: none; }
-:root[data-detail="Balanced"] #panel-mychart .aspect-list { display: none; }
+:root[data-detail="Simple"] #panel-me .bt-deg { display: none; }
+:root[data-detail="Simple"] #panel-me .chart-details { display: none; }
+:root[data-detail="Balanced"] #panel-me .aspect-list { display: none; }
 
 /* `hidden` attribute must win over the flex display above. */
 .axis-chart-picker[hidden], .axis-reading-for[hidden] { display: none !important; }

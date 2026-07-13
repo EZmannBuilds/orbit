@@ -57,3 +57,23 @@
   .axis-shimmer { animation: none; }
   .axis-ask__btn, .axis-detail button { transition: none; }
 }
+
+:root[data-motion="reduced"] .axis-rise,
+:root[data-motion="reduced"] .axis-rise-2,
+:root[data-motion="reduced"] .axis-rise-3 {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+:root[data-motion="reduced"] .axis-moon,
+:root[data-motion="reduced"] .axis-moon__halo,
+:root[data-motion="reduced"] .axis-orbit-ring,
+:root[data-motion="reduced"] .axis-shimmer {
+  animation: none;
+}
+
+:root[data-motion="reduced"] .axis-ask__btn,
+:root[data-motion="reduced"] .axis-detail button {
+  transition: none;
+}
