@@ -22,10 +22,18 @@ import {
   readProposal,
   updateProposalStatus,
 } from "./lib/local-llm/vault.js";
-import { localLlmConfig } from "./lib/local-llm/config.js";
+import { localLlmConfig, supabaseConfig } from "./lib/local-llm/config.js";
 import { recordVaultProposalStatus, recordVaultVersion } from "./lib/local-llm/supabase.js";
 import { handleChartsRoute } from "./lib/charts/api.js";
 import { handleFortuneRoute } from "./lib/fortune/api.js";
+import {
+  authenticateRequest,
+  clearSessionCookie,
+  sessionCookie,
+  signInWithPassword,
+  signOutSupabase,
+  signUpWithPassword,
+} from "./lib/auth/supabase-auth.js";
 
 function skyContext() {
   const now = new Date();
@@ -64,13 +72,14 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
-function json(res, status, body) {
+function json(res, status, body, headers = {}) {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    ...headers,
   });
   res.end(payload);
 }
@@ -94,6 +103,40 @@ function requireLocal(req, res) {
   if (isLocalRequest(req)) return true;
   json(res, 403, { ok: false, error: "Local intelligence routes are localhost-only by default." });
   return false;
+}
+
+function safeAuthError(data = {}) {
+  const message = String(data.error_description || data.msg || data.error || "Authentication failed.");
+  if (/invalid login/i.test(message)) return "Email or password did not match.";
+  if (/already registered|already exists/i.test(message)) return "An account with that email may already exist. Try signing in.";
+  if (/password/i.test(message)) return message;
+  return message.length > 160 ? "Authentication failed." : message;
+}
+
+function validateEmailPassword(body, { signup = false } = {}) {
+  const email = String(body.email || "").trim().toLowerCase();
+  const password = String(body.password || "");
+  const confirm = String(body.confirm_password || body.confirmPassword || "");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Enter a valid email address." };
+  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+  if (signup && password !== confirm) return { error: "Passwords do not match." };
+  return { email, password };
+}
+
+function authContext(auth) {
+  const cfg = supabaseConfig();
+  if (!auth?.ok || !auth.session?.access_token || !auth.user?.id) return null;
+  return { url: cfg.url, anonKey: cfg.anonKey, accessToken: auth.session.access_token, ownerId: auth.user.id };
+}
+
+async function requireAuth(req, res) {
+  const auth = await authenticateRequest(req);
+  if (!auth.ok) {
+    json(res, 401, { ok: false, error: auth.expired ? "Session expired. Please sign in again." : "Sign-in required." },
+      auth.setCookie ? { "Set-Cookie": auth.setCookie } : {});
+    return null;
+  }
+  return auth;
 }
 
 function serveStatic(res, urlPath) {
@@ -136,6 +179,45 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return json(res, 204, {});
 
   try {
+    // ── Auth/session endpoints ──────────────────────────────────────────────
+    if (route === "/api/auth/session" && req.method === "GET") {
+      const auth = await authenticateRequest(req);
+      if (!auth.ok) {
+        return json(res, 200, { ok: true, signed_in: false, expired: !!auth.expired },
+          auth.setCookie ? { "Set-Cookie": auth.setCookie } : {});
+      }
+      return json(res, 200, { ok: true, signed_in: true, user: auth.user },
+        auth.setCookie ? { "Set-Cookie": auth.setCookie } : {});
+    }
+    if (route === "/api/auth/signup" && req.method === "POST") {
+      const body = await readBody(req);
+      const input = validateEmailPassword(body, { signup: true });
+      if (input.error) return json(res, 400, { ok: false, error: input.error });
+      const result = await signUpWithPassword(input);
+      if (!result.ok) return json(res, result.status || 400, { ok: false, error: safeAuthError(result.data) });
+      if (!result.session?.access_token) {
+        return json(res, 200, { ok: true, signed_in: false, message: "Account created. Check your email if confirmation is required, then sign in." });
+      }
+      return json(res, 200, { ok: true, signed_in: true, user: result.user, message: "Account created." },
+        { "Set-Cookie": sessionCookie(result.session) });
+    }
+    if (route === "/api/auth/signin" && req.method === "POST") {
+      const body = await readBody(req);
+      const input = validateEmailPassword(body);
+      if (input.error) return json(res, 400, { ok: false, error: input.error });
+      const result = await signInWithPassword(input);
+      if (!result.ok || !result.session?.access_token) {
+        return json(res, result.status || 400, { ok: false, error: safeAuthError(result.data) });
+      }
+      return json(res, 200, { ok: true, signed_in: true, user: result.user, message: "Signed in." },
+        { "Set-Cookie": sessionCookie(result.session) });
+    }
+    if (route === "/api/auth/signout" && req.method === "POST") {
+      const auth = await authenticateRequest(req);
+      if (auth.session?.access_token) await signOutSupabase(auth.session.access_token).catch(() => {});
+      return json(res, 200, { ok: true, signed_in: false }, { "Set-Cookie": clearSessionCookie() });
+    }
+
     // ── Chart / daily / chakra contract endpoints ─────────────────────────
     if (route === "/api/chart" || route === "/api/chart/now") {
       return json(res, 200, { ok: true, ...chartNow(), disclaimer: ORBIT_DISCLAIMER });
@@ -226,7 +308,19 @@ const server = http.createServer(async (req, res) => {
     if (route === "/api/local-llm/generate" && req.method === "POST") {
       if (!requireLocal(req, res)) return;
       const body = await readBody(req);
-      const result = await generateProjectAnswer({ prompt: String(body.prompt || ""), query: String(body.query || body.prompt || "") });
+      const auth = await authenticateRequest(req);
+      let context = "";
+      if (auth.ok) {
+        const handled = await handleChartsRoute("GET", "/api/charts", new URLSearchParams(), {}, authContext(auth));
+        const active = handled?.body?.charts?.find(chart => chart.is_active);
+        if (active) {
+          context = `Active chart: ${active.nickname}. Sun ${active.summary?.sun || "unknown"}, Moon ${active.summary?.moon || "unknown"}, Rising ${active.summary?.rising || "unavailable"}.`;
+        }
+      }
+      const result = await generateProjectAnswer({
+        prompt: `${context ? `${context}\n\n` : ""}${String(body.prompt || "")}`,
+        query: String(body.query || body.prompt || ""),
+      });
       return json(res, result.ok ? 200 : 422, result);
     }
     if (route === "/api/vault/project-notes") {
@@ -308,27 +402,35 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, service: "orbit", port: PORT });
     }
 
-    // Saved charts, current sky, and Moon. User-owned chart data is localhost-only
-    // and owner-scoped server-side; current-sky/Moon are public astronomy.
+    // Saved charts, current sky, and Moon. User-owned chart data requires a
+    // Supabase Auth session; current-sky/Moon are public astronomy.
     if (route === "/api/charts" || route.startsWith("/api/charts/")
       || route === "/api/chart/preview"
       || route === "/api/sky/current" || route === "/api/moon/current") {
-      if (route.startsWith("/api/charts") && !requireLocal(req, res)) return;
+      let auth = null;
+      if (route.startsWith("/api/charts")) {
+        auth = await requireAuth(req, res);
+        if (!auth) return;
+      }
       const body = (req.method === "POST" || req.method === "PATCH" || req.method === "DELETE")
         ? await readBody(req) : {};
-      const handled = await handleChartsRoute(req.method, route, url.searchParams, body);
-      if (handled) return json(res, handled.status, handled.body);
+      const handled = await handleChartsRoute(req.method, route, url.searchParams, body, authContext(auth));
+      if (handled) return json(res, handled.status, handled.body, auth?.setCookie ? { "Set-Cookie": auth.setCookie } : {});
     }
 
-    // Daily fortune + astrology detail-level setting. Owner-scoped user data is
-    // localhost-only; the stateless preview needs no owner.
+    // Daily fortune + astrology detail-level setting. Owner-scoped user data
+    // requires a Supabase Auth session; the stateless preview needs no owner.
     if (route.startsWith("/api/fortune") || route === "/api/settings/detail") {
       const publicPreview = route === "/api/fortune/preview";
-      if (!publicPreview && !requireLocal(req, res)) return;
+      let auth = null;
+      if (!publicPreview) {
+        auth = await requireAuth(req, res);
+        if (!auth) return;
+      }
       const body = (req.method === "POST" || req.method === "PUT")
         ? await readBody(req) : {};
-      const handled = await handleFortuneRoute(req.method, route, url.searchParams, body);
-      if (handled) return json(res, handled.status, handled.body);
+      const handled = await handleFortuneRoute(req.method, route, url.searchParams, body, authContext(auth));
+      if (handled) return json(res, handled.status, handled.body, auth?.setCookie ? { "Set-Cookie": auth.setCookie } : {});
     }
 
     if (route.startsWith("/api/")) return json(res, 404, { ok: false, error: "Unknown Orbit endpoint" });

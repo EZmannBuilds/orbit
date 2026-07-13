@@ -27,6 +27,12 @@
   line-height: 1.55;
 }
 
+.more-note {
+  color: var(--color-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
 .more-actions {
   display: flex;
   flex-wrap: wrap;
@@ -61,6 +67,82 @@
 
 .more-settings h3 {
   color: var(--color-primary);
+}
+
+.saved-charts-list {
+  display: grid;
+  gap: 10px;
+}
+
+.saved-chart-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface-sunken);
+}
+
+.saved-chart-card[data-active="true"] {
+  border-color: color-mix(in oklab, var(--axis-blue) 50%, var(--color-border));
+  box-shadow: 0 0 22px color-mix(in oklab, var(--axis-blue) 16%, transparent);
+}
+
+.saved-chart-card__top,
+.saved-chart-card__badges,
+.saved-chart-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.saved-chart-card__name {
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 17px;
+  margin-right: auto;
+}
+
+.saved-chart-card__meta,
+.saved-chart-card__summary {
+  color: var(--color-secondary);
+  font-size: 14px;
+}
+
+.saved-chart-card__actions button,
+.saved-chart-editor summary,
+.auth-tabs button,
+.auth-form button,
+.password-row button {
+  min-height: 44px;
+}
+
+.saved-chart-card__actions button {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
+  padding: 8px 11px;
+  cursor: pointer;
+}
+
+.saved-chart-editor {
+  border-top: 1px solid var(--color-border);
+  padding-top: 10px;
+}
+
+.saved-chart-editor summary {
+  display: flex;
+  align-items: center;
+  color: var(--axis-blue);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.account-panel {
+  display: grid;
+  gap: 12px;
 }
 
 @media (max-width: 760px) {
