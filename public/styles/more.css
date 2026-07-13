@@ -1,0 +1,43 @@
+.more-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--density-gap);
+}
+
+.more-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid color-mix(in oklab, var(--axis-lavender) 18%, var(--color-border));
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--color-surface-elevated) 92%, var(--axis-indigo) 8%);
+}
+
+.more-card--wide {
+  grid-column: 1 / -1;
+}
+
+.more-card h2 {
+  color: var(--color-primary);
+}
+
+.more-card p {
+  color: var(--color-secondary);
+  line-height: 1.55;
+}
+
+.more-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.more-card .intel-head p {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .more-grid { grid-template-columns: 1fr; }
+}
