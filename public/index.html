@@ -285,7 +285,8 @@
           <div class="o-card">
             <form id="chart-form" class="chart-form">
               <div class="chart-form-grid">
-                <label>Nickname <input type="text" id="cf-nickname" placeholder="My Chart" /></label>
+                <label>First name <input type="text" id="cf-first" autocomplete="given-name" /></label>
+                <label>Last name <input type="text" id="cf-last" autocomplete="family-name" /></label>
                 <label>Birth date <input type="date" id="cf-date" required /></label>
                 <label>Birth time <input type="time" id="cf-time" /></label>
                 <label>Time accuracy
@@ -296,14 +297,16 @@
                     <option value="unknown">unknown</option>
                   </select>
                 </label>
-                <label>Birthplace <input type="text" id="cf-place" placeholder="City" /></label>
-                <label>Latitude <input type="number" step="0.0001" id="cf-lat" placeholder="51.5074" required /></label>
-                <label>Longitude <input type="number" step="0.0001" id="cf-lon" placeholder="-0.1278" required /></label>
-                <label>UTC offset <input type="text" id="cf-offset" placeholder="+00:00" /></label>
+                <label class="place-field">Birthplace
+                  <input type="text" id="cf-place" placeholder="Start typing a city" autocomplete="off" required />
+                  <div class="place-results" id="cf-place-results"></div>
+                  <span class="place-status" id="cf-place-status" role="status" aria-live="polite"></span>
+                </label>
               </div>
               <button type="submit">Calculate chart</button>
               <span class="chart-form-hint" id="chart-form-hint"></span>
             </form>
+            <div class="chart-profile-meta" id="chart-profile-meta"></div>
             <div class="chart-warnings" id="chart-warnings"></div>
             <div class="bigthree" id="bigthree"></div>
             <div class="balance-row">
@@ -482,6 +485,8 @@
                   <input type="hidden" id="sc-id" />
                   <div class="chart-form-grid">
                     <label>Nickname <input type="text" id="sc-nickname" placeholder="Mom" required /></label>
+                    <label>First name <input type="text" id="sc-first" autocomplete="off" /></label>
+                    <label>Last name <input type="text" id="sc-last" autocomplete="off" /></label>
                     <label>Relationship
                       <select id="sc-relationship">
                         <option value="self">Self</option>
@@ -502,11 +507,11 @@
                         <option value="unknown">unknown</option>
                       </select>
                     </label>
-                    <label>Birthplace <input type="text" id="sc-place" placeholder="City" /></label>
-                    <label>Latitude <input type="number" step="0.0001" id="sc-lat" required /></label>
-                    <label>Longitude <input type="number" step="0.0001" id="sc-lon" required /></label>
-                    <label>Time zone <input type="text" id="sc-tz" placeholder="America/Chicago" /></label>
-                    <label>UTC offset <input type="text" id="sc-offset" placeholder="-05:00" /></label>
+                    <label class="place-field">Birthplace
+                      <input type="text" id="sc-place" placeholder="Start typing a city" autocomplete="off" required />
+                      <div class="place-results" id="sc-place-results"></div>
+                      <span class="place-status" id="sc-place-status" role="status" aria-live="polite"></span>
+                    </label>
                   </div>
                   <div class="more-actions">
                     <button type="submit">Save chart</button>
@@ -673,6 +678,8 @@
       </div>
       <form id="onboarding-form" class="chart-form">
         <div class="chart-form-grid">
+          <label>First name <input type="text" id="ob-first" autocomplete="given-name" /></label>
+          <label>Last name <input type="text" id="ob-last" autocomplete="family-name" /></label>
           <label>Birth date <input type="date" id="ob-date" required /></label>
           <label>Birth time <input type="time" id="ob-time" /></label>
           <label>Time accuracy
@@ -683,11 +690,11 @@
               <option value="unknown">unknown</option>
             </select>
           </label>
-          <label>Birthplace <input type="text" id="ob-place" placeholder="City" /></label>
-          <label>Latitude <input type="number" step="0.0001" id="ob-lat" required /></label>
-          <label>Longitude <input type="number" step="0.0001" id="ob-lon" required /></label>
-          <label>Time zone <input type="text" id="ob-tz" placeholder="America/Chicago" /></label>
-          <label>UTC offset <input type="text" id="ob-offset" placeholder="-05:00" /></label>
+          <label class="place-field">Birthplace
+            <input type="text" id="ob-place" placeholder="Start typing a city" autocomplete="off" required />
+            <div class="place-results" id="ob-place-results"></div>
+            <span class="place-status" id="ob-place-status" role="status" aria-live="polite"></span>
+          </label>
         </div>
         <button type="submit">Save My Chart</button>
         <div class="auth-message" id="onboarding-message" role="status"></div>

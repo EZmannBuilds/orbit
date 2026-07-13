@@ -60,9 +60,20 @@
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
   border-radius: 8px; padding: 8px 10px; font-size: 14px;
 }
+.chart-form-grid .place-field { grid-column: span 2; min-width: 240px; }
+.place-results { display: grid; gap: 4px; }
+.place-result {
+  width: 100%; margin: 0; padding: 8px 10px; text-align: left; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-weight: 500; cursor: pointer;
+}
+.place-result:hover, .place-result:focus-visible { border-color: var(--accent); outline: none; }
+.place-status, .place-empty { min-height: 16px; font-size: 12px; color: var(--dim); }
 .chart-form button { margin-top: 12px; background: linear-gradient(135deg, var(--accent), var(--violet));
   color: #0a0c18; border: 0; border-radius: 8px; padding: 9px 18px; font-weight: 600; cursor: pointer; }
+.chart-form .place-result { margin-top: 0; background: var(--surface-2); color: var(--text); }
 .chart-form-hint { margin-left: 12px; font-size: 12px; color: var(--dim); }
+.chart-profile-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; color: var(--dim); font-size: 12px; }
+.chart-profile-meta span { border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; background: var(--surface-2); }
 .chart-warnings { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .warn-chip { background: #3a2a12; border: 1px solid #6a4d1e; color: var(--gold);
   font-size: 12px; padding: 3px 9px; border-radius: 999px; }

@@ -21,6 +21,7 @@ const state = {
   auth: { restoring: true, user: null },
   charts: [],
   activeChartId: null,
+  places: { selections: {}, controllers: {} },
 };
 
 async function request(path, { method = "GET", body = null } = {}) {
@@ -48,6 +49,98 @@ function esc(text) {
   const div = document.createElement("div");
   div.textContent = String(text ?? "");
   return div.innerHTML;
+}
+
+function clearPlaceSelection(prefix, message = "") {
+  delete state.places.selections[prefix];
+  const status = $(`#${prefix}-place-status`);
+  const results = $(`#${prefix}-place-results`);
+  if (status) status.textContent = message;
+  if (results) results.innerHTML = "";
+}
+
+function setPlaceSelection(prefix, place, { existing = false } = {}) {
+  state.places.selections[prefix] = { ...place, existing, label: place.label || place.birthplace_name || "" };
+  const input = $(`#${prefix}-place`);
+  const status = $(`#${prefix}-place-status`);
+  const results = $(`#${prefix}-place-results`);
+  if (input) input.value = state.places.selections[prefix].label;
+  if (status) status.textContent = existing ? "Saved location will be reused." : "Location selected. Timezone will be detected automatically.";
+  if (results) results.innerHTML = "";
+}
+
+function chartPlace(chart) {
+  if (!chart?.birthplace_name || chart.latitude == null || chart.longitude == null) return null;
+  return {
+    label: chart.birthplace_name,
+    latitude: chart.latitude,
+    longitude: chart.longitude,
+    provider: chart.geo_provider || "stored",
+    provider_place_id: chart.geo_place_id || chart.id || "stored",
+    city: chart.birthplace_city || "",
+    region: chart.birthplace_region || "",
+    country: chart.birthplace_country || "",
+    country_code: chart.birthplace_country_code || "",
+  };
+}
+
+function requireSelectedPlace(prefix, { allowExisting = false } = {}) {
+  const place = state.places.selections[prefix];
+  if (!place) throw new Error("Choose a birthplace from the search results.");
+  const value = $(`#${prefix}-place`)?.value.trim() || "";
+  if (value !== place.label) throw new Error("Choose a birthplace from the search results.");
+  if (place.selection_token) return { birthplace: place };
+  if (allowExisting && place.existing) return {};
+  throw new Error("Choose a birthplace from the search results.");
+}
+
+function setupPlaceSearch(prefix) {
+  const input = $(`#${prefix}-place`);
+  const results = $(`#${prefix}-place-results`);
+  const status = $(`#${prefix}-place-status`);
+  if (!input || !results) return;
+  let timer = null;
+  input.addEventListener("input", () => {
+    const selected = state.places.selections[prefix];
+    if (selected && input.value.trim() !== selected.label) clearPlaceSelection(prefix, "Select a result to continue.");
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 3) {
+      results.innerHTML = "";
+      if (status) status.textContent = q ? "Keep typing to search." : "";
+      return;
+    }
+    timer = setTimeout(async () => {
+      state.places.controllers[prefix]?.abort();
+      const controller = new AbortController();
+      state.places.controllers[prefix] = controller;
+      if (status) status.textContent = "Searching...";
+      try {
+        const response = await fetch(`/api/locations/search?q=${encodeURIComponent(q)}&limit=5`, {
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Location search failed");
+        const items = data.results || [];
+        results.innerHTML = items.length
+          ? items.map((place, index) => `<button type="button" class="place-result" data-index="${index}" aria-label="Select ${esc(place.label)}">${esc(place.label)}</button>`).join("")
+          : '<div class="place-empty">No matches found.</div>';
+        results._places = items;
+        if (status) status.textContent = items.length ? "Select the matching birthplace." : "";
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        results.innerHTML = "";
+        if (status) status.textContent = error.message;
+      }
+    }, 300);
+  });
+  results.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-index]");
+    if (!button) return;
+    const place = results._places?.[Number(button.dataset.index)];
+    if (place) setPlaceSelection(prefix, place);
+  });
 }
 
 /* ── Inline icon set (stroke, 24-grid) ─────────────────────────────────── */
@@ -511,19 +604,19 @@ function renderAccount() {
   $("#account-email").textContent = state.auth.user?.email || "Not signed in";
 }
 
-function chartFormPayload(prefix, { forceMyChart = false } = {}) {
+function chartFormPayload(prefix, { forceMyChart = false, allowExistingPlace = false } = {}) {
   const accuracy = $(`#${prefix}-accuracy`).value;
+  const allowExisting = allowExistingPlace || (prefix === "sc" && !!$("#sc-id")?.value);
+  const placePayload = requireSelectedPlace(prefix, { allowExisting });
   const payload = {
     nickname: forceMyChart ? "My Chart" : ($(`#${prefix}-nickname`)?.value.trim() || undefined),
+    first_name: $(`#${prefix}-first`)?.value.trim() || null,
+    last_name: $(`#${prefix}-last`)?.value.trim() || null,
     relationship_type: forceMyChart ? "self" : ($(`#${prefix}-relationship`)?.value || "other"),
     birth_date: $(`#${prefix}-date`).value,
     birth_time: accuracy === "unknown" ? null : ($(`#${prefix}-time`).value || null),
     time_accuracy: accuracy,
-    birthplace_name: $(`#${prefix}-place`)?.value.trim() || undefined,
-    latitude: parseFloat($(`#${prefix}-lat`).value),
-    longitude: parseFloat($(`#${prefix}-lon`).value),
-    timezone_name: $(`#${prefix}-tz`)?.value.trim() || "UTC",
-    utc_offset_at_birth: $(`#${prefix}-offset`)?.value.trim() || "+00:00",
+    ...placePayload,
   };
   if (accuracy === "unknown") payload.birth_time = null;
   return payload;
@@ -590,6 +683,7 @@ function wireSavedCharts() {
 function clearSavedChartForm() {
   $("#saved-chart-form")?.reset();
   $("#sc-id").value = "";
+  clearPlaceSelection("sc");
   $("#saved-chart-hint").textContent = "";
 }
 
@@ -597,15 +691,15 @@ function fillSavedChartForm(chart) {
   $("#saved-chart-editor").open = true;
   $("#sc-id").value = chart.id;
   $("#sc-nickname").value = chart.nickname || "";
+  $("#sc-first").value = chart.first_name || "";
+  $("#sc-last").value = chart.last_name || "";
   $("#sc-relationship").value = chart.relationship_type || "other";
   $("#sc-date").value = chart.birth_date || "";
   $("#sc-time").value = chart.birth_time ? String(chart.birth_time).slice(0, 5) : "";
   $("#sc-accuracy").value = chart.time_accuracy || "unknown";
-  $("#sc-place").value = chart.birthplace_name || "";
-  $("#sc-lat").value = chart.latitude ?? "";
-  $("#sc-lon").value = chart.longitude ?? "";
-  $("#sc-tz").value = chart.timezone_name || "";
-  $("#sc-offset").value = chart.utc_offset_at_birth || "";
+  const place = chartPlace(chart);
+  if (place) setPlaceSelection("sc", place, { existing: true });
+  else clearPlaceSelection("sc");
   $("#saved-chart-hint").textContent = `Editing ${chart.nickname}`;
 }
 
@@ -646,6 +740,8 @@ function renderSavedCharts() {
   list.innerHTML = state.charts.map(chart => {
     const summary = chart.summary || {};
     const rising = summary.time_known === false || !summary.rising ? "Time unknown" : `Rising ${esc(summary.rising)}`;
+    const legalName = [chart.first_name, chart.last_name].filter(Boolean).join(" ");
+    const meta = [REL_LABELS[chart.relationship_type] || chart.relationship_type || "Other", legalName, chart.birthplace_name].filter(Boolean).join(" · ");
     return `<article class="saved-chart-card" data-active="${chart.is_active}">
       <div class="saved-chart-card__top">
         <div class="saved-chart-card__name">${esc(chart.nickname || "Untitled Chart")}</div>
@@ -655,7 +751,7 @@ function renderSavedCharts() {
           ${summary.time_known === false ? '<span class="o-badge">Time unknown</span>' : ""}
         </div>
       </div>
-      <div class="saved-chart-card__meta">${esc(REL_LABELS[chart.relationship_type] || chart.relationship_type || "Other")}</div>
+      <div class="saved-chart-card__meta">${esc(meta)}</div>
       <div class="saved-chart-card__summary">Sun ${esc(summary.sun || "—")} · Moon ${esc(summary.moon || "—")} · ${rising}</div>
       <div class="saved-chart-card__actions">
         <button type="button" data-action="activate" data-id="${esc(chart.id)}" ${chart.is_active ? "disabled" : ""}>Set active</button>
@@ -674,6 +770,7 @@ async function refreshActiveExperience() {
     try {
       const data = await get(`/api/charts/${active.id}`);
       renderChart(data.chart, data.profile?.nickname || active.nickname);
+      fillMyChartForm(data.profile);
     } catch { /* Home still owns the failure state */ }
   }
   await axisLoadToday();
@@ -882,6 +979,9 @@ async function boot() {
   buildRail();
   wireSettings();
   wireAuth();
+  setupPlaceSearch("cf");
+  setupPlaceSearch("sc");
+  setupPlaceSearch("ob");
   wireOnboarding();
   wireSavedCharts();
   wireKeyboard();
@@ -1086,38 +1186,61 @@ function renderChart(chart, name) {
   renderPlacements(chart);
 }
 
+function fillMyChartForm(profile) {
+  if (!profile || !$("#chart-form")) return;
+  $("#cf-first").value = profile.first_name || "";
+  $("#cf-last").value = profile.last_name || "";
+  $("#cf-date").value = profile.birth_date || "";
+  $("#cf-time").value = profile.birth_time ? String(profile.birth_time).slice(0, 5) : "";
+  $("#cf-accuracy").value = profile.time_accuracy || "unknown";
+  const place = chartPlace(profile);
+  if (place) setPlaceSelection("cf", place, { existing: true });
+  else clearPlaceSelection("cf");
+  renderChartProfileMeta(profile);
+}
+
+function renderChartProfileMeta(profile) {
+  const target = $("#chart-profile-meta");
+  if (!target) return;
+  if (!profile) {
+    target.innerHTML = "";
+    return;
+  }
+  const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
+  const coords = profile.latitude != null && profile.longitude != null
+    ? `${Number(profile.latitude).toFixed(4)}, ${Number(profile.longitude).toFixed(4)}`
+    : "";
+  const rows = [
+    fullName ? `<span>${esc(fullName)}</span>` : "",
+    profile.birthplace_name ? `<span>${esc(profile.birthplace_name)}</span>` : "",
+    profile.timezone_name ? `<span class="chart-meta-balanced">${esc(profile.timezone_name)}</span>` : "",
+    coords ? `<span class="chart-meta-advanced">${esc(coords)}</span>` : "",
+    profile.utc_offset_at_birth ? `<span class="chart-meta-advanced">UTC ${esc(profile.utc_offset_at_birth)}</span>` : "",
+  ].filter(Boolean);
+  target.innerHTML = rows.join("");
+}
+
 function wireMyChart() {
   const form = $("#chart-form");
   if (!form) return;
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const hint = $("#chart-form-hint");
-    const accuracy = $("#cf-accuracy").value;
-    const payload = {
-      nickname: $("#cf-nickname").value.trim() || undefined,
-      birth_date: $("#cf-date").value,
-      birth_time: accuracy === "unknown" ? null : ($("#cf-time").value || null),
-      time_accuracy: accuracy,
-      birthplace_name: $("#cf-place").value.trim() || undefined,
-      latitude: parseFloat($("#cf-lat").value),
-      longitude: parseFloat($("#cf-lon").value),
-      utc_offset_at_birth: $("#cf-offset").value.trim() || "+00:00",
-    };
     hint.textContent = "Calculating…";
     try {
       if (authSignedIn()) {
         const active = activeChart();
+        const payload = chartFormPayload("cf", { forceMyChart: !active, allowExistingPlace: !!active });
         const result = active
           ? await patch(`/api/charts/${active.id}`, payload)
           : await post("/api/charts", payload);
-        renderChart(result.chart, result.profile?.nickname || payload.nickname);
+        renderChart(result.chart, result.profile?.nickname || "My Chart");
+        renderChartProfileMeta(result.profile);
         await loadSavedCharts();
         await refreshActiveExperience();
         hint.textContent = active ? "Saved to your active chart." : "Saved as My Chart.";
       } else {
-        const { chart } = await post("/api/chart/preview", payload);
-        renderChart(chart, payload.nickname);
-        hint.textContent = "Preview only. Sign in to save charts.";
+        hint.textContent = "Sign in to search birthplaces and save charts.";
       }
     } catch (err) {
       hint.textContent = err.message;
@@ -1302,44 +1425,35 @@ function axisRenderSetup(message = "Tell Orbit Axis when and where you were born
         <p>${esc(message)}</p>
         <form id="oa-setup" class="chart-form">
           <div class="chart-form-grid">
-            <label>Nickname <input type="text" id="oa-nickname" placeholder="My Chart" /></label>
+            <label>First name <input type="text" id="oa-first" autocomplete="given-name" /></label>
+            <label>Last name <input type="text" id="oa-last" autocomplete="family-name" /></label>
             <label>Birth date <input type="date" id="oa-date" required /></label>
             <label>Birth time <input type="time" id="oa-time" /></label>
             <label>Time accuracy
               <select id="oa-accuracy"><option value="exact">exact</option><option value="reported">reported</option><option value="approximate">approximate</option><option value="unknown">unknown</option></select>
             </label>
-            <label>Latitude <input type="number" step="0.0001" id="oa-lat" placeholder="51.5074" required /></label>
-            <label>Longitude <input type="number" step="0.0001" id="oa-lon" placeholder="-0.1278" required /></label>
-            <label>Time zone <input type="text" id="oa-tz" placeholder="America/Chicago" /></label>
-            <label>UTC offset <input type="text" id="oa-offset" placeholder="+00:00" /></label>
+            <label class="place-field">Birthplace
+              <input type="text" id="oa-place" placeholder="Start typing a city" autocomplete="off" required />
+              <div class="place-results" id="oa-place-results"></div>
+              <span class="place-status" id="oa-place-status" role="status" aria-live="polite"></span>
+            </label>
           </div>
           <button type="submit">See today’s reading</button>
         </form>
       </div>
     </div>`;
+  setupPlaceSearch("oa");
   $("#oa-setup").addEventListener("submit", (e) => {
     e.preventDefault();
-    const acc = $("#oa-accuracy").value;
-    const birth = {
-      nickname: $("#oa-nickname").value.trim() || "My Chart",
-      birth_date: $("#oa-date").value,
-      birth_time: acc === "unknown" ? null : ($("#oa-time").value || null),
-      time_accuracy: acc,
-      latitude: parseFloat($("#oa-lat").value),
-      longitude: parseFloat($("#oa-lon").value),
-      timezone_name: $("#oa-tz").value.trim() || "UTC",
-      utc_offset_at_birth: $("#oa-offset").value.trim() || "+00:00",
-    };
     if (authSignedIn()) {
-      post("/api/charts", { ...birth, relationship_type: "self" })
+      post("/api/charts", chartFormPayload("oa", { forceMyChart: true }))
         .then(async () => {
           await loadSavedCharts();
           await refreshActiveExperience();
         })
         .catch(error => { $("#oa-setup-error").textContent = error.message; });
     } else {
-      axisSetBirth(birth);
-      axisLoadToday();
+      $("#oa-setup-error").textContent = "Sign in to search birthplaces and save My Chart.";
     }
   });
 }

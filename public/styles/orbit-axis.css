@@ -156,7 +156,10 @@
    this only controls what a beginner sees by default. */
 :root[data-detail="Simple"] #panel-me .bt-deg { display: none; }
 :root[data-detail="Simple"] #panel-me .chart-details { display: none; }
+:root[data-detail="Simple"] #panel-me .chart-meta-balanced,
+:root[data-detail="Simple"] #panel-me .chart-meta-advanced { display: none; }
 :root[data-detail="Balanced"] #panel-me .aspect-list { display: none; }
+:root[data-detail="Balanced"] #panel-me .chart-meta-advanced { display: none; }
 
 /* `hidden` attribute must win over the flex display above. */
 .axis-chart-picker[hidden], .axis-reading-for[hidden] { display: none !important; }
