@@ -18,19 +18,17 @@ const state = {
   atlasQuery: "",
   ready: false,
   activeChartName: "My Chart",
+  auth: { restoring: true, user: null },
+  charts: [],
+  activeChartId: null,
 };
 
-async function get(path) {
-  const response = await fetch(path);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
-}
-
-async function post(path, body) {
+async function request(path, { method = "GET", body = null } = {}) {
   const response = await fetch(path, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    credentials: "same-origin",
+    body: body ? JSON.stringify(body) : undefined,
   });
   const data = await response.json();
   if (!response.ok) {
@@ -40,6 +38,11 @@ async function post(path, body) {
   }
   return data;
 }
+async function get(path) { return request(path); }
+async function post(path, body) { return request(path, { method: "POST", body }); }
+async function put(path, body) { return request(path, { method: "PUT", body }); }
+async function patch(path, body) { return request(path, { method: "PATCH", body }); }
+async function del(path, body = null) { return request(path, { method: "DELETE", body }); }
 
 function esc(text) {
   const div = document.createElement("div");
@@ -398,6 +401,285 @@ function runCommand(i) {
   item.run();
 }
 
+/* ── Auth + saved charts ───────────────────────────────────────────────── */
+const REL_LABELS = {
+  self: "Self",
+  partner: "Partner",
+  friend: "Friend",
+  family: "Family",
+  public_figure: "Public Figure",
+  other: "Other",
+};
+
+function authSignedIn() {
+  return !!state.auth.user;
+}
+
+function activeChart() {
+  return state.charts.find(chart => chart.id === state.activeChartId) || state.charts.find(chart => chart.is_active) || null;
+}
+
+function wireAuth() {
+  const form = $("#auth-form");
+  if (!form) return;
+  const modeButtons = $$("[data-auth-mode]");
+  let mode = "signin";
+
+  const setMode = (next) => {
+    mode = next;
+    modeButtons.forEach(btn => btn.setAttribute("aria-pressed", String(btn.dataset.authMode === mode)));
+    $("#auth-confirm-wrap").hidden = mode !== "signup";
+    $("#auth-submit").textContent = mode === "signup" ? "Create account" : "Sign in";
+    $("#auth-password").autocomplete = mode === "signup" ? "new-password" : "current-password";
+    $("#auth-message").textContent = "";
+  };
+
+  modeButtons.forEach(btn => btn.addEventListener("click", () => setMode(btn.dataset.authMode)));
+  $("#auth-toggle-password")?.addEventListener("click", () => {
+    const input = $("#auth-password");
+    const showing = input.type === "text";
+    input.type = showing ? "password" : "text";
+    $("#auth-toggle-password").textContent = showing ? "Show" : "Hide";
+    $("#auth-toggle-password").setAttribute("aria-label", showing ? "Show password" : "Hide password");
+  });
+
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const message = $("#auth-message");
+    message.textContent = mode === "signup" ? "Creating account…" : "Signing in…";
+    try {
+      const payload = {
+        email: $("#auth-email").value,
+        password: $("#auth-password").value,
+        confirm_password: $("#auth-confirm").value,
+      };
+      const data = await post(mode === "signup" ? "/api/auth/signup" : "/api/auth/signin", payload);
+      message.textContent = data.message || "Signed in.";
+      if (data.signed_in) await applySignedIn(data.user);
+    } catch (error) {
+      message.textContent = error.message;
+    }
+  });
+
+  $("#account-signout")?.addEventListener("click", async () => {
+    await post("/api/auth/signout", {});
+    state.auth.user = null;
+    state.charts = [];
+    state.activeChartId = null;
+    renderAccount();
+    renderSavedCharts();
+    $("#onboarding-gate").hidden = true;
+    $("#auth-gate").hidden = false;
+    toast("Signed out");
+  });
+}
+
+async function restoreSession() {
+  state.auth.restoring = true;
+  $("#auth-gate").hidden = true;
+  try {
+    const data = await get("/api/auth/session");
+    if (data.signed_in) await applySignedIn(data.user, { quiet: true });
+    else {
+      state.auth.user = null;
+      $("#auth-gate").hidden = false;
+      renderAccount();
+      renderSavedCharts();
+    }
+  } catch {
+    $("#auth-gate").hidden = false;
+  } finally {
+    state.auth.restoring = false;
+  }
+}
+
+async function applySignedIn(user, { quiet = false } = {}) {
+  state.auth.user = user;
+  $("#auth-gate").hidden = true;
+  renderAccount();
+  await loadSavedCharts();
+  if (!state.charts.length) {
+    $("#onboarding-gate").hidden = false;
+  } else {
+    $("#onboarding-gate").hidden = true;
+    await refreshActiveExperience();
+  }
+  if (!quiet) toast("Signed in");
+}
+
+function renderAccount() {
+  $("#account-email").textContent = state.auth.user?.email || "Not signed in";
+}
+
+function chartFormPayload(prefix, { forceMyChart = false } = {}) {
+  const accuracy = $(`#${prefix}-accuracy`).value;
+  const payload = {
+    nickname: forceMyChart ? "My Chart" : ($(`#${prefix}-nickname`)?.value.trim() || undefined),
+    relationship_type: forceMyChart ? "self" : ($(`#${prefix}-relationship`)?.value || "other"),
+    birth_date: $(`#${prefix}-date`).value,
+    birth_time: accuracy === "unknown" ? null : ($(`#${prefix}-time`).value || null),
+    time_accuracy: accuracy,
+    birthplace_name: $(`#${prefix}-place`)?.value.trim() || undefined,
+    latitude: parseFloat($(`#${prefix}-lat`).value),
+    longitude: parseFloat($(`#${prefix}-lon`).value),
+    timezone_name: $(`#${prefix}-tz`)?.value.trim() || "UTC",
+    utc_offset_at_birth: $(`#${prefix}-offset`)?.value.trim() || "+00:00",
+  };
+  if (accuracy === "unknown") payload.birth_time = null;
+  return payload;
+}
+
+function wireOnboarding() {
+  $("#onboarding-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const message = $("#onboarding-message");
+    message.textContent = "Saving My Chart…";
+    try {
+      await post("/api/charts", chartFormPayload("ob", { forceMyChart: true }));
+      message.textContent = "My Chart saved.";
+      $("#onboarding-gate").hidden = true;
+      await loadSavedCharts();
+      await refreshActiveExperience();
+    } catch (error) {
+      message.textContent = error.message;
+    }
+  });
+}
+
+function wireSavedCharts() {
+  $("#saved-chart-form")?.addEventListener("submit", async event => {
+    event.preventDefault();
+    const id = $("#sc-id").value;
+    const hint = $("#saved-chart-hint");
+    hint.textContent = id ? "Updating chart…" : "Saving chart…";
+    try {
+      if (id) await patch(`/api/charts/${id}`, chartFormPayload("sc"));
+      else await post("/api/charts", chartFormPayload("sc"));
+      hint.textContent = "Saved.";
+      clearSavedChartForm();
+      await loadSavedCharts();
+      await refreshActiveExperience();
+    } catch (error) {
+      hint.textContent = error.message;
+    }
+  });
+  $("#saved-chart-cancel")?.addEventListener("click", clearSavedChartForm);
+  $("#saved-charts-list")?.addEventListener("click", async event => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    const id = button.dataset.id;
+    const chart = state.charts.find(item => item.id === id);
+    if (!chart) return;
+    if (button.dataset.action === "activate") {
+      await post(`/api/charts/${id}/activate`, {});
+      await loadSavedCharts();
+      await refreshActiveExperience();
+      toast(`${chart.nickname} is active`);
+    }
+    if (button.dataset.action === "edit") fillSavedChartForm(chart);
+    if (button.dataset.action === "delete") {
+      const confirmEmpty = state.charts.length === 1;
+      if (!confirm(`Delete ${chart.nickname}? This cannot be undone.`)) return;
+      await del(`/api/charts/${id}${confirmEmpty ? "?confirmEmpty=true" : ""}`, { confirmEmpty });
+      await loadSavedCharts();
+      await refreshActiveExperience();
+    }
+  });
+}
+
+function clearSavedChartForm() {
+  $("#saved-chart-form")?.reset();
+  $("#sc-id").value = "";
+  $("#saved-chart-hint").textContent = "";
+}
+
+function fillSavedChartForm(chart) {
+  $("#saved-chart-editor").open = true;
+  $("#sc-id").value = chart.id;
+  $("#sc-nickname").value = chart.nickname || "";
+  $("#sc-relationship").value = chart.relationship_type || "other";
+  $("#sc-date").value = chart.birth_date || "";
+  $("#sc-time").value = chart.birth_time ? String(chart.birth_time).slice(0, 5) : "";
+  $("#sc-accuracy").value = chart.time_accuracy || "unknown";
+  $("#sc-place").value = chart.birthplace_name || "";
+  $("#sc-lat").value = chart.latitude ?? "";
+  $("#sc-lon").value = chart.longitude ?? "";
+  $("#sc-tz").value = chart.timezone_name || "";
+  $("#sc-offset").value = chart.utc_offset_at_birth || "";
+  $("#saved-chart-hint").textContent = `Editing ${chart.nickname}`;
+}
+
+async function loadSavedCharts() {
+  if (!authSignedIn()) {
+    state.charts = [];
+    state.activeChartId = null;
+    renderSavedCharts();
+    return;
+  }
+  try {
+    const data = await get("/api/charts");
+    state.charts = data.charts || [];
+    state.activeChartId = data.active_chart_id || state.charts.find(chart => chart.is_active)?.id || null;
+    const active = activeChart();
+    setActiveChartName(active?.nickname || "My Chart");
+    renderSavedCharts();
+  } catch (error) {
+    $("#saved-charts-status").textContent = error.message;
+  }
+}
+
+function renderSavedCharts() {
+  const status = $("#saved-charts-status");
+  const list = $("#saved-charts-list");
+  if (!status || !list) return;
+  if (!authSignedIn()) {
+    status.textContent = "Sign in to save and restore charts.";
+    list.innerHTML = "";
+    return;
+  }
+  if (!state.charts.length) {
+    status.textContent = "No saved charts yet. Set up My Chart to begin.";
+    list.innerHTML = "";
+    return;
+  }
+  status.textContent = `${state.charts.length} saved chart${state.charts.length === 1 ? "" : "s"}`;
+  list.innerHTML = state.charts.map(chart => {
+    const summary = chart.summary || {};
+    const rising = summary.time_known === false || !summary.rising ? "Time unknown" : `Rising ${esc(summary.rising)}`;
+    return `<article class="saved-chart-card" data-active="${chart.is_active}">
+      <div class="saved-chart-card__top">
+        <div class="saved-chart-card__name">${esc(chart.nickname || "Untitled Chart")}</div>
+        <div class="saved-chart-card__badges">
+          ${chart.is_active ? '<span class="o-pill o-pill--success">Active</span>' : ""}
+          ${chart.is_primary ? '<span class="o-badge">Primary</span>' : ""}
+          ${summary.time_known === false ? '<span class="o-badge">Time unknown</span>' : ""}
+        </div>
+      </div>
+      <div class="saved-chart-card__meta">${esc(REL_LABELS[chart.relationship_type] || chart.relationship_type || "Other")}</div>
+      <div class="saved-chart-card__summary">Sun ${esc(summary.sun || "—")} · Moon ${esc(summary.moon || "—")} · ${rising}</div>
+      <div class="saved-chart-card__actions">
+        <button type="button" data-action="activate" data-id="${esc(chart.id)}" ${chart.is_active ? "disabled" : ""}>Set active</button>
+        <button type="button" data-action="edit" data-id="${esc(chart.id)}">Edit</button>
+        <button type="button" data-action="delete" data-id="${esc(chart.id)}">Delete</button>
+      </div>
+    </article>`;
+  }).join("");
+}
+
+async function refreshActiveExperience() {
+  const active = activeChart();
+  if (active) {
+    setActiveChartName(active.nickname);
+    axisShowReadingFor(active.nickname);
+    try {
+      const data = await get(`/api/charts/${active.id}`);
+      renderChart(data.chart, data.profile?.nickname || active.nickname);
+    } catch { /* Home still owns the failure state */ }
+  }
+  await axisLoadToday();
+  if (currentWorkspace() === "history") await axisLoadHistory($("#history-scope")?.value || "active");
+}
+
 /* ── Toasts ────────────────────────────────────────────────────────────── */
 function toast(message) {
   const el = document.createElement("div");
@@ -556,7 +838,7 @@ async function runChatTurn(prompt) {
     $(`#${pendingId}`).outerHTML = chatMessage(
       "axis",
       esc(`I could not reach Local Intelligence right now: ${error.message}`),
-      "Technical details are available in More → Local Intelligence Diagnostics."
+      "Technical details are available in More → Settings → Local Intelligence."
     );
   }
   log.scrollTop = log.scrollHeight;
@@ -599,6 +881,9 @@ async function boot() {
   settings.load();
   buildRail();
   wireSettings();
+  wireAuth();
+  wireOnboarding();
+  wireSavedCharts();
   wireKeyboard();
   wireChat();
 
@@ -608,6 +893,8 @@ async function boot() {
 
   window.addEventListener("hashchange", renderRoute);
   renderRoute();
+
+  await restoreSession();
 
   // Feature panels carried over during branch integration (defensive: each
   // no-ops if its DOM/backing service is absent, so the app never blocks).
@@ -818,9 +1105,20 @@ function wireMyChart() {
     };
     hint.textContent = "Calculating…";
     try {
-      const { chart } = await post("/api/chart/preview", payload);
-      renderChart(chart, payload.nickname);
-      hint.textContent = "Computed locally — not saved. Sign in to save charts.";
+      if (authSignedIn()) {
+        const active = activeChart();
+        const result = active
+          ? await patch(`/api/charts/${active.id}`, payload)
+          : await post("/api/charts", payload);
+        renderChart(result.chart, result.profile?.nickname || payload.nickname);
+        await loadSavedCharts();
+        await refreshActiveExperience();
+        hint.textContent = active ? "Saved to your active chart." : "Saved as My Chart.";
+      } else {
+        const { chart } = await post("/api/chart/preview", payload);
+        renderChart(chart, payload.nickname);
+        hint.textContent = "Preview only. Sign in to save charts.";
+      }
     } catch (err) {
       hint.textContent = err.message;
     }
@@ -877,7 +1175,7 @@ async function axisSetDetail(level) {
   AXIS.detail = level;
   axisApplyDetail(true);
   try {
-    await fetch("/api/settings/detail", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ astrology_detail_level: level }) });
+    await put("/api/settings/detail", { astrology_detail_level: level });
   } catch { /* best effort */ }
 }
 
@@ -912,7 +1210,12 @@ async function axisLoadToday() {
     axisShowReadingFor(r.chart?.nickname || "My Chart");
     axisRenderFortune(r.fortune);
     return;
-  } catch { /* not signed in / no active chart → local preview */ }
+  } catch { /* signed out or no active chart */ }
+
+  if (authSignedIn()) {
+    $("#onboarding-gate").hidden = state.charts.length > 0;
+    return axisRenderSetup("Save My Chart to unlock your daily reading. Your chart and reading history are stored in Supabase so they can follow your account.");
+  }
 
   const birth = axisGetBirth();
   if (!birth) return axisRenderSetup();
@@ -990,12 +1293,13 @@ function axisRenderSky(sky) {
   $("#today-sky").innerHTML = `<h2>Current Sky</h2><div class="sky-facts">${chips}</div><div class="sky-theme">${theme}</div>${advanced}`;
 }
 
-function axisRenderSetup() {
+function axisRenderSetup(message = "Tell Orbit Axis when and where you were born, and it will read today’s sky just for you. Sign in to save this as My Chart.") {
   $("#today-fortune").innerHTML = `
     <div class="fortune-card">
       <h2>Set up your chart</h2>
+      <div class="fortune-card__sub" id="oa-setup-error"></div>
       <div class="fortune-setup">
-        <p>Tell Orbit Axis when and where you were born, and it will read today’s sky just for you. Everything is calculated on your device — nothing leaves your machine.</p>
+        <p>${esc(message)}</p>
         <form id="oa-setup" class="chart-form">
           <div class="chart-form-grid">
             <label>Nickname <input type="text" id="oa-nickname" placeholder="My Chart" /></label>
@@ -1026,8 +1330,17 @@ function axisRenderSetup() {
       timezone_name: $("#oa-tz").value.trim() || "UTC",
       utc_offset_at_birth: $("#oa-offset").value.trim() || "+00:00",
     };
-    axisSetBirth(birth);
-    axisLoadToday();
+    if (authSignedIn()) {
+      post("/api/charts", { ...birth, relationship_type: "self" })
+        .then(async () => {
+          await loadSavedCharts();
+          await refreshActiveExperience();
+        })
+        .catch(error => { $("#oa-setup-error").textContent = error.message; });
+    } else {
+      axisSetBirth(birth);
+      axisLoadToday();
+    }
   });
 }
 

@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/styles/learn.css" />
   <link rel="stylesheet" href="/styles/news.css" />
   <link rel="stylesheet" href="/styles/more.css" />
+  <link rel="stylesheet" href="/styles/auth.css" />
   <link rel="stylesheet" href="/styles/fortune.css" />
   <link rel="stylesheet" href="/styles/history.css" />
   <link rel="stylesheet" href="/styles/motion.css" />
@@ -472,8 +473,48 @@
             </article>
             <article class="more-card">
               <h2>Saved Charts</h2>
-              <p>Full chart management is coming soon. Use Me to preview chart calculations today.</p>
-              <button class="o-btn o-btn--secondary" type="button" data-goto="me">Open Me</button>
+              <p>Save your chart and the important people or launch charts you want Orbit Axis to remember.</p>
+              <div id="saved-charts-status" class="more-note">Restoring your session…</div>
+              <div id="saved-charts-list" class="saved-charts-list"></div>
+              <details class="saved-chart-editor" id="saved-chart-editor">
+                <summary>Add or edit a chart</summary>
+                <form id="saved-chart-form" class="chart-form">
+                  <input type="hidden" id="sc-id" />
+                  <div class="chart-form-grid">
+                    <label>Nickname <input type="text" id="sc-nickname" placeholder="Mom" required /></label>
+                    <label>Relationship
+                      <select id="sc-relationship">
+                        <option value="self">Self</option>
+                        <option value="partner">Partner</option>
+                        <option value="friend">Friend</option>
+                        <option value="family">Family</option>
+                        <option value="public_figure">Public Figure</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </label>
+                    <label>Birth date <input type="date" id="sc-date" required /></label>
+                    <label>Birth time <input type="time" id="sc-time" /></label>
+                    <label>Time accuracy
+                      <select id="sc-accuracy">
+                        <option value="exact">exact</option>
+                        <option value="reported">reported</option>
+                        <option value="approximate">approximate</option>
+                        <option value="unknown">unknown</option>
+                      </select>
+                    </label>
+                    <label>Birthplace <input type="text" id="sc-place" placeholder="City" /></label>
+                    <label>Latitude <input type="number" step="0.0001" id="sc-lat" required /></label>
+                    <label>Longitude <input type="number" step="0.0001" id="sc-lon" required /></label>
+                    <label>Time zone <input type="text" id="sc-tz" placeholder="America/Chicago" /></label>
+                    <label>UTC offset <input type="text" id="sc-offset" placeholder="-05:00" /></label>
+                  </div>
+                  <div class="more-actions">
+                    <button type="submit">Save chart</button>
+                    <button type="button" id="saved-chart-cancel">Cancel</button>
+                  </div>
+                  <span class="chart-form-hint" id="saved-chart-hint"></span>
+                </form>
+              </details>
             </article>
             <article class="more-card">
               <h2>Compatibility</h2>
@@ -518,6 +559,18 @@
                 <div class="intel-run-meta" id="intel-run-meta"></div>
                 <div class="intel-sources" id="intel-sources"></div>
                 <div class="proposal-panel" id="proposal-panel"></div>
+              </details>
+              <details class="more-settings" id="account-settings">
+                <summary>Account</summary>
+                <div class="account-panel">
+                  <div class="o-kv"><span class="o-kv__k">Signed in as</span><span class="o-kv__v" id="account-email">Not signed in</span></div>
+                  <p class="more-note">Your account, saved charts, active chart, daily fortunes, history, and detail level are stored in Supabase. The vault is only for product documentation.</p>
+                  <p class="more-note">Export data is planned. Account deletion is intentionally disabled until the destructive flow is fully tested.</p>
+                  <div class="more-actions">
+                    <button class="o-btn o-btn--secondary" type="button" id="account-signout">Sign out</button>
+                    <button class="o-btn o-btn--secondary" type="button" disabled>Delete account request</button>
+                  </div>
+                </div>
               </details>
             </article>
           </div>
@@ -579,6 +632,66 @@
           </div>
         </section>
       </main>
+    </div>
+  </div>
+
+  <!-- ── Authentication gate ──────────────────────────────────────────── -->
+  <div class="auth-gate" id="auth-gate" hidden>
+    <div class="auth-card">
+      <div class="chat-orbit" aria-hidden="true"><span></span></div>
+      <div>
+        <h1>Welcome to Orbit Axis</h1>
+        <p>Sign in to save charts, restore your active chart, and keep daily readings across devices.</p>
+      </div>
+      <div class="auth-tabs" role="tablist" aria-label="Account action">
+        <button type="button" data-auth-mode="signin" aria-pressed="true">Sign in</button>
+        <button type="button" data-auth-mode="signup" aria-pressed="false">Create account</button>
+      </div>
+      <form id="auth-form" class="auth-form">
+        <label>Email <input type="email" id="auth-email" autocomplete="email" required /></label>
+        <label>Password
+          <span class="password-row">
+            <input type="password" id="auth-password" autocomplete="current-password" minlength="8" required />
+            <button type="button" id="auth-toggle-password" aria-label="Show password">Show</button>
+          </span>
+        </label>
+        <label id="auth-confirm-wrap" hidden>Confirm password
+          <input type="password" id="auth-confirm" autocomplete="new-password" minlength="8" />
+        </label>
+        <button type="submit" id="auth-submit">Sign in</button>
+        <div class="auth-message" id="auth-message" role="status"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── First-run chart onboarding ───────────────────────────────────── -->
+  <div class="auth-gate" id="onboarding-gate" hidden>
+    <div class="auth-card auth-card--wide">
+      <div>
+        <h1>Set up My Chart</h1>
+        <p>Your first saved chart is automatically named My Chart, marked primary, and set active.</p>
+      </div>
+      <form id="onboarding-form" class="chart-form">
+        <div class="chart-form-grid">
+          <label>Birth date <input type="date" id="ob-date" required /></label>
+          <label>Birth time <input type="time" id="ob-time" /></label>
+          <label>Time accuracy
+            <select id="ob-accuracy">
+              <option value="exact">exact</option>
+              <option value="reported">reported</option>
+              <option value="approximate">approximate</option>
+              <option value="unknown">unknown</option>
+            </select>
+          </label>
+          <label>Birthplace <input type="text" id="ob-place" placeholder="City" /></label>
+          <label>Latitude <input type="number" step="0.0001" id="ob-lat" required /></label>
+          <label>Longitude <input type="number" step="0.0001" id="ob-lon" required /></label>
+          <label>Time zone <input type="text" id="ob-tz" placeholder="America/Chicago" /></label>
+          <label>UTC offset <input type="text" id="ob-offset" placeholder="-05:00" /></label>
+        </div>
+        <button type="submit">Save My Chart</button>
+        <div class="auth-message" id="onboarding-message" role="status"></div>
+      </form>
     </div>
   </div>
 
