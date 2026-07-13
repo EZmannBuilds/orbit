@@ -6,10 +6,13 @@ The chat opens as a full workspace rather than a small floating support bubble. 
 
 - Orbit Axis
 - the active chart label
+- back control
 - conversation history control
 - new conversation control
 
-Technical Ollama and local model diagnostics were moved to More under Local Intelligence Diagnostics.
+Technical Ollama and local model diagnostics were moved to:
+
+More -> Settings -> Local Intelligence
 
 The welcome state includes a soft orbit illustration and suggested prompts:
 

@@ -333,17 +333,17 @@
               <span class="tarot-card-art__star"></span>
             </div>
             <div class="tarot-hero__body">
-              <div class="u-eyebrow">Daily Card</div>
+              <div class="u-eyebrow">Today's Card</div>
               <h2>Tarot readings are coming soon</h2>
               <p>The daily tarot system is not wired yet. When it is, the daily card will stay stable for the whole day instead of changing on refresh.</p>
-              <button class="o-btn o-btn--primary" type="button" data-chat-prompt="Give me a tarot reflection">Ask for a tarot reflection</button>
+              <button class="o-btn o-btn--primary" type="button" data-chat-prompt="Ask about this tarot reading">Ask About This Reading</button>
             </div>
           </div>
 
           <div class="tarot-modes">
-            <article class="tarot-mode" aria-disabled="true"><h3>One-card reading</h3><p>Coming soon.</p></article>
-            <article class="tarot-mode" aria-disabled="true"><h3>Three-card spread</h3><p>Coming soon.</p></article>
-            <article class="tarot-mode" aria-disabled="true"><h3>Custom question</h3><p>Coming soon.</p></article>
+            <article class="tarot-mode" aria-disabled="true"><h3>Daily Reading</h3><p>Coming soon.</p></article>
+            <article class="tarot-mode" aria-disabled="true"><h3>One Card</h3><p>Coming soon.</p></article>
+            <article class="tarot-mode" aria-disabled="true"><h3>Three Card</h3><p>Coming soon.</p></article>
           </div>
         </section>
 
@@ -436,7 +436,7 @@
           <div class="o-section-head">
             <div class="o-section-head__text">
               <h1 class="u-title">News</h1>
-              <p class="u-caption">A future feed for verified astrology, tarot, metaphysics, astronomy, culture, and research reporting.</p>
+              <p class="u-caption">A future feed for verified Astrology, Tarot, Metaphysics, Astronomy, and Culture reporting.</p>
             </div>
           </div>
 
@@ -444,6 +444,9 @@
             <div class="news-empty__art" aria-hidden="true"></div>
             <h2>No verified news feed yet</h2>
             <p>Orbit Axis will only show articles with a real publisher, source URL, publication date, retrieved timestamp, and verification status. Ollama will not invent headlines or sources.</p>
+            <div class="news-categories" aria-label="Planned news categories">
+              <span>Astrology</span><span>Tarot</span><span>Metaphysics</span><span>Astronomy</span><span>Culture</span>
+            </div>
             <button class="o-btn o-btn--secondary" type="button" data-chat-prompt="Help me understand an astrology article">Ask about an article</button>
           </div>
         </section>
@@ -485,34 +488,37 @@
             <article class="more-card">
               <h2>Settings</h2>
               <p>Appearance, detail level, timezone, privacy, account, export, and local intelligence settings belong here as the app grows.</p>
-              <button class="o-btn o-btn--secondary" type="button" data-goto="settings">Open appearance settings</button>
-            </article>
-            <article class="more-card more-card--wide local-intel">
-              <div class="intel-head">
-                <div>
-                  <h2>Local Intelligence Diagnostics</h2>
-                  <p>Technical Ollama details live here, away from the normal chat header.</p>
-                </div>
-                <span class="local-pill">Local only</span>
+              <div class="more-actions">
+                <button class="o-btn o-btn--secondary" type="button" data-goto="settings">Open appearance settings</button>
               </div>
-            <div class="intel-grid">
-              <div><div class="intel-label">Connection</div><div id="llm-status" class="intel-value">Checking…</div></div>
-              <div><div class="intel-label">Provider</div><div id="llm-provider" class="intel-value">—</div></div>
-              <div><div class="intel-label">Selected model</div><div id="llm-model" class="intel-value">—</div></div>
-              <div><div class="intel-label">Installed</div><div id="llm-installed" class="intel-value">—</div></div>
-              <div><div class="intel-label">Fallback</div><div id="llm-fallback" class="intel-value">—</div></div>
-              <div><div class="intel-label">Context</div><div id="llm-context" class="intel-value">—</div></div>
-              <div><div class="intel-label">Prompt</div><div id="llm-prompt-version" class="intel-value">—</div></div>
-            </div>
-            <form id="intel-form" class="intel-form">
-              <input type="text" id="intel-prompt" value="Summarize the Orbit Axis roadmap." />
-              <button type="submit">Generate</button>
-              <button type="button" id="proposal-button">Propose note</button>
-            </form>
-            <div class="intel-output" id="intel-output"></div>
-            <div class="intel-run-meta" id="intel-run-meta"></div>
-            <div class="intel-sources" id="intel-sources"></div>
-            <div class="proposal-panel" id="proposal-panel"></div>
+              <details class="more-settings local-intel">
+                <summary>Local Intelligence</summary>
+                <div class="intel-head">
+                  <div>
+                    <h3>Local Intelligence Diagnostics</h3>
+                    <p>Technical Ollama details live here, away from the normal chat header.</p>
+                  </div>
+                  <span class="local-pill">Local only</span>
+                </div>
+                <div class="intel-grid">
+                  <div><div class="intel-label">Connection</div><div id="llm-status" class="intel-value">Checking…</div></div>
+                  <div><div class="intel-label">Provider</div><div id="llm-provider" class="intel-value">—</div></div>
+                  <div><div class="intel-label">Selected model</div><div id="llm-model" class="intel-value">—</div></div>
+                  <div><div class="intel-label">Installed</div><div id="llm-installed" class="intel-value">—</div></div>
+                  <div><div class="intel-label">Fallback</div><div id="llm-fallback" class="intel-value">—</div></div>
+                  <div><div class="intel-label">Context</div><div id="llm-context" class="intel-value">—</div></div>
+                  <div><div class="intel-label">Prompt</div><div id="llm-prompt-version" class="intel-value">—</div></div>
+                </div>
+                <form id="intel-form" class="intel-form">
+                  <input type="text" id="intel-prompt" value="Summarize the Orbit Axis roadmap." />
+                  <button type="submit">Generate</button>
+                  <button type="button" id="proposal-button">Propose note</button>
+                </form>
+                <div class="intel-output" id="intel-output"></div>
+                <div class="intel-run-meta" id="intel-run-meta"></div>
+                <div class="intel-sources" id="intel-sources"></div>
+                <div class="proposal-panel" id="proposal-panel"></div>
+              </details>
             </article>
           </div>
         </section>

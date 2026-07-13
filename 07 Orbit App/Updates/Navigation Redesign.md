@@ -11,7 +11,7 @@ Changed:
 - Me contains personal chart calculations and progressive detail
 - History moved under More
 - Tarot, Learn, and News have honest shell states
-- technical Local Intelligence diagnostics moved into More
+- technical Local Intelligence diagnostics moved into More -> Settings -> Local Intelligence
 
 Not implemented in this update:
 

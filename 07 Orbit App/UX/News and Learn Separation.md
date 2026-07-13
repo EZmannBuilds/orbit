@@ -4,13 +4,21 @@ Learn and News are separate primary sections.
 
 Learn is for evergreen education:
 
-- courses
-- chapters
-- lessons
-- beginner, intermediate, and advanced paths
-- course categories such as signs, planets, houses, aspects, elements, modalities, Moon phases, and compatibility
+- Beginner
+- Intermediate
+- Advanced
+- course placeholders only
+- no fake lessons
 
 News is for current reporting from verified publishers. The current UI intentionally shows an empty state because live aggregation is not implemented.
+
+Initial categories:
+
+- Astrology
+- Tarot
+- Metaphysics
+- Astronomy
+- Culture
 
 Future news records should include:
 
