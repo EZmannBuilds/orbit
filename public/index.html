@@ -79,7 +79,6 @@
               <div class="axis-today-date" id="today-date"></div>
               <div class="axis-detail" role="group" aria-label="Astrology detail level">
                 <button type="button" data-level="Simple" aria-pressed="true">Simple</button>
-                <button type="button" data-level="Balanced" aria-pressed="false">Balanced</button>
                 <button type="button" data-level="Advanced" aria-pressed="false">Advanced</button>
               </div>
             </div>
@@ -398,14 +397,21 @@
 
             <div class="chat-log" id="chat-log" aria-live="polite"></div>
 
-            <form class="chat-compose" id="chat-form">
-              <label class="sr-only" for="chat-prompt">Ask Orbit Axis</label>
-              <textarea id="chat-prompt" rows="2" placeholder="Ask Orbit Axis…" autocomplete="off"></textarea>
-              <button type="submit" aria-label="Send message">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4Z"/></svg>
-                <span>Ask</span>
-              </button>
-            </form>
+            <div class="chat-footer">
+              <div class="chat-status" id="chat-status" role="status" aria-live="polite" hidden></div>
+              <form class="chat-compose" id="chat-form">
+                <label class="sr-only" for="chat-prompt">Ask Orbit Axis</label>
+                <textarea id="chat-prompt" rows="2" placeholder="Ask Orbit Axis…" autocomplete="off"></textarea>
+                <button type="button" id="chat-stop" class="chat-stop" hidden aria-label="Stop generating">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                  <span>Stop</span>
+                </button>
+                <button type="submit" id="chat-send" aria-label="Send message">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4Z"/></svg>
+                  <span>Ask</span>
+                </button>
+              </form>
+            </div>
           </div>
         </section>
 

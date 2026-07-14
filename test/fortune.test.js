@@ -114,8 +114,18 @@ test("detail levels: Simple hides degrees, Advanced shows them", () => {
   const advanced = factorsForLevel(f.factors, "Advanced").join(" | ");
   assert.doesNotMatch(simple, /°\d{2}′/); // no exact deg/min in Simple
   assert.match(advanced, /°/);            // degrees present in Advanced
-  const balanced = factorsForLevel(f.factors, "Balanced").join(" | ");
-  assert.ok(balanced.length > 0);
+});
+
+test("detail levels: Balanced removed — legacy value renders as Simple", () => {
+  const f = fortune();
+  const simple = factorsForLevel(f.factors, "Simple");
+  // A stale "Balanced" (or any unknown level) must never blank out or throw;
+  // it falls through to the plain Simple phrasing.
+  const legacy = factorsForLevel(f.factors, "Balanced");
+  assert.deepEqual(legacy, simple);
+  assert.ok(legacy.every((line) => typeof line === "string" && line.length > 0));
+  // No factor object should still carry a `balanced` phrasing.
+  assert.ok((f.factors || []).every((factor) => !("balanced" in factor)));
 });
 
 test("localDateForZone uses the user's timezone, not the server's", () => {

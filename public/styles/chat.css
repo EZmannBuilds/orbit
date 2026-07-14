@@ -226,12 +226,89 @@
   background: var(--axis-lavender);
 }
 
+.chat-footer {
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in oklab, var(--color-surface) 78%, transparent);
+}
+
+/* ── Streamed-chat status + controls ─────────────────────────────────────── */
+.chat-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 0;
+  font-size: 13px;
+  color: var(--color-secondary);
+}
+.chat-status[hidden] { display: none; }
+.chat-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--axis-lavender);
+  flex: none;
+}
+.chat-status[data-state="streaming"]::before { background: var(--axis-blue); }
+.chat-status[data-state="fallback"]::before { background: #e0a648; }
+.chat-status[data-state="error"]::before { background: #e0576b; }
+.chat-status[data-state="complete"]::before { background: #4bbf87; }
+
+.chat-message__body[data-body] .chat-typing { margin: 0; }
+
+/* Streaming caret while text arrives. */
+.chat-message--axis .chat-message__body:not([data-final])::after { content: ""; }
+
+.chat-code {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border);
+  overflow-x: auto;
+  white-space: pre;
+  font-size: 13px;
+}
+.chat-message__body code {
+  background: color-mix(in oklab, var(--color-surface-sunken) 80%, var(--axis-indigo) 20%);
+  padding: 1px 5px;
+  border-radius: 6px;
+  font-size: 0.92em;
+}
+.chat-error { color: #e0576b; }
+
+.chat-retry {
+  min-height: 34px;
+  padding: 6px 14px;
+  border: 1px solid color-mix(in oklab, var(--axis-lavender) 30%, var(--color-border));
+  border-radius: 999px;
+  background: var(--color-surface-sunken);
+  color: var(--color-primary);
+  cursor: pointer;
+  font: inherit;
+}
+.chat-retry:hover { background: color-mix(in oklab, var(--color-surface-sunken) 70%, var(--axis-indigo) 30%); }
+
+.chat-stop {
+  min-width: 86px;
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-primary);
+  background: var(--color-surface-sunken);
+  border: 1px solid color-mix(in oklab, var(--axis-lavender) 30%, var(--color-border));
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chat-stop[hidden], .chat-send[hidden] { display: none; }
+
 .chat-compose {
   display: flex;
   gap: 10px;
   padding: 14px;
-  border-top: 1px solid var(--color-border);
-  background: color-mix(in oklab, var(--color-surface) 78%, transparent);
 }
 
 .chat-compose textarea {

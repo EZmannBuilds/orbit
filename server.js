@@ -25,6 +25,16 @@ import {
 import { localLlmConfig, supabaseConfig } from "./lib/local-llm/config.js";
 import { recordVaultProposalStatus, recordVaultVersion } from "./lib/local-llm/supabase.js";
 import { buildActiveChartContext } from "./lib/local-llm/context.js";
+import {
+  normalizeChartFacts, normalizeSkyFacts,
+  compactChartSummary, compactSkySummary, buildChatPrompt,
+  chartSummaryCache, skySummaryCache, chartCacheKey, skyCacheKey,
+} from "./lib/local-llm/chat-context.js";
+import {
+  validateChatInput, cachedHealth, fastAnswer, fallbackAnswer, FALLBACK_NOTICE,
+} from "./lib/local-llm/axis-chat.js";
+import { chartInputHash } from "./lib/astro/natal.js";
+import { randomUUID } from "node:crypto";
 import { handleChartsRoute } from "./lib/charts/api.js";
 import { handleFortuneRoute } from "./lib/fortune/api.js";
 import { LocationError, searchGeoapify } from "./lib/locations/geoapify.js";
@@ -188,6 +198,228 @@ function stellaDaily() {
   ].join(" ");
 
   return { reflection, sun, moon, mercury, symbol_of_the_day: daySymbol, mode: "orbit_service" };
+}
+
+// ── Ask Orbit Axis chat: concurrency, rate limit, observability ──────────────
+// Conservative for local hardware (M-series, single large model): one active
+// generation per user, small global cap. Extra requests are rejected with a
+// clear message rather than queued indefinitely.
+const CHAT_MAX_PER_USER = Number(process.env.ORBIT_CHAT_MAX_PER_USER || 1);
+const CHAT_MAX_GLOBAL = Number(process.env.ORBIT_CHAT_MAX_GLOBAL || 2);
+const CHAT_RATE_MAX = Number(process.env.ORBIT_CHAT_RATE_MAX || 20); // per minute per user
+const chatActive = new Map(); // ownerKey -> in-flight generation count
+let chatGlobalActive = 0;
+const CHAT_RATE = new Map();
+
+function chatOwnerKey(auth, req) {
+  return auth?.user?.id || `local:${req.socket.remoteAddress || "unknown"}`;
+}
+function chatRateLimited(ownerKey) {
+  const now = Date.now();
+  const item = CHAT_RATE.get(ownerKey);
+  if (!item || now - item.start > 60_000) { CHAT_RATE.set(ownerKey, { start: now, count: 1 }); return false; }
+  item.count += 1;
+  return item.count > CHAT_RATE_MAX;
+}
+function chatAcquire(ownerKey) {
+  if (chatGlobalActive >= CHAT_MAX_GLOBAL) return { ok: false, reason: "busy" };
+  if ((chatActive.get(ownerKey) || 0) >= CHAT_MAX_PER_USER) return { ok: false, reason: "one_at_a_time" };
+  chatActive.set(ownerKey, (chatActive.get(ownerKey) || 0) + 1);
+  chatGlobalActive += 1;
+  return { ok: true };
+}
+function chatRelease(ownerKey) {
+  const n = (chatActive.get(ownerKey) || 1) - 1;
+  if (n <= 0) chatActive.delete(ownerKey); else chatActive.set(ownerKey, n);
+  chatGlobalActive = Math.max(0, chatGlobalActive - 1);
+}
+
+// Dev-safe timing log: only non-sensitive metadata, never message content,
+// names, coordinates, prompts, or tokens.
+function logChat(meta) {
+  if (process.env.ORBIT_CHAT_LOG === "false") return;
+  try { console.log(`[axis-chat] ${JSON.stringify(meta)}`); } catch { /* ignore */ }
+}
+
+// Minimal SSE frame writer.
+function sse(res, event, data) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+// Gather ONLY the compact, allow-listed facts chat may use. Uses the existing
+// cached sky snapshot and the chart-calculation cache (no Swiss Ephemeris
+// recompute for an unchanged active chart), and the in-memory summary caches.
+async function gatherChatFacts(auth, detailLevel) {
+  const authCtx = authContext(auth);
+  let sky = null, skyFacts = null;
+  try {
+    const skyRes = await handleChartsRoute("GET", "/api/sky/current", new URLSearchParams(), {}, authCtx);
+    sky = skyRes?.body?.sky || null;
+    skyFacts = normalizeSkyFacts(sky);
+  } catch { /* sky optional */ }
+
+  let chartFacts = null, chartMeta = null;
+  if (authCtx) {
+    try {
+      const list = await handleChartsRoute("GET", "/api/charts", new URLSearchParams(), {}, authCtx);
+      const activeItem = list?.body?.charts?.find((c) => c.is_active);
+      if (activeItem) {
+        const full = await handleChartsRoute("GET", `/api/charts/${activeItem.id}`, new URLSearchParams(), {}, authCtx);
+        const profile = full?.body?.profile || activeItem;
+        const chart = full?.body?.chart || null;
+        chartMeta = { chartId: activeItem.id, inputHash: chartInputHash(profile), nickname: profile.nickname };
+        chartFacts = normalizeChartFacts({ profile, chart, summary: activeItem.summary });
+      }
+    } catch { /* chart optional; deterministic paths still work */ }
+  }
+
+  // Resolve summaries through the bounded caches (invalidation is key-based:
+  // a new active chart, edited chart, changed detail mode, or refreshed sky
+  // snapshot all produce a different key and thus a fresh summary).
+  let chartHit = false, skyHit = false, chartSummary = "No active chart is selected.";
+  if (chartFacts) {
+    const key = chartCacheKey({ ownerId: auth?.user?.id, chartId: chartMeta?.chartId, inputHash: chartMeta?.inputHash, detailLevel });
+    const cached = chartSummaryCache.get(key);
+    if (cached !== undefined) { chartSummary = cached; chartHit = true; }
+    else chartSummary = chartSummaryCache.set(key, compactChartSummary(chartFacts, detailLevel));
+  }
+  let skySummary = "Current sky is unavailable.";
+  if (skyFacts) {
+    const key = skyCacheKey({ skyVersion: skyFacts.version, snapshotHash: skyFacts.hash, detailLevel });
+    const cached = skySummaryCache.get(key);
+    if (cached !== undefined) { skySummary = cached; skyHit = true; }
+    else skySummary = skySummaryCache.set(key, compactSkySummary(skyFacts, detailLevel));
+  }
+
+  return { chartFacts, skyFacts, chartMeta, chartSummary, skySummary, cache: { chart: chartHit ? "hit" : "miss", sky: skyHit ? "hit" : "miss" } };
+}
+
+async function handleChatStream(req, res, body, auth) {
+  const requestId = randomUUID().slice(0, 8);
+  const ownerKey = chatOwnerKey(auth, req);
+
+  // Validate BEFORE opening the SSE stream so real errors get real status codes.
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const message = typeof body.message === "string" ? body.message
+    : [...messages].reverse().find((m) => m?.role === "user")?.content ?? "";
+  const valid = validateChatInput({ message, messages });
+  if (!valid.ok) return json(res, 400, { ok: false, error: valid.error });
+  if (chatRateLimited(ownerKey)) {
+    return json(res, 429, { ok: false, error: "You're sending messages too quickly. Give it a moment." }, { "Retry-After": "20" });
+  }
+  const slot = chatAcquire(ownerKey);
+  if (!slot.ok) {
+    return json(res, 429, { ok: false, error: slot.reason === "one_at_a_time"
+      ? "Orbit Axis is still answering your previous message."
+      : "Orbit Axis is busy right now. Please try again in a moment." }, { "Retry-After": "5" });
+  }
+
+  const config = localLlmConfig();
+  const detailFallback = "Simple";
+  let released = false;
+  const release = () => { if (!released) { released = true; chatRelease(ownerKey); } };
+  const t0 = Date.now();
+
+  try {
+    // Detail level (already normalized by the fortune service).
+    let detailLevel = detailFallback;
+    if (auth?.ok) {
+      try {
+        const d = await handleFortuneRoute("GET", "/api/settings/detail", new URLSearchParams(), {}, authContext(auth));
+        detailLevel = d?.body?.astrology_detail_level || detailFallback;
+      } catch { /* default */ }
+    }
+
+    const facts = await gatherChatFacts(auth, detailLevel);
+    const provider = createLocalLLMProvider(config);
+    const health = await cachedHealth(provider, config.healthCacheMs);
+    const factBundle = { chart: facts.chartFacts, sky: facts.skyFacts, detailLevel, health };
+
+    // Open the stream.
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+      "Access-Control-Allow-Origin": "*",
+    });
+    sse(res, "meta", { request_id: requestId, chart: facts.chartMeta?.nickname || null, detail_level: detailLevel });
+
+    // 1) Fast deterministic path — no model needed.
+    const fast = fastAnswer(message, factBundle);
+    if (fast) {
+      sse(res, "delta", { text: fast.text });
+      sse(res, "done", { path: "fast", intent: fast.intent, stats: { total_ms: Date.now() - t0 } });
+      logChat({ id: requestId, path: "fast", intent: fast.intent, detail: detailLevel, chart_cache: facts.cache.chart, sky_cache: facts.cache.sky, ctx_chars: facts.chartSummary.length + facts.skySummary.length, ms: Date.now() - t0 });
+      res.end();
+      return;
+    }
+
+    // 2) Ollama unreachable / model missing → deterministic fallback (fast).
+    const modelReady = health?.reachable && (health.model_available ?? health.installed_model);
+    if (!modelReady) {
+      const fb = fallbackAnswer(message, factBundle);
+      sse(res, "notice", { text: fb.notice });
+      sse(res, "delta", { text: fb.text });
+      sse(res, "done", { path: "fallback", reason: health?.reachable ? "missing_model" : "ollama_offline", stats: { total_ms: Date.now() - t0 } });
+      logChat({ id: requestId, path: "fallback", reason: health?.reachable ? "missing_model" : "ollama_offline", detail: detailLevel, ms: Date.now() - t0 });
+      res.end();
+      return;
+    }
+
+    // 3) Stream from Ollama. Abort upstream if the client disconnects.
+    const controller = new AbortController();
+    req.on("close", () => controller.abort(new Error("client_closed")));
+    const prompt = buildChatPrompt({
+      chartFacts: facts.chartFacts, skyFacts: facts.skyFacts, detailLevel,
+      messages: [...messages, { role: "user", content: message }],
+      chartSummary: facts.chartSummary, skySummary: facts.skySummary,
+    });
+
+    let produced = 0;
+    let terminal = null;
+    for await (const ev of provider.streamChat({
+      messages: prompt.messages,
+      signal: controller.signal,
+      timeoutMs: config.chatTimeoutMs,
+      numPredict: 700,
+      keepAlive: config.keepAlive,
+    })) {
+      if (ev.type === "delta") { produced += ev.text.length; sse(res, "delta", { text: ev.text }); }
+      else if (ev.type === "done") { terminal = ev; break; }
+      else if (ev.type === "error") { terminal = ev; break; }
+    }
+
+    if (terminal?.type === "done") {
+      sse(res, "done", { path: "ollama", stats: { ...terminal.stats, context_chars: prompt.stats.prompt_chars } });
+      logChat({ id: requestId, path: "ollama", model: terminal.stats.model, detail: detailLevel, chart_cache: facts.cache.chart, sky_cache: facts.cache.sky, ctx_chars: prompt.stats.prompt_chars, ttft_ms: terminal.stats.time_to_first_token_ms, ms: terminal.stats.total_ms });
+    } else if (controller.signal.aborted) {
+      // Client stopped / disconnected: keep whatever text already streamed.
+      logChat({ id: requestId, path: "ollama", status: "cancelled", produced_chars: produced, ms: Date.now() - t0 });
+    } else {
+      // Mid-stream failure with no partial → deterministic fallback tail.
+      if (produced === 0) {
+        const fb = fallbackAnswer(message, factBundle);
+        sse(res, "notice", { text: fb.notice });
+        sse(res, "delta", { text: fb.text });
+        sse(res, "done", { path: "fallback", reason: terminal?.status || "stream_failed", stats: { total_ms: Date.now() - t0 } });
+        logChat({ id: requestId, path: "fallback", reason: terminal?.status || "stream_failed", detail: detailLevel, ms: Date.now() - t0 });
+      } else {
+        sse(res, "error", { message: "The response was interrupted.", retryable: true });
+        logChat({ id: requestId, path: "ollama", status: terminal?.status || "interrupted", produced_chars: produced, ms: Date.now() - t0 });
+      }
+    }
+    res.end();
+  } catch (error) {
+    // Stream may already be open; try to emit an error event, else 500.
+    try {
+      if (res.headersSent) { sse(res, "error", { message: "Something went wrong. Please try again.", retryable: true }); res.end(); }
+      else json(res, 500, { ok: false, error: "Chat failed to start." });
+    } catch { /* ignore */ }
+    logChat({ id: requestId, path: "error", ms: Date.now() - t0 });
+  } finally {
+    release();
+  }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -366,6 +598,19 @@ const server = http.createServer(async (req, res) => {
       });
       return json(res, result.ok ? 200 : 422, result);
     }
+    // ── Ask Orbit Axis streamed chat (SSE) ────────────────────────────────
+    // Available to authenticated users; also usable on localhost without a
+    // session for local dev. Never exposes Ollama to arbitrary remote callers.
+    if (route === "/api/axis/chat/stream" && req.method === "POST") {
+      const auth = await authenticateRequest(req);
+      if (!auth.ok && !isLocalRequest(req)) {
+        return json(res, 401, { ok: false, error: "Sign-in required." },
+          auth.setCookie ? { "Set-Cookie": auth.setCookie } : {});
+      }
+      const body = await readBody(req);
+      return handleChatStream(req, res, body, auth.ok ? auth : null);
+    }
+
     if (route === "/api/vault/project-notes") {
       if (!requireLocal(req, res)) return;
       const notes = collectProjectNotes({
@@ -487,4 +732,20 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Orbit astrology app listening at http://localhost:${PORT}`);
+  warmupModel();
 });
+
+// Best-effort model warmup: never blocks startup, never fails the app. Only
+// runs when the local LLM is enabled AND Ollama is already reachable with the
+// configured model installed — it will not start Ollama or pull a model.
+async function warmupModel() {
+  const config = localLlmConfig();
+  if (!config.enabled || !config.warmupEnabled) return;
+  try {
+    const provider = createLocalLLMProvider(config);
+    const health = await provider.health();
+    if (!health.reachable || !(health.model_available ?? health.installed_model)) return;
+    const result = await provider.warmup();
+    console.log(`[axis-chat] warmup ${result.status} (keep-alive ${config.keepAlive})`);
+  } catch { /* warmup is optional */ }
+}

@@ -13,6 +13,6 @@ Design choices:
 - History lives under More instead of primary navigation
 - technical Ollama diagnostics live under More -> Settings -> Local Intelligence
 
-The redesign preserves the deterministic fortune engine, current-sky calculations, Moon phase data, My Chart calculations, Simple / Balanced / Advanced detail modes, Fortune History, Local Intelligence, and existing API routes.
+The redesign preserves the deterministic fortune engine, current-sky calculations, Moon phase data, My Chart calculations, Simple / Advanced detail modes, Fortune History, Local Intelligence, and existing API routes.
 
 Unfinished product areas use honest empty states rather than fabricated content.

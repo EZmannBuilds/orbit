@@ -5,9 +5,10 @@ Current implemented foundation:
 - deterministic daily fortune
 - current sky and Moon phase display
 - My Chart preview calculations
-- Simple / Balanced / Advanced presentation modes
+- Simple / Advanced presentation modes (Balanced removed in Update Two)
 - Fortune History route under More
 - Local Intelligence chat and diagnostics
+- streamed Ask Orbit Axis with stop/retry, compact active-chart context, and a deterministic fast path + offline fallback
 - primary six-section app shell with central Ask action
 
 Remaining product work:

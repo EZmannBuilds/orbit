@@ -159,15 +159,17 @@
 }
 
 /* ── Detail level applied to My Chart presentation (data-detail on <html>) ──
-   Simple hides exact degrees + the technical placements table; Balanced and
-   Advanced progressively reveal them. The engine/calculations are untouched —
-   this only controls what a beginner sees by default. */
+   Update Two: only Simple and Advanced remain. Simple hides exact degrees, the
+   technical placements table, and technical chart metadata; Advanced reveals
+   them. The engine/calculations are untouched — this only controls what a
+   beginner sees by default. Any unknown data-detail value falls through to the
+   Simple-hiding rules below, so a stale "Balanced" attribute degrades safely. */
 :root[data-detail="Simple"] #panel-me .bt-deg { display: none; }
 :root[data-detail="Simple"] #panel-me .chart-details { display: none; }
-:root[data-detail="Simple"] #panel-me .chart-meta-balanced,
 :root[data-detail="Simple"] #panel-me .chart-meta-advanced { display: none; }
-:root[data-detail="Balanced"] #panel-me .aspect-list { display: none; }
-:root[data-detail="Balanced"] #panel-me .chart-meta-advanced { display: none; }
+:root:not([data-detail="Advanced"]) #panel-me .bt-deg { display: none; }
+:root:not([data-detail="Advanced"]) #panel-me .chart-details { display: none; }
+:root:not([data-detail="Advanced"]) #panel-me .chart-meta-advanced { display: none; }
 
 /* `hidden` attribute must win over the flex display above. */
 .axis-chart-picker[hidden], .axis-reading-for[hidden] { display: none !important; }

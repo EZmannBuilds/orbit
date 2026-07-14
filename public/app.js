@@ -876,13 +876,72 @@ function wireKeyboard() {
   $("#cmd-overlay").addEventListener("click", e => { if (e.target === $("#cmd-overlay")) closeCommand(); });
 }
 
-/* ── Central Orbit Axis chat ───────────────────────────────────────────── */
-const chatState = { messages: [] };
+/* ── Central Orbit Axis chat (streamed) ────────────────────────────────── */
+// Session-only conversation. `messages` holds completed turns; a browser
+// refresh clears it, so a refresh can never leave a permanently "typing"
+// bubble. `controller` lets the Stop button abort an in-flight stream.
+const chatState = { messages: [], streaming: false, controller: null };
 
 function setActiveChartName(name) {
   state.activeChartName = name || "My Chart";
   const chatChart = $("#chat-active-chart");
   if (chatChart) chatChart.textContent = state.activeChartName;
+}
+
+// Short, non-technical status copy. Technical detail stays in dev logs.
+function setChatStatus(stateName, text = "") {
+  const el = $("#chat-status");
+  if (!el) return;
+  if (!text) { el.hidden = true; el.textContent = ""; el.dataset.state = ""; return; }
+  el.hidden = false;
+  el.dataset.state = stateName;
+  el.textContent = text;
+}
+
+// Toggle the composer between "send" and "streaming" (Stop visible) modes.
+function setComposerStreaming(on) {
+  chatState.streaming = on;
+  const send = $("#chat-send");
+  const stop = $("#chat-stop");
+  if (send) send.hidden = on;
+  if (stop) stop.hidden = !on;
+}
+
+// Only auto-scroll if the user is already near the bottom, so we never yank a
+// user who has scrolled up to read earlier messages.
+function chatNearBottom(log) {
+  return log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+}
+function chatScroll(log, force = false) {
+  if (force || chatNearBottom(log)) log.scrollTop = log.scrollHeight;
+}
+
+// Minimal, safe Markdown: escape everything first, then re-introduce a small,
+// fixed set of inline formatting. No raw HTML, scripts, or links survive.
+function renderMarkdownSafe(text) {
+  let html = esc(String(text ?? ""));
+  html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre class="chat-code"><code>${code.replace(/^\n/, "")}</code></pre>`);
+  html = html.replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  return html;
+}
+
+function chatUserMessage(text) {
+  return `<article class="chat-message chat-message--user">
+    <div class="chat-message__label">You</div>
+    <div class="chat-message__body">${esc(text)}</div>
+  </article>`;
+}
+
+function chatAssistantShell(id) {
+  return `<article class="chat-message chat-message--axis" id="${id}" aria-live="polite">
+    <div class="chat-message__label">Orbit Axis</div>
+    <div class="chat-message__body" data-body>
+      <span class="chat-typing" aria-label="Orbit Axis is thinking"><span></span><span></span><span></span></span>
+    </div>
+    <div class="chat-message__meta" data-meta hidden></div>
+  </article>`;
 }
 
 function wireChat() {
@@ -893,72 +952,153 @@ function wireChat() {
   $$("[data-chat-prompt]").forEach(button => {
     button.addEventListener("click", () => {
       navigate("ask");
-      setTimeout(() => {
-        prompt.value = button.dataset.chatPrompt;
-        prompt.focus();
-      }, 60);
+      setTimeout(() => { prompt.value = button.dataset.chatPrompt; prompt.focus(); }, 60);
     });
   });
 
   $("#chat-new")?.addEventListener("click", () => {
+    if (chatState.streaming) chatState.controller?.abort();
     chatState.messages = [];
     $("#chat-log").innerHTML = "";
     $("#chat-welcome").hidden = false;
+    setChatStatus("ready", "");
     prompt.value = "";
     prompt.focus();
   });
 
   $("#chat-close")?.addEventListener("click", () => navigate("home"));
+  $("#chat-history")?.addEventListener("click", () => toast("Conversation history is coming soon."));
+  $("#chat-stop")?.addEventListener("click", () => chatState.controller?.abort());
 
-  $("#chat-history")?.addEventListener("click", () => {
-    toast("Conversation history is coming soon.");
+  // Enter sends; Shift+Enter inserts a newline.
+  prompt.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
   });
 
-  form.addEventListener("submit", async event => {
+  // Retry (delegated): re-run the original message without duplicating it.
+  $("#chat-log")?.addEventListener("click", (event) => {
+    const retry = event.target.closest("[data-retry]");
+    if (!retry || chatState.streaming) return;
+    const text = retry.dataset.retry;
+    retry.closest(".chat-message")?.remove();
+    runChatTurn(text, { isRetry: true });
+  });
+
+  form.addEventListener("submit", (event) => {
     event.preventDefault();
+    if (chatState.streaming) return;
     const text = prompt.value.trim();
     if (!text) return;
     prompt.value = "";
-    await runChatTurn(text);
+    runChatTurn(text);
   });
 }
 
-function chatMessage(role, body, meta = "") {
-  return `<article class="chat-message chat-message--${role}">
-    <div class="chat-message__label">${role === "user" ? "You" : "Orbit Axis"}</div>
-    <div class="chat-message__body">${body}</div>
-    ${meta ? `<div class="chat-message__meta">${meta}</div>` : ""}
-  </article>`;
+function parseSseFrame(frame) {
+  const event = (frame.match(/^event: (.*)$/m) || [])[1] || "message";
+  const dataLine = (frame.match(/^data: ([\s\S]*)$/m) || [])[1] || "{}";
+  let data = {};
+  try { data = JSON.parse(dataLine); } catch { /* skip malformed frame */ }
+  return { event, data };
 }
 
-async function runChatTurn(prompt) {
+async function runChatTurn(promptText, { isRetry = false } = {}) {
   $("#chat-welcome").hidden = true;
   const log = $("#chat-log");
-  log.insertAdjacentHTML("beforeend", chatMessage("user", esc(prompt)));
-  const pendingId = `chat-pending-${Date.now()}`;
-  log.insertAdjacentHTML("beforeend", `<article class="chat-message chat-message--axis" id="${pendingId}">
-    <div class="chat-message__label">Orbit Axis</div>
-    <div class="chat-typing" aria-label="Orbit Axis is thinking"><span></span><span></span><span></span></div>
-  </article>`);
-  log.scrollTop = log.scrollHeight;
+  if (!isRetry) log.insertAdjacentHTML("beforeend", chatUserMessage(promptText));
+
+  const id = `axis-${Date.now()}`;
+  log.insertAdjacentHTML("beforeend", chatAssistantShell(id));
+  const article = $(`#${id}`);
+  const bodyEl = article.querySelector("[data-body]");
+  const metaEl = article.querySelector("[data-meta]");
+  chatScroll(log, true);
+  setChatStatus("thinking", "Orbit Axis is thinking…");
+  setComposerStreaming(true);
+
+  const controller = new AbortController();
+  chatState.controller = controller;
+  let acc = "", got = false, notice = null, finalPath = null, streamError = false;
 
   try {
-    const data = await post("/api/local-llm/generate", { prompt, query: prompt });
-    const response = data.response || {};
-    const answer = response.answer || "I could not produce an answer from the local model.";
-    const sources = (data.sources || response.sources || []).slice(0, 3);
-    const meta = sources.length
-      ? `Sources: ${sources.map(source => esc(source.title || source.path || "project context")).join(", ")}`
-      : "";
-    $(`#${pendingId}`).outerHTML = chatMessage("axis", esc(answer), meta);
+    const res = await fetch("/api/axis/chat/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: promptText, messages: chatState.messages.slice(-8) }),
+      signal: controller.signal,
+    });
+    if (!res.ok || !res.body) {
+      const data = await res.json().catch(() => ({}));
+      const err = new Error(data.error || `Request failed (${res.status})`);
+      err.userFacing = true;
+      throw err;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buffer.indexOf("\n\n")) >= 0) {
+        const frame = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        if (!frame.trim()) continue;
+        const { event, data } = parseSseFrame(frame);
+        if (event === "meta") {
+          if (data.chart) setActiveChartName(data.chart);
+        } else if (event === "delta") {
+          got = true;
+          acc += data.text;
+          bodyEl.innerHTML = renderMarkdownSafe(acc);
+          setChatStatus(notice ? "fallback" : "streaming", notice || "Orbit Axis is replying…");
+          chatScroll(log);
+        } else if (event === "notice") {
+          notice = data.text;
+          setChatStatus("fallback", notice);
+        } else if (event === "done") {
+          finalPath = data.path;
+        } else if (event === "error") {
+          streamError = true;
+        }
+      }
+    }
+
+    if (!got && streamError) throw Object.assign(new Error("The response was interrupted."), { userFacing: true });
+
+    // Finalize a single assistant message (no duplicates).
+    bodyEl.innerHTML = got ? renderMarkdownSafe(acc) : renderMarkdownSafe("I don't have a response for that right now.");
+    if (notice) { metaEl.hidden = false; metaEl.textContent = notice; }
+    chatState.messages.push({ role: "user", content: promptText }, { role: "assistant", content: acc });
+    setChatStatus("complete", finalPath === "fallback" ? (notice || "Answered from verified data.") : "");
+    if (finalPath !== "fallback") setTimeout(() => setChatStatus("ready", ""), 1200);
   } catch (error) {
-    $(`#${pendingId}`).outerHTML = chatMessage(
-      "axis",
-      esc(`I could not reach Local Intelligence right now: ${error.message}`),
-      "Technical details are available in More → Settings → Local Intelligence."
-    );
+    if (controller.signal.aborted) {
+      // Stopped by the user: keep whatever streamed, mark it stopped, no retry.
+      if (got) {
+        bodyEl.innerHTML = renderMarkdownSafe(acc);
+        metaEl.hidden = false; metaEl.textContent = "Stopped.";
+        chatState.messages.push({ role: "user", content: promptText }, { role: "assistant", content: acc });
+      } else {
+        article.remove();
+      }
+      setChatStatus("ready", "");
+    } else {
+      // Failure: offer Retry, reusing the original message.
+      bodyEl.innerHTML = `<span class="chat-error">Something interrupted the reply.</span>`;
+      metaEl.hidden = false;
+      metaEl.innerHTML = `<button type="button" class="chat-retry" data-retry="${esc(promptText)}">Retry</button>`;
+      setChatStatus("error", "Couldn't complete that. You can retry.");
+    }
+  } finally {
+    chatState.controller = null;
+    setComposerStreaming(false);
   }
-  log.scrollTop = log.scrollHeight;
 }
 
 /* ── Data ──────────────────────────────────────────────────────────────── */
@@ -1233,7 +1373,7 @@ function renderChartProfileMeta(profile) {
   const rows = [
     fullName ? `<span>${esc(fullName)}</span>` : "",
     profile.birthplace_name ? `<span>${esc(profile.birthplace_name)}</span>` : "",
-    profile.timezone_name ? `<span class="chart-meta-balanced">${esc(profile.timezone_name)}</span>` : "",
+    profile.timezone_name ? `<span class="chart-meta-advanced">${esc(profile.timezone_name)}</span>` : "",
     coords ? `<span class="chart-meta-advanced">${esc(coords)}</span>` : "",
     profile.utc_offset_at_birth ? `<span class="chart-meta-advanced">UTC ${esc(profile.utc_offset_at_birth)}</span>` : "",
   ].filter(Boolean);
@@ -1282,10 +1422,9 @@ async function loadMoonTonight() {
 
 // ══ Orbit Axis daily experience ═════════════════════════════════════════════
 // Today workspace, Fortune carousel, Current Sky (with the procedural Moon),
-// History, and the Simple/Balanced/Advanced detail level. Deterministic
-// fortune comes from the server; nothing here calculates astrology. Works in
-// local dev via the stateless preview; upgrades to persisted fortunes when
-// signed in.
+// History, and the Simple/Advanced detail level. Deterministic fortune comes
+// from the server; nothing here calculates astrology. Works in local dev via
+// the stateless preview; upgrades to persisted fortunes when signed in.
 const AXIS = {
   detail: "Simple",
   lastFortune: null,
@@ -1293,7 +1432,20 @@ const AXIS = {
   carousel: { key: null, index: 0, topics: [] },
   currentTimezoneOverride: null, // session-only, set by "Use my current location"
 };
-const DETAILS = ["Simple", "Balanced", "Advanced"];
+// Update Two removed "Balanced". Only two levels remain; Simple is the default.
+const DETAILS = ["Simple", "Advanced"];
+
+// Coerce any value (including a legacy "Balanced" left in localStorage, a stale
+// cached API response, or an unknown string) to a supported level. Advanced is
+// preserved; everything else becomes Simple. Never crashes on bad input.
+function normalizeDetail(value) {
+  return String(value ?? "").trim().toLowerCase() === "advanced" ? "Advanced" : "Simple";
+}
+// Which per-factor phrasing key a level reads. Balanced no longer exists, so any
+// non-Advanced level (including stale "Balanced") maps to the plain wording.
+function detailKeyFor(level) {
+  return level === "Advanced" ? "advanced" : "simple";
+}
 
 // The user's *current* (browsing) timezone — always distinct from a saved
 // chart's birth timezone. Never falls back to the server's machine timezone.
@@ -1344,11 +1496,14 @@ function axisGetBirth() {
 function axisSetBirth(b) { localStorage.setItem("oa_birth", JSON.stringify(b)); }
 
 async function axisLoadDetail() {
+  // Legacy state safety: an old browser may still hold "Balanced" (or anything
+  // else) in localStorage — normalize before use and rewrite it so the stale
+  // value never lingers or reaches the UI.
   const stored = localStorage.getItem("oa_detail");
-  if (DETAILS.includes(stored)) AXIS.detail = stored;
+  if (stored) AXIS.detail = normalizeDetail(stored);
   try {
     const r = await get("/api/settings/detail");
-    if (r.persisted && DETAILS.includes(r.astrology_detail_level)) AXIS.detail = r.astrology_detail_level;
+    if (r.persisted) AXIS.detail = normalizeDetail(r.astrology_detail_level);
   } catch { /* default/local is fine */ }
   axisApplyDetail(false);
 }
@@ -1364,11 +1519,11 @@ function axisApplyDetail(rerender = true) {
   }
 }
 async function axisSetDetail(level) {
-  if (!DETAILS.includes(level)) return;
-  AXIS.detail = level;
+  const next = normalizeDetail(level);
+  AXIS.detail = next;
   axisApplyDetail(true);
   try {
-    await put("/api/settings/detail", { astrology_detail_level: level });
+    await put("/api/settings/detail", { astrology_detail_level: next });
   } catch { /* best effort */ }
 }
 
@@ -1468,7 +1623,7 @@ async function axisLoadToday() {
   try {
     const r = await get("/api/fortune/today");
     AXIS.lastFortune = r.fortune;
-    if (r.detail_level && DETAILS.includes(r.detail_level)) { AXIS.detail = r.detail_level; axisApplyDetail(false); }
+    if (r.detail_level) { AXIS.detail = normalizeDetail(r.detail_level); axisApplyDetail(false); }
     axisShowReadingFor(r.chart?.nickname || "My Chart");
     axisRenderFortune(r.fortune);
     return;
@@ -1567,8 +1722,8 @@ function axisRenderFortune(F) {
   AXIS.carousel.topics = axisCarouselTopics(F);
   AXIS.carousel.index = Math.min(AXIS.carousel.index, AXIS.carousel.topics.length - 1);
 
-  const detailKey = AXIS.detail === "Advanced" ? "advanced" : AXIS.detail === "Balanced" ? "balanced" : "simple";
-  const why = (F.factors || []).map(f => `<li>${esc(f[detailKey])}</li>`).join("");
+  const detailKey = detailKeyFor(AXIS.detail);
+  const why = (F.factors || []).map(f => `<li>${esc(f[detailKey] ?? f.simple)}</li>`).join("");
 
   $("#today-fortune").innerHTML = `
     <div class="fortune-card">
@@ -1616,12 +1771,12 @@ function axisRenderSky(sky) {
     ? "A slow-down-and-review kind of sky — good for tidying and second drafts."
     : `${sky.moon.waxing ? "A building, lean-in" : "A settling, wind-down"} sky today.`;
 
-  const detailKey = AXIS.detail === "Advanced" ? "advanced" : AXIS.detail === "Balanced" ? "balanced" : "simple";
+  const detailKey = detailKeyFor(AXIS.detail);
   const transitFactors = (AXIS.lastFortune?.factors || []).filter(f => f.type === "transit").slice(0, 3);
   const personal = transitFactors.length ? `
     <div class="current-sky__personal">
       <div class="u-eyebrow">For ${esc(state.activeChartName)}</div>
-      <ul class="current-sky__transit-list">${transitFactors.map(f => `<li>${esc(f[detailKey])}</li>`).join("")}</ul>
+      <ul class="current-sky__transit-list">${transitFactors.map(f => `<li>${esc(f[detailKey] ?? f.simple)}</li>`).join("")}</ul>
     </div>` : "";
 
   let advanced = "";

@@ -27,12 +27,12 @@ test("Ask context includes active chart, current sky, and detail level only", ()
       summary: { sun: "Aries", moon: "Cancer", rising: "Libra" },
     },
     currentSky: "Sun in Cancer, waxing moon, Mercury direct.",
-    detailLevel: "Balanced",
+    detailLevel: "Simple",
   });
   assert.match(context, /Active chart: Active Validation/);
   assert.match(context, /Sun Aries, Moon Cancer, Rising Libra/);
   assert.match(context, /Current sky: Sun in Cancer/);
-  assert.match(context, /Astrology detail level: Balanced/);
+  assert.match(context, /Astrology detail level: Simple/);
   assert.doesNotMatch(context, /Other Saved Chart/);
 });
 
