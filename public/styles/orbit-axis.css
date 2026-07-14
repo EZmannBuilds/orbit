@@ -106,6 +106,42 @@
   .axis-chart-picker select { flex: 1 1 auto; min-width: 0; }
 }
 
+/* Add-a-chart "+" beside the Viewing selector. Stays available even when the
+   selector is disabled (single chart), so creating another chart is always a
+   deliberate one-tap action instead of a recurring popup. */
+.axis-chart-add {
+  width: 44px; height: 44px; flex: 0 0 auto;
+  display: grid; place-items: center;
+  color: var(--color-primary);
+  background: var(--color-surface-elevated);
+  border: 1px solid color-mix(in oklab, var(--axis-lavender) 30%, var(--color-border));
+  border-radius: 10px; cursor: pointer;
+}
+.axis-chart-add svg { width: 18px; height: 18px; }
+.axis-chart-add:hover { background: color-mix(in oklab, var(--color-surface-elevated) 70%, var(--axis-indigo) 30%); }
+
+.axis-chart-manage {
+  min-height: 44px; flex: 0 0 auto;
+  padding: 0 12px;
+  color: var(--color-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 10px; cursor: pointer; font: inherit;
+}
+.axis-chart-manage:hover { color: var(--color-primary); }
+
+/* Recoverable saved-chart error — offers a retry instead of wrongly implying
+   the user has no chart. */
+.axis-chart-error { display: none; }
+.axis-chart-error:not([hidden]) {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 18px; padding: 12px 14px;
+  color: var(--color-primary);
+  background: color-mix(in oklab, var(--color-surface-elevated) 88%, #e0576b 12%);
+  border: 1px solid color-mix(in oklab, #e0576b 34%, var(--color-border));
+  border-radius: 12px;
+}
+
 /* ── Card scaffold shared by Today modules ────────────────────────────────── */
 .axis-card {
   background: color-mix(in oklab, var(--color-surface-elevated) 92%, var(--axis-indigo) 8%);

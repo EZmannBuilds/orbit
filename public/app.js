@@ -8,6 +8,7 @@
    ========================================================================== */
 
 import { renderMoonSVG } from "./moon-phase.js";
+import { decideStartupView, STARTUP_VIEW } from "./startup-state.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -23,6 +24,14 @@ const state = {
   auth: { restoring: true, user: null },
   charts: [],
   activeChartId: null,
+  // Saved-chart request outcome. This is what onboarding keys off — an empty
+  // `charts` array is NOT enough, because a failed request also leaves it empty
+  // and a returning user must never be mistaken for a new one.
+  chartsStatus: "idle", // idle | loading | ready | error
+  // Startup phase: loading -> ready. Onboarding may only appear once startup
+  // has resolved, which is what prevents the setup form from flashing.
+  startup: "loading", // loading | ready
+  onboardingDismissed: false, // session-only; stops it reopening after a close
   places: { selections: {}, controllers: {} },
 };
 
@@ -506,6 +515,87 @@ const REL_LABELS = {
   other: "Other",
 };
 
+/* ── Modal utility ─────────────────────────────────────────────────────────
+   One shared dialog behavior for the chart form, the delete confirmation, and
+   the onboarding gate: focus moves in, Tab is trapped, Escape closes, and focus
+   returns to the element that opened it. */
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const modalStack = [];
+
+function focusables(root) {
+  return $$(FOCUSABLE, root).filter(el => el.offsetParent !== null || el === document.activeElement);
+}
+
+function openModal(el, { onClose = null, initialFocus = null } = {}) {
+  if (!el || modalStack.some(m => m.el === el)) return;
+  const entry = { el, onClose, restoreTo: document.activeElement };
+  modalStack.push(entry);
+  el.hidden = false;
+
+  entry.keydown = (event) => {
+    if (modalStack[modalStack.length - 1]?.el !== el) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeModal(el);
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const items = focusables(el);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  };
+  document.addEventListener("keydown", entry.keydown, true);
+
+  entry.click = (event) => { if (event.target.closest("[data-modal-close]")) closeModal(el); };
+  el.addEventListener("click", entry.click);
+
+  (initialFocus || focusables(el)[0])?.focus();
+}
+
+function closeModal(el) {
+  const index = modalStack.findIndex(m => m.el === el);
+  if (index === -1) return;
+  const [entry] = modalStack.splice(index, 1);
+  document.removeEventListener("keydown", entry.keydown, true);
+  el.removeEventListener("click", entry.click);
+  el.hidden = true;
+  entry.onClose?.();
+  // Restore focus to whatever opened the dialog (falls back to the body).
+  if (entry.restoreTo && document.contains(entry.restoreTo)) entry.restoreTo.focus();
+}
+
+// Accessible replacement for window.confirm — prevents accidental deletion and
+// is fully keyboard operable. Resolves true only on an explicit confirm.
+function confirmDialog({ title = "Are you sure?", body = "", confirmLabel = "Delete" } = {}) {
+  const modal = $("#confirm-modal");
+  if (!modal) return Promise.resolve(false);
+  $("#confirm-modal-title").textContent = title;
+  $("#confirm-modal-body").textContent = body;
+  const accept = $("#confirm-accept");
+  const cancel = $("#confirm-cancel");
+  accept.textContent = confirmLabel;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      accept.removeEventListener("click", onAccept);
+      cancel.removeEventListener("click", onCancel);
+      resolve(value);
+    };
+    const onAccept = () => { closeModal(modal); finish(true); };
+    const onCancel = () => { closeModal(modal); finish(false); };
+    accept.addEventListener("click", onAccept);
+    cancel.addEventListener("click", onCancel);
+    // Escape / backdrop close resolve as "cancelled".
+    openModal(modal, { onClose: () => finish(false), initialFocus: cancel });
+  });
+}
+
 function authSignedIn() {
   return !!state.auth.user;
 }
@@ -561,45 +651,113 @@ function wireAuth() {
     state.auth.user = null;
     state.charts = [];
     state.activeChartId = null;
+    state.chartsStatus = "idle";
+    state.onboardingDismissed = false; // a fresh sign-in gets a fresh decision
     renderAccount();
     renderSavedCharts();
-    $("#onboarding-gate").hidden = true;
+    if (!$("#onboarding-gate").hidden) closeModal($("#onboarding-gate"));
+    if (!$("#chart-modal").hidden) closeModal($("#chart-modal"));
+    $("#today-chart-error").hidden = true;
     $("#auth-gate").hidden = false;
     toast("Signed out");
   });
 }
 
+// Startup runs in a fixed order: resolve auth -> load saved charts -> decide.
+// Onboarding is only ever a *decision*, never a default, so a returning user is
+// never asked to set up a chart they already have.
 async function restoreSession() {
   state.auth.restoring = true;
+  setStartupStatus("Restoring your Orbit…");
   $("#auth-gate").hidden = true;
   try {
     const data = await get("/api/auth/session");
-    if (data.signed_in) await applySignedIn(data.user, { quiet: true });
-    else {
+    if (data.signed_in) {
+      await applySignedIn(data.user, { quiet: true });
+    } else {
+      // Signed-out local preview: existing behavior, untouched.
       state.auth.user = null;
+      state.charts = [];
+      state.activeChartId = null;
+      state.chartsStatus = "idle";
       $("#auth-gate").hidden = false;
       renderAccount();
       renderSavedCharts();
     }
   } catch {
+    // Couldn't even resolve the session — show the sign-in gate, not onboarding.
+    state.auth.user = null;
     $("#auth-gate").hidden = false;
   } finally {
     state.auth.restoring = false;
+    finishStartup();
   }
 }
 
 async function applySignedIn(user, { quiet = false } = {}) {
   state.auth.user = user;
+  // Auth is resolved the moment we have the user — record that before the chart
+  // decision runs, otherwise it would still read as "loading".
+  state.auth.restoring = false;
   $("#auth-gate").hidden = true;
   renderAccount();
+  setStartupStatus("Loading your charts…");
   await loadSavedCharts();
-  if (!state.charts.length) {
-    $("#onboarding-gate").hidden = false;
-  } else {
-    $("#onboarding-gate").hidden = true;
-    await refreshActiveExperience();
-  }
+  await resolveChartState();
   if (!quiet) toast("Signed in");
+}
+
+// The single place that decides what a signed-in user sees after their charts
+// resolve. The decision itself lives in startup-state.js so it can be unit
+// tested; this function only paints the result.
+async function resolveChartState() {
+  const onboarding = $("#onboarding-gate");
+  const errorBox = $("#today-chart-error");
+
+  const view = decideStartupView({
+    authResolved: !state.auth.restoring,
+    signedIn: authSignedIn(),
+    chartsStatus: state.chartsStatus,
+    chartCount: state.charts.length,
+    onboardingDismissed: state.onboardingDismissed,
+  });
+
+  // Recoverable failure: offer a retry. NEVER claim the user has no chart.
+  if (view === STARTUP_VIEW.ERROR) {
+    if (onboarding && !onboarding.hidden) closeModal(onboarding);
+    if (errorBox) errorBox.hidden = false;
+    await axisLoadToday(); // Current Sky still renders; Home is never left blank.
+    return;
+  }
+  if (errorBox) errorBox.hidden = true;
+
+  // Genuinely zero saved charts on a successful request → first-run onboarding.
+  if (view === STARTUP_VIEW.ONBOARDING) {
+    if (onboarding && onboarding.hidden) {
+      openModal(onboarding, { initialFocus: $("#ob-first") });
+    }
+    renderSavedCharts();
+    return;
+  }
+
+  // Returning user. The server already resolved (and persisted) the active
+  // chart, so we just load their experience. No popup, ever.
+  if (onboarding && !onboarding.hidden) closeModal(onboarding);
+  await refreshActiveExperience();
+}
+
+function setStartupStatus(text) {
+  const el = $("#startup-status");
+  if (el) el.textContent = text;
+}
+
+// Drop the startup gate once auth + charts have resolved. Guarded so it only
+// runs once and can never re-block the interface.
+function finishStartup() {
+  if (state.startup === "ready") return;
+  state.startup = "ready";
+  const gate = $("#startup-gate");
+  if (gate) gate.hidden = true;
 }
 
 function renderAccount() {
@@ -624,7 +782,81 @@ function chartFormPayload(prefix, { forceMyChart = false, allowExistingPlace = f
   return payload;
 }
 
+/* ── Chart modal (create / edit) ───────────────────────────────────────────
+   Once a user has a chart, creating another is a deliberate action from the
+   Home "+" — not an automatic popup. The same modal edits/renames an existing
+   chart, so there is one chart form instead of several. */
+function openChartModal(chart = null) {
+  const modal = $("#chart-modal");
+  if (!modal) return;
+  $("#chart-modal-form").reset();
+  $("#cm-id").value = chart?.id || "";
+  $("#chart-modal-title").textContent = chart ? "Edit chart" : "Add a chart";
+  $("#chart-modal-save").textContent = chart ? "Save changes" : "Save chart";
+  $("#chart-modal-hint").textContent = "";
+
+  if (chart) {
+    $("#cm-nickname").value = chart.nickname || "";
+    $("#cm-first").value = chart.first_name || "";
+    $("#cm-last").value = chart.last_name || "";
+    $("#cm-relationship").value = chart.relationship_type || "other";
+    $("#cm-date").value = chart.birth_date || "";
+    $("#cm-time").value = chart.birth_time ? String(chart.birth_time).slice(0, 5) : "";
+    $("#cm-accuracy").value = chart.time_accuracy || "unknown";
+    const place = chartPlace(chart);
+    if (place) setPlaceSelection("cm", place, { existing: true });
+    else clearPlaceSelection("cm");
+  } else {
+    clearPlaceSelection("cm");
+  }
+
+  openModal(modal, { initialFocus: $("#cm-nickname") });
+}
+
+function wireChartModal() {
+  const modal = $("#chart-modal");
+  if (!modal) return;
+  $("#chart-modal-close")?.addEventListener("click", () => closeModal(modal));
+  $("#chart-modal-cancel")?.addEventListener("click", () => closeModal(modal));
+
+  $("#chart-modal-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const id = $("#cm-id").value;
+    const hint = $("#chart-modal-hint");
+    const save = $("#chart-modal-save");
+    hint.textContent = id ? "Saving changes…" : "Saving chart…";
+    save.disabled = true;
+    try {
+      if (id) await patch(`/api/charts/${id}`, chartFormPayload("cm"));
+      else await post("/api/charts", chartFormPayload("cm"));
+      closeModal(modal);
+      await loadSavedCharts();
+      await resolveChartState();
+      toast(id ? "Chart updated" : "Chart added");
+    } catch (error) {
+      hint.textContent = error.message;
+    } finally {
+      save.disabled = false;
+    }
+  });
+}
+
+// Home-level chart actions: add (+), manage, and retry after a load failure.
+function wireHomeChartActions() {
+  $("#today-chart-add")?.addEventListener("click", () => openChartModal(null));
+  $("#today-chart-manage")?.addEventListener("click", () => navigate("more"));
+  $("#today-chart-retry")?.addEventListener("click", () => retryLoadSavedCharts());
+}
+
 function wireOnboarding() {
+  // Dismissing onboarding must not re-trigger it for the rest of the session.
+  // The Home "+" action is the obvious way back in.
+  $("#onboarding-dismiss")?.addEventListener("click", () => {
+    state.onboardingDismissed = true;
+    closeModal($("#onboarding-gate"));
+    toast("You can add a chart any time with the + beside Viewing.");
+  });
+
   $("#onboarding-form")?.addEventListener("submit", async event => {
     event.preventDefault();
     const message = $("#onboarding-message");
@@ -632,9 +864,9 @@ function wireOnboarding() {
     try {
       await post("/api/charts", chartFormPayload("ob", { forceMyChart: true }));
       message.textContent = "My Chart saved.";
-      $("#onboarding-gate").hidden = true;
+      closeModal($("#onboarding-gate"));
       await loadSavedCharts();
-      await refreshActiveExperience();
+      await resolveChartState();
     } catch (error) {
       message.textContent = error.message;
     }
@@ -665,19 +897,37 @@ function wireSavedCharts() {
     const id = button.dataset.id;
     const chart = state.charts.find(item => item.id === id);
     if (!chart) return;
+
     if (button.dataset.action === "activate") {
       await post(`/api/charts/${id}/activate`, {});
       await loadSavedCharts();
-      await refreshActiveExperience();
+      await resolveChartState();
       toast(`${chart.nickname} is active`);
     }
-    if (button.dataset.action === "edit") fillSavedChartForm(chart);
+
+    // Edit/rename opens the shared chart modal.
+    if (button.dataset.action === "edit") openChartModal(chart);
+
     if (button.dataset.action === "delete") {
-      const confirmEmpty = state.charts.length === 1;
-      if (!confirm(`Delete ${chart.nickname}? This cannot be undone.`)) return;
-      await del(`/api/charts/${id}${confirmEmpty ? "?confirmEmpty=true" : ""}`, { confirmEmpty });
-      await loadSavedCharts();
-      await refreshActiveExperience();
+      const isLast = state.charts.length === 1;
+      const ok = await confirmDialog({
+        title: `Delete ${chart.nickname}?`,
+        body: isLast
+          ? "This is your only chart. Deleting it means Orbit can't show your daily reading until you add a new one. This can't be undone."
+          : "This chart and its saved readings will be removed. This can't be undone.",
+        confirmLabel: "Delete chart",
+      });
+      if (!ok) return;
+      try {
+        await del(`/api/charts/${id}${isLast ? "?confirmEmpty=true" : ""}`, { confirmEmpty: isLast });
+        // The server promotes a replacement active chart when the active one is
+        // deleted, and reports an empty state only when nothing remains.
+        await loadSavedCharts();
+        await resolveChartState();
+        toast(`${chart.nickname} deleted`);
+      } catch (error) {
+        toast(error.message);
+      }
     }
   });
 }
@@ -705,22 +955,49 @@ function fillSavedChartForm(chart) {
   $("#saved-chart-hint").textContent = `Editing ${chart.nickname}`;
 }
 
+// Supabase (owner-scoped) is the source of truth for a signed-in user's charts.
+// Critically, a failed request sets status "error" and leaves the previously
+// known charts intact — it must never look like "this account has no charts",
+// which is what caused returning users to be re-onboarded.
 async function loadSavedCharts() {
   if (!authSignedIn()) {
     state.charts = [];
     state.activeChartId = null;
+    state.chartsStatus = "idle";
     renderSavedCharts();
-    return;
+    return state.chartsStatus;
   }
+  state.chartsStatus = "loading";
   try {
     const data = await get("/api/charts");
     state.charts = data.charts || [];
+    // The server resolves and persists the active chart (including healing a
+    // missing or stale one), so we trust it rather than guessing locally.
     state.activeChartId = data.active_chart_id || state.charts.find(chart => chart.is_active)?.id || null;
+    state.chartsStatus = "ready";
     const active = activeChart();
     setActiveChartName(active?.nickname || "My Chart");
     renderSavedCharts();
-  } catch (error) {
-    $("#saved-charts-status").textContent = error.message;
+  } catch {
+    state.chartsStatus = "error";
+    const status = $("#saved-charts-status");
+    if (status) status.textContent = "We couldn't load your saved charts. Check your connection and try again.";
+    renderSavedCharts();
+  }
+  return state.chartsStatus;
+}
+
+// Retry entry point for the recoverable error state.
+async function retryLoadSavedCharts() {
+  const errorBox = $("#today-chart-error");
+  const button = $("#today-chart-retry");
+  if (button) { button.disabled = true; button.textContent = "Trying…"; }
+  try {
+    await loadSavedCharts();
+    await resolveChartState();
+  } finally {
+    if (button) { button.disabled = false; button.textContent = "Try again"; }
+    if (errorBox && state.chartsStatus !== "error") errorBox.hidden = true;
   }
 }
 
@@ -730,15 +1007,34 @@ async function loadSavedCharts() {
 function axisRenderChartPicker() {
   const picker = $("#today-chart-picker");
   const select = $("#today-chart-select");
+  const label = picker?.querySelector('label[for="today-chart-select"]');
+  const manage = $("#today-chart-manage");
   if (!picker || !select) return;
-  if (!authSignedIn() || !state.charts.length) {
+
+  // Signed-out (local preview) keeps the picker out of the way entirely.
+  if (!authSignedIn()) {
     picker.hidden = true;
     return;
   }
+
+  // Signed in with zero charts: the "+" stays reachable so a user who dismissed
+  // onboarding still has an obvious way to create their chart.
+  if (!state.charts.length) {
+    picker.hidden = state.chartsStatus !== "ready";
+    select.hidden = true;
+    if (label) label.hidden = true;
+    if (manage) manage.hidden = true;
+    return;
+  }
+
   picker.hidden = false;
+  select.hidden = false;
+  if (label) label.hidden = false;
+  if (manage) manage.hidden = false;
   select.innerHTML = state.charts.map(chart =>
     `<option value="${esc(chart.id)}" ${chart.id === state.activeChartId ? "selected" : ""}>${esc(chart.nickname || "Untitled Chart")}</option>`
   ).join("");
+  // One chart still shows its name via a disabled select; "+" remains active.
   select.disabled = state.charts.length <= 1;
 }
 
@@ -749,6 +1045,17 @@ function renderSavedCharts() {
   if (!status || !list) return;
   if (!authSignedIn()) {
     status.textContent = "Sign in to save and restore charts.";
+    list.innerHTML = "";
+    return;
+  }
+  if (state.chartsStatus === "loading" && !state.charts.length) {
+    status.textContent = "Loading your charts…";
+    list.innerHTML = "";
+    return;
+  }
+  // An error must not read as "you have no charts".
+  if (state.chartsStatus === "error" && !state.charts.length) {
+    status.textContent = "We couldn't load your saved charts. Check your connection and try again.";
     list.innerHTML = "";
     return;
   }
@@ -1142,8 +1449,11 @@ async function boot() {
   setupPlaceSearch("cf");
   setupPlaceSearch("sc");
   setupPlaceSearch("ob");
+  setupPlaceSearch("cm");
   wireOnboarding();
   wireSavedCharts();
+  wireChartModal();
+  wireHomeChartActions();
   wireKeyboard();
   wireChat();
 
@@ -1154,7 +1464,13 @@ async function boot() {
   window.addEventListener("hashchange", renderRoute);
   renderRoute();
 
-  await restoreSession();
+  try {
+    await restoreSession();
+  } finally {
+    // Belt and braces: whatever happens above, the startup gate comes down so
+    // the interface is never permanently blocked.
+    finishStartup();
+  }
 
   // Feature panels carried over during branch integration (defensive: each
   // no-ops if its DOM/backing service is absent, so the app never blocks).
@@ -1431,6 +1747,9 @@ const AXIS = {
   lastSky: null,
   carousel: { key: null, index: 0, topics: [] },
   currentTimezoneOverride: null, // session-only, set by "Use my current location"
+  // Set once Today has been loaded, so startup doesn't fetch the fortune twice
+  // (session restore already loads it for a signed-in returning user).
+  loadedOnce: false,
 };
 // Update Two removed "Balanced". Only two levels remain; Simple is the default.
 const DETAILS = ["Simple", "Advanced"];
@@ -1609,12 +1928,15 @@ function axisInit() {
   axisWireSkyControls();
   axisSyncCurrentTimezone();
   axisLoadDetail();
-  axisLoadToday();
+  // A signed-in returning user already had Today loaded during session restore;
+  // loading it again here would double every startup request.
+  if (!AXIS.loadedOnce) axisLoadToday();
   if (currentWorkspace() === "history") axisLoadHistory("active");
 }
 
 // ── Today ────────────────────────────────────────────────────────────────────
 async function axisLoadToday() {
+  AXIS.loadedOnce = true;
   // Sky (incl. the Moon) always renders — it doesn't need a saved chart.
   const tz = axisResolveTimezone();
   get(`/api/sky/current?tz=${encodeURIComponent(tz)}`).then(r => { AXIS.lastSky = r.sky; axisRenderSky(r.sky); }).catch(() => {});
@@ -1627,10 +1949,18 @@ async function axisLoadToday() {
     axisShowReadingFor(r.chart?.nickname || "My Chart");
     axisRenderFortune(r.fortune);
     return;
-  } catch { /* signed out or no active chart */ }
+  } catch { /* signed out, no active chart, or a transient fortune failure */ }
 
   if (authSignedIn()) {
-    $("#onboarding-gate").hidden = state.charts.length > 0;
+    // A failed *fortune* request says nothing about whether the account has a
+    // chart. Onboarding is owned solely by resolveChartState() — never opened
+    // from here, or a slow/failed fortune would re-onboard a returning user.
+    if (state.chartsStatus === "error") {
+      return axisRenderSetup("We couldn't load your charts just now. Use “Try again” above — your saved charts are safe.");
+    }
+    if (state.charts.length) {
+      return axisRenderSetup("Your daily reading couldn't load just now. It will return on the next refresh.");
+    }
     return axisRenderSetup("Save My Chart to unlock your daily reading. Your chart and reading history are stored in Supabase so they can follow your account.");
   }
 

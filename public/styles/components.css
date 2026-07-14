@@ -436,3 +436,77 @@
 @keyframes o-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .o-rise-in { animation: o-rise-in var(--duration-slow) var(--ease-decelerate); }
 @keyframes o-rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Danger button ───────────────────────────────────────────────────────── */
+.o-btn--danger {
+  color: #fff;
+  background: #c0384c;
+  border: var(--border-width) solid #c0384c;
+}
+.o-btn--danger:hover { background: #a92e40; border-color: #a92e40; }
+
+/* ── Modal (chart create/edit, confirm) ──────────────────────────────────────
+   One reusable dialog shell. Focus is trapped while open, Escape closes, and
+   focus returns to whatever opened it. Reduced motion removes the entrance. */
+.o-modal { position: fixed; inset: 0; z-index: 110; display: grid; place-items: center; padding: var(--space-4); }
+.o-modal[hidden] { display: none; }
+
+.o-modal__backdrop {
+  position: absolute; inset: 0;
+  background: rgba(5, 8, 20, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.o-modal__panel {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: calc(100vh - var(--space-8));
+  overflow-y: auto;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--color-surface-elevated);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-e3);
+  animation: o-rise-in var(--duration-base) var(--ease-decelerate);
+}
+.o-modal__panel--sm { width: min(420px, 100%); }
+
+.o-modal__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.o-modal__head h2 { font-size: var(--text-card-title); color: var(--color-primary); }
+
+.o-modal__close {
+  width: 40px; height: 40px; flex: none;
+  display: grid; place-items: center;
+  color: var(--color-secondary);
+  background: var(--color-surface-sunken);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.o-modal__close svg { width: 16px; height: 16px; }
+.o-modal__close:hover { color: var(--color-primary); }
+
+.o-modal__body { color: var(--color-secondary); line-height: 1.55; }
+.o-modal__actions { display: flex; gap: var(--space-3); justify-content: flex-end; flex-wrap: wrap; }
+
+/* Visible focus for every interactive control inside a dialog. */
+.o-modal :focus-visible,
+.gate-dismiss:focus-visible,
+.axis-chart-add:focus-visible,
+.axis-chart-manage:focus-visible {
+  outline: 2px solid var(--axis-lavender);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .o-modal { padding: var(--space-3); }
+  .o-modal__panel { padding: var(--space-4); max-height: calc(100vh - var(--space-6)); }
+  .o-modal__actions { justify-content: stretch; }
+  .o-modal__actions .o-btn { flex: 1 1 auto; }
+}
+
+:root[data-motion="reduced"] .o-modal__panel { animation: none; }
+@media (prefers-reduced-motion: reduce) { .o-modal__panel { animation: none; } }

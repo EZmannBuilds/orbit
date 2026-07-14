@@ -5,7 +5,12 @@
  * the legacy variables these rules rely on are scoped to the two feature panels
  * only, so the design-system tokens are left completely untouched. This is a
  * carry-over, not a redesign. */
-#panel-me, #panel-more {
+/* The chart form is also rendered outside those two panels — in the auth /
+ * onboarding gates and the chart modal — so the legacy variables must resolve
+ * there too. Without this, `.chart-form button` computes to a transparent
+ * background with near-black text, which made the onboarding "Save My Chart"
+ * CTA effectively invisible. */
+#panel-me, #panel-more, .auth-gate, .o-modal {
   --bg: #0a0c18; --surface: #12152a; --surface-2: #1a1e3a; --border: #262b52;
   --text: #e6e9ff; --muted: #9aa3d0; --dim: #626b9e; --accent: #7c9aff;
   --gold: #f0c674; --violet: #a78bfa;
@@ -68,7 +73,9 @@
 }
 .place-result:hover, .place-result:focus-visible { border-color: var(--accent); outline: none; }
 .place-status, .place-empty { min-height: 16px; font-size: 12px; color: var(--dim); }
-.chart-form button { margin-top: 12px; background: linear-gradient(135deg, var(--accent), var(--violet));
+/* Legacy chart-form button styling. Design-system buttons (.o-btn) inside the
+   chart modal opt out so they keep their own variants (primary/secondary). */
+.chart-form button:not(.o-btn) { margin-top: 12px; background: linear-gradient(135deg, var(--accent), var(--violet));
   color: #0a0c18; border: 0; border-radius: 8px; padding: 9px 18px; font-weight: 600; cursor: pointer; }
 .chart-form .place-result { margin-top: 0; background: var(--surface-2); color: var(--text); }
 .chart-form-hint { margin-left: 12px; font-size: 12px; color: var(--dim); }

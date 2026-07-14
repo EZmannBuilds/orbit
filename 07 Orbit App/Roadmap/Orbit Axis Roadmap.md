@@ -9,6 +9,7 @@ Current implemented foundation:
 - Fortune History route under More
 - Local Intelligence chat and diagnostics
 - streamed Ask Orbit Axis with stop/retry, compact active-chart context, and a deterministic fast path + offline fallback
+- returning-user chart restoration (no repeat onboarding) with saved-chart management from Home
 - primary six-section app shell with central Ask action
 
 Remaining product work:

@@ -87,6 +87,16 @@
           <div class="axis-chart-picker" id="today-chart-picker" hidden>
             <label for="today-chart-select">Viewing</label>
             <select id="today-chart-select"></select>
+            <button type="button" class="axis-chart-add" id="today-chart-add" aria-label="Add a chart">
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button type="button" class="axis-chart-manage" id="today-chart-manage">Manage</button>
+          </div>
+
+          <!-- Recoverable saved-chart error. Never mistaken for "you have no chart". -->
+          <div class="axis-chart-error" id="today-chart-error" role="alert" hidden>
+            <span id="today-chart-error-text">We couldn't load your saved charts.</span>
+            <button type="button" class="o-btn o-btn--secondary o-btn--sm" id="today-chart-retry">Try again</button>
           </div>
 
           <div id="today-sky" class="axis-card axis-rise-2"><div class="axis-shimmer" style="height:180px"></div></div>
@@ -669,11 +679,18 @@
     </div>
   </div>
 
-  <!-- ── First-run chart onboarding ───────────────────────────────────── -->
-  <div class="auth-gate" id="onboarding-gate" hidden>
+  <!-- ── First-run chart onboarding ───────────────────────────────────────
+       Onboarding only — it appears automatically ONLY for a signed-in account
+       whose saved-chart request succeeded and returned zero charts. Dismissing
+       it does not reopen it for the session; the Home "+" action reopens chart
+       creation on demand. -->
+  <div class="auth-gate" id="onboarding-gate" hidden role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
     <div class="auth-card auth-card--wide">
+      <button type="button" class="gate-dismiss" id="onboarding-dismiss" aria-label="Close chart setup">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
       <div>
-        <h1>Set up My Chart</h1>
+        <h1 id="onboarding-title">Set up My Chart</h1>
         <p>Your first saved chart is automatically named My Chart, marked primary, and set active.</p>
       </div>
       <form id="onboarding-form" class="chart-form">
@@ -699,6 +716,82 @@
         <button type="submit">Save My Chart</button>
         <div class="auth-message" id="onboarding-message" role="status"></div>
       </form>
+    </div>
+  </div>
+
+  <!-- ── Startup gate ─────────────────────────────────────────────────────
+       Visible from first paint until auth AND the saved-chart request resolve.
+       This is what stops the setup form from flashing at a returning user. -->
+  <div class="startup-gate" id="startup-gate">
+    <div class="startup-card">
+      <div class="chat-orbit" aria-hidden="true"><span></span></div>
+      <p class="startup-status" id="startup-status" role="status">Restoring your Orbit…</p>
+    </div>
+  </div>
+
+  <!-- ── Chart modal (create / edit) ──────────────────────────────────── -->
+  <div class="o-modal" id="chart-modal" hidden role="dialog" aria-modal="true" aria-labelledby="chart-modal-title">
+    <div class="o-modal__backdrop" data-modal-close></div>
+    <div class="o-modal__panel">
+      <header class="o-modal__head">
+        <h2 id="chart-modal-title">Add a chart</h2>
+        <button type="button" class="o-modal__close" id="chart-modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+      <form id="chart-modal-form" class="chart-form">
+        <input type="hidden" id="cm-id" />
+        <div class="chart-form-grid">
+          <label>Nickname <input type="text" id="cm-nickname" placeholder="Mom" required /></label>
+          <label>First name <input type="text" id="cm-first" autocomplete="off" /></label>
+          <label>Last name <input type="text" id="cm-last" autocomplete="off" /></label>
+          <label>Relationship
+            <select id="cm-relationship">
+              <option value="self">Self</option>
+              <option value="partner">Partner</option>
+              <option value="friend">Friend</option>
+              <option value="family">Family</option>
+              <option value="public_figure">Public Figure</option>
+              <option value="other" selected>Other</option>
+            </select>
+          </label>
+          <label>Birth date <input type="date" id="cm-date" required /></label>
+          <label>Birth time <input type="time" id="cm-time" /></label>
+          <label>Time accuracy
+            <select id="cm-accuracy">
+              <option value="exact">exact</option>
+              <option value="reported">reported</option>
+              <option value="approximate">approximate</option>
+              <option value="unknown">unknown</option>
+            </select>
+          </label>
+          <label class="place-field">Birthplace
+            <input type="text" id="cm-place" placeholder="Start typing a city" autocomplete="off" required />
+            <div class="place-results" id="cm-place-results"></div>
+            <span class="place-status" id="cm-place-status" role="status" aria-live="polite"></span>
+          </label>
+        </div>
+        <div class="o-modal__actions">
+          <button type="button" class="o-btn o-btn--secondary" id="chart-modal-cancel">Cancel</button>
+          <button type="submit" class="o-btn o-btn--primary" id="chart-modal-save">Save chart</button>
+        </div>
+        <span class="chart-form-hint" id="chart-modal-hint" role="status"></span>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Confirm dialog (delete) ──────────────────────────────────────── -->
+  <div class="o-modal" id="confirm-modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-body">
+    <div class="o-modal__backdrop" data-modal-close></div>
+    <div class="o-modal__panel o-modal__panel--sm">
+      <header class="o-modal__head">
+        <h2 id="confirm-modal-title">Delete this chart?</h2>
+      </header>
+      <p class="o-modal__body" id="confirm-modal-body"></p>
+      <div class="o-modal__actions">
+        <button type="button" class="o-btn o-btn--secondary" id="confirm-cancel">Cancel</button>
+        <button type="button" class="o-btn o-btn--danger" id="confirm-accept">Delete</button>
+      </div>
     </div>
   </div>
 
