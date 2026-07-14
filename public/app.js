@@ -899,10 +899,14 @@ function wireSavedCharts() {
     if (!chart) return;
 
     if (button.dataset.action === "activate") {
-      await post(`/api/charts/${id}/activate`, {});
-      await loadSavedCharts();
-      await resolveChartState();
-      toast(`${chart.nickname} is active`);
+      try {
+        await post(`/api/charts/${id}/activate`, {});
+        await loadSavedCharts();
+        await resolveChartState();
+        toast(`${chart.nickname} is active`);
+      } catch (error) {
+        toast(error.message);
+      }
     }
 
     // Edit/rename opens the shared chart modal.

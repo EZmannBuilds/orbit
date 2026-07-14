@@ -22,9 +22,14 @@ const html = readFileSync(join(ROOT, "public", "index.html"), "utf8");
 
 // ── In-memory owner-scoped chart store ──────────────────────────────────────
 function memStore(profiles = [], activeId = null) {
-  const rows = [...profiles];
+  const rows = profiles.map((profile) => ({ ...profile }));
   let active = activeId;
-  const calls = { setActiveId: 0 };
+  let activity = 0;
+  const calls = { setActiveId: 0, activateProfile: 0 };
+  function nextActivityStamp() {
+    activity += 1;
+    return new Date(Date.UTC(2026, 6, 14, 12, 0, activity)).toISOString();
+  }
   return {
     calls,
     get activeId() { return active; },
@@ -32,6 +37,14 @@ function memStore(profiles = [], activeId = null) {
     async getProfile(_o, id) { return rows.find((p) => p.id === id) || null; },
     async getActiveId() { return active; },
     async setActiveId(_o, id) { calls.setActiveId += 1; active = id; },
+    async activateProfile(_o, id) {
+      calls.activateProfile += 1;
+      const row = rows.find((p) => p.id === id);
+      if (!row) throw new Error("not found");
+      row.last_active_at = nextActivityStamp();
+      active = id;
+      return row;
+    },
     async deleteProfile(_o, id) {
       const i = rows.findIndex((p) => p.id === id);
       if (i >= 0) rows.splice(i, 1);
@@ -63,9 +76,11 @@ test("1. returning user with an active chart: no onboarding, chart loads", async
 
 // ══ 2. Several charts: the correct active one is restored ═══════════════════
 test("2. several charts: the stored active chart is the one restored", async () => {
-  const svc = createChartService(memStore([chartA, chartB, chartC], "b"));
+  const store = memStore([{ ...chartA }, { ...chartB }, { ...chartC, last_active_at: "2026-07-01T00:00:00Z" }], "b");
+  const svc = createChartService(store);
   const active = await svc.getActive("owner");
-  assert.equal(active.profile.id, "b", "must restore the stored active chart, not the first");
+  assert.equal(active.profile.id, "b", "must restore the stored active chart, not a newer activity/edit fallback");
+  assert.equal(store.calls.activateProfile, 0, "valid stored active references are authoritative");
 
   const { charts, active_chart_id } = await svc.list("owner");
   assert.equal(active_chart_id, "b");
@@ -74,14 +89,15 @@ test("2. several charts: the stored active chart is the one restored", async () 
 
 // ══ 3. Charts exist but none is active: one is selected and persisted ═══════
 test("3. saved charts but no active chart: a valid chart is selected and activated", async () => {
-  const store = memStore([chartB, chartC], null); // no active id stored
+  const store = memStore([{ ...chartB, last_active_at: "2026-07-01T00:00:00Z" }, chartC], null); // no active id stored
   const svc = createChartService(store);
   const active = await svc.getActive("owner");
 
   assert.ok(active, "must not report 'no chart' when charts exist");
-  assert.ok(["b", "c"].includes(active.profile.id));
+  assert.equal(active.profile.id, "b", "newest activity wins when there is no valid active id");
   assert.equal(store.activeId, active.profile.id, "selection is persisted via the activation system");
-  assert.ok(store.calls.setActiveId >= 1);
+  assert.ok(active.profile.last_active_at > "2026-07-01T00:00:00Z", "fallback receives fresh activity");
+  assert.ok(store.calls.activateProfile >= 1);
 });
 
 test("3b. a stale/dangling active id heals to a real chart", async () => {
@@ -92,11 +108,22 @@ test("3b. a stale/dangling active id heals to a real chart", async () => {
   assert.equal(store.activeId, "b", "the dangling id is repaired");
 });
 
-test("3c. fallback preference: primary first, then most recently updated", () => {
+test("3c. fallback preference: last active, then primary, then most recently updated", () => {
+  assert.equal(pickFallbackActive([{ ...chartB, last_active_at: "2026-06-01T00:00:00Z" }, { ...chartC, last_active_at: "2026-07-01T00:00:00Z" }]).id, "c");
   assert.equal(pickFallbackActive([chartB, chartA, chartC]).id, "a", "primary My Chart wins");
+  assert.equal(pickFallbackActive([chartB, { ...chartA, is_primary: false }]).id, "a", "legacy My Chart wins if primary is missing");
   // Without a primary, the most recently updated wins (B updated 2026-06 > C 2026-03).
   assert.equal(pickFallbackActive([chartC, chartB]).id, "b");
   assert.equal(pickFallbackActive([]), null);
+});
+
+test("3d. fallback without activity and without primary uses most recently updated", async () => {
+  const store = memStore([chartC, chartB], null);
+  const svc = createChartService(store);
+  const active = await svc.getActive("owner");
+  assert.equal(active.profile.id, "b");
+  assert.equal(store.activeId, "b");
+  assert.ok(active.profile.last_active_at, "persisted fallback gets activity");
 });
 
 // ══ 4. Zero charts: onboarding appears after loading completes ══════════════
@@ -138,12 +165,28 @@ test("6. a failed saved-chart request shows a recoverable error, not onboarding"
 
 // ══ 7. Active chart deleted while others remain ════════════════════════════
 test("7. deleting the active chart promotes another chart to active", async () => {
-  const store = memStore([chartA, chartB], "a");
+  const store = memStore([
+    { ...chartA, last_active_at: "2026-07-01T00:00:00Z" },
+    { ...chartB, last_active_at: "2026-07-10T00:00:00Z" },
+    { ...chartC, last_active_at: "2026-07-05T00:00:00Z" },
+  ], "a");
   const svc = createChartService(store);
   const result = await svc.remove("owner", "a");
   assert.equal(result.empty, false);
   assert.equal(result.active_chart_id, "b");
   assert.equal(store.activeId, "b");
+  assert.ok(store.calls.activateProfile >= 1);
+});
+
+test("7b. deleting a non-active chart keeps active chart and activity unchanged", async () => {
+  const rows = [{ ...chartA, last_active_at: "2026-07-01T00:00:00Z" }, { ...chartB, last_active_at: "2026-07-10T00:00:00Z" }];
+  const store = memStore(rows, "a");
+  const svc = createChartService(store);
+  const result = await svc.remove("owner", "b");
+  assert.equal(result.active_chart_id, "a");
+  assert.equal(store.activeId, "a");
+  assert.equal(rows[0].last_active_at, "2026-07-01T00:00:00Z");
+  assert.equal(store.calls.activateProfile, 0);
 });
 
 // ══ 8. Final chart deleted: no-chart state ═════════════════════════════════
@@ -172,9 +215,18 @@ test("9. switching the active chart persists and survives a reload", async () =>
   const svc = createChartService(store);
   await svc.activate("owner", "b");
   assert.equal(store.activeId, "b");
+  assert.ok(store.calls.activateProfile >= 1);
   // "Reload": a fresh service against the same store restores the new selection.
   const reloaded = await createChartService(store).getActive("owner");
   assert.equal(reloaded.profile.id, "b");
+});
+
+test("9c. switching charts survives sign-out and later sign-in", async () => {
+  const store = memStore([chartA, chartB], "a");
+  await createChartService(store).activate("owner", "b");
+  // Later login reads the same persisted active preference.
+  const afterLogin = await createChartService(store).getActive("owner");
+  assert.equal(afterLogin.profile.id, "b");
 });
 
 test("9b. the Home selector refreshes the reading and resets the carousel", () => {

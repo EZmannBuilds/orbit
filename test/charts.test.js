@@ -11,6 +11,11 @@ function memStore() {
   const active = new Map();          // ownerId -> birth_profile_id
   const profileNames = new Map();    // ownerId -> {first_name,last_name}
   const calcs = [];                  // {birth_profile_id, calculation_version, input_hash, chart_data}
+  let activity = 0;
+  function nextActivityStamp() {
+    activity += 1;
+    return new Date(Date.UTC(2026, 0, 1, 0, 0, activity)).toISOString();
+  }
   return {
     _profiles: profiles,
     _calcs: calcs,
@@ -38,6 +43,13 @@ function memStore() {
       const p = profiles.get(id);
       if (!p || p.owner_id !== ownerId) throw new Error("not found");
       Object.assign(p, patch);
+      return p;
+    },
+    async activateProfile(ownerId, id) {
+      const p = profiles.get(id);
+      if (!p || p.owner_id !== ownerId) throw new Error("not found");
+      p.last_active_at = nextActivityStamp();
+      active.set(ownerId, id);
       return p;
     },
     async deleteProfile(ownerId, id) {
@@ -85,6 +97,7 @@ test("first chart is auto-named 'My Chart', marked primary and active", async ()
   assert.equal(profile.is_primary, true);
   assert.equal(became_primary, true);
   assert.equal(await store.getActiveId(OWNER), profile.id);
+  assert.ok(profile.last_active_at, "first chart records activity");
 });
 
 test("selected birthplace is verified and profile names persist for My Chart", async () => {
@@ -145,13 +158,36 @@ test("name-only updates reuse the cached calculation", async () => {
   assert.equal(store._calcs.length, 1);
 });
 
+test("renaming a chart does not update last_active_at", async () => {
+  const store = memStore();
+  const svc = createChartService(store);
+  const { profile } = await svc.create(OWNER, INPUT);
+  const before = profile.last_active_at;
+  const updated = await svc.update(OWNER, profile.id, { nickname: "Renamed" });
+  assert.equal(updated.profile.nickname, "Renamed");
+  assert.equal(updated.profile.last_active_at, before);
+});
+
+test("editing birth information does not update last_active_at", async () => {
+  const store = memStore();
+  const svc = createChartService(store);
+  const { profile } = await svc.create(OWNER, INPUT);
+  const before = profile.last_active_at;
+  const updated = await svc.update(OWNER, profile.id, { birth_time: "09:15" });
+  assert.equal(updated.profile.birth_time, "09:15");
+  assert.equal(updated.profile.last_active_at, before);
+});
+
 test("active chart can be switched and persists", async () => {
   const store = memStore();
   const svc = createChartService(store);
   const a = await svc.create(OWNER, INPUT);
   const b = await svc.create(OWNER, { ...INPUT, nickname: "Partner" });
+  assert.equal(await store.getActiveId(OWNER), a.profile.id, "additional charts do not replace the active chart");
+  assert.equal(b.profile.last_active_at, undefined);
   await svc.activate(OWNER, b.profile.id);
   assert.equal(await store.getActiveId(OWNER), b.profile.id);
+  assert.ok(store._profiles.get(b.profile.id).last_active_at, "activation records activity");
   // re-fetch (simulates refresh/restart reading persisted pref)
   const active = await svc.getActive(OWNER);
   assert.equal(active.profile.id, b.profile.id);
