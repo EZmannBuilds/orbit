@@ -24,6 +24,8 @@ const state = {
   auth: { restoring: true, user: null },
   charts: [],
   activeChartId: null,
+  activeProfile: null,
+  activeNatalChart: null,
   // Saved-chart request outcome. This is what onboarding keys off — an empty
   // `charts` array is NOT enough, because a failed request also leaves it empty
   // and a returning user must never be mistaken for a new one.
@@ -651,6 +653,8 @@ function wireAuth() {
     state.auth.user = null;
     state.charts = [];
     state.activeChartId = null;
+    state.activeProfile = null;
+    state.activeNatalChart = null;
     state.chartsStatus = "idle";
     state.onboardingDismissed = false; // a fresh sign-in gets a fresh decision
     renderAccount();
@@ -679,6 +683,8 @@ async function restoreSession() {
       state.auth.user = null;
       state.charts = [];
       state.activeChartId = null;
+      state.activeProfile = null;
+      state.activeNatalChart = null;
       state.chartsStatus = "idle";
       $("#auth-gate").hidden = false;
       renderAccount();
@@ -807,6 +813,11 @@ function openChartModal(chart = null) {
     if (place) setPlaceSelection("cm", place, { existing: true });
     else clearPlaceSelection("cm");
   } else {
+    if (authSignedIn() && state.charts.length === 0) {
+      $("#chart-modal-title").textContent = "Create your chart";
+      $("#cm-nickname").value = "My Chart";
+      $("#cm-relationship").value = "self";
+    }
     clearPlaceSelection("cm");
   }
 
@@ -844,7 +855,7 @@ function wireChartModal() {
 // Home-level chart actions: add (+), manage, and retry after a load failure.
 function wireHomeChartActions() {
   $("#today-chart-add")?.addEventListener("click", () => openChartModal(null));
-  $("#today-chart-manage")?.addEventListener("click", () => navigate("more"));
+  $("#today-chart-manage")?.addEventListener("click", () => navigate("me"));
   $("#today-chart-retry")?.addEventListener("click", () => retryLoadSavedCharts());
 }
 
@@ -891,49 +902,77 @@ function wireSavedCharts() {
     }
   });
   $("#saved-chart-cancel")?.addEventListener("click", clearSavedChartForm);
-  $("#saved-charts-list")?.addEventListener("click", async event => {
+  const routeChartClick = async event => {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
+    if (button.dataset.action === "retry-charts") {
+      await retryLoadSavedCharts();
+      return;
+    }
+    if (button.dataset.action === "add-chart") {
+      openChartModal(null);
+      return;
+    }
     const id = button.dataset.id;
     const chart = state.charts.find(item => item.id === id);
     if (!chart) return;
+    await handleSavedChartAction(button, chart);
+  };
+  $("#saved-charts-list")?.addEventListener("click", routeChartClick);
+  $("#me-saved-charts-list")?.addEventListener("click", routeChartClick);
+  $("#me-overview")?.addEventListener("click", routeChartClick);
+  $("#me-add-chart")?.addEventListener("click", () => openChartModal(null));
+  $("#me-saved-chart-add")?.addEventListener("click", () => openChartModal(null));
+}
 
-    if (button.dataset.action === "activate") {
-      try {
-        await post(`/api/charts/${id}/activate`, {});
-        await loadSavedCharts();
-        await resolveChartState();
-        toast(`${chart.nickname} is active`);
-      } catch (error) {
-        toast(error.message);
-      }
+async function handleSavedChartAction(button, chart) {
+  const id = chart.id;
+  if (button.dataset.action === "activate") {
+    const previousId = state.activeChartId;
+    button.disabled = true;
+    button.textContent = "Activating…";
+    try {
+      await post(`/api/charts/${id}/activate`, {});
+      await loadSavedCharts();
+      await refreshActiveExperience();
+      toast(`${chart.nickname} is active`);
+    } catch (error) {
+      state.activeChartId = previousId;
+      renderSavedCharts();
+      toast(error.message);
     }
+    return;
+  }
 
-    // Edit/rename opens the shared chart modal.
-    if (button.dataset.action === "edit") openChartModal(chart);
+  // Edit/rename opens the shared chart modal.
+  if (button.dataset.action === "edit") {
+    openChartModal(chart);
+    return;
+  }
 
-    if (button.dataset.action === "delete") {
-      const isLast = state.charts.length === 1;
-      const ok = await confirmDialog({
-        title: `Delete ${chart.nickname}?`,
-        body: isLast
-          ? "This is your only chart. Deleting it means Orbit can't show your daily reading until you add a new one. This can't be undone."
-          : "This chart and its saved readings will be removed. This can't be undone.",
-        confirmLabel: "Delete chart",
-      });
-      if (!ok) return;
-      try {
-        await del(`/api/charts/${id}${isLast ? "?confirmEmpty=true" : ""}`, { confirmEmpty: isLast });
-        // The server promotes a replacement active chart when the active one is
-        // deleted, and reports an empty state only when nothing remains.
-        await loadSavedCharts();
-        await resolveChartState();
-        toast(`${chart.nickname} deleted`);
-      } catch (error) {
-        toast(error.message);
-      }
+  if (button.dataset.action === "delete") {
+    const isLast = state.charts.length === 1;
+    const ok = await confirmDialog({
+      title: `Delete ${chart.nickname}?`,
+      body: isLast
+        ? "This is your only chart. Deleting it means Orbit can't show your daily reading until you add a new one. This can't be undone."
+        : "This chart and its saved readings will be removed. This can't be undone.",
+      confirmLabel: "Delete chart",
+    });
+    if (!ok) return;
+    button.disabled = true;
+    try {
+      await del(`/api/charts/${id}${isLast ? "?confirmEmpty=true" : ""}`, { confirmEmpty: isLast });
+      // The server promotes a replacement active chart when the active one is
+      // deleted, and reports an empty state only when nothing remains.
+      await loadSavedCharts();
+      await resolveChartState();
+      toast(`${chart.nickname} deleted`);
+    } catch (error) {
+      toast(error.message);
+      button.disabled = false;
     }
-  });
+  }
 }
 
 function clearSavedChartForm() {
@@ -967,6 +1006,8 @@ async function loadSavedCharts() {
   if (!authSignedIn()) {
     state.charts = [];
     state.activeChartId = null;
+    state.activeProfile = null;
+    state.activeNatalChart = null;
     state.chartsStatus = "idle";
     renderSavedCharts();
     return state.chartsStatus;
@@ -1043,55 +1084,68 @@ function axisRenderChartPicker() {
 }
 
 function renderSavedCharts() {
-  const status = $("#saved-charts-status");
-  const list = $("#saved-charts-list");
+  const statusTargets = [$("#saved-charts-status"), $("#me-saved-charts-status")].filter(Boolean);
+  const listTargets = [$("#saved-charts-list"), $("#me-saved-charts-list")].filter(Boolean);
   axisRenderChartPicker();
-  if (!status || !list) return;
+  if (!statusTargets.length || !listTargets.length) return;
+  const setStatus = (text) => statusTargets.forEach((status) => { status.textContent = text; });
+  const setLists = (html) => listTargets.forEach((list) => { list.innerHTML = html; });
   if (!authSignedIn()) {
-    status.textContent = "Sign in to save and restore charts.";
-    list.innerHTML = "";
+    setStatus("Sign in to save and restore charts.");
+    setLists("");
+    renderMeOverview(null, null, "");
     return;
   }
   if (state.chartsStatus === "loading" && !state.charts.length) {
-    status.textContent = "Loading your charts…";
-    list.innerHTML = "";
+    setStatus("Loading your charts…");
+    setLists("");
     return;
   }
   // An error must not read as "you have no charts".
   if (state.chartsStatus === "error" && !state.charts.length) {
-    status.textContent = "We couldn't load your saved charts. Check your connection and try again.";
-    list.innerHTML = "";
+    setStatus("We couldn't load your saved charts. Check your connection and try again.");
+    setLists(`<button type="button" class="o-btn o-btn--secondary" data-action="retry-charts">Retry</button>`);
+    renderMeOverview(null, null, "");
     return;
   }
   if (!state.charts.length) {
-    status.textContent = "No saved charts yet. Set up My Chart to begin.";
-    list.innerHTML = "";
+    setStatus("No saved charts yet. Create your chart to begin.");
+    setLists(`<div class="me-empty me-empty--compact"><p>No saved charts yet.</p><button type="button" class="o-btn o-btn--primary" data-action="add-chart">Create your chart</button></div>`);
+    renderMeOverview(null, null, "");
     return;
   }
-  status.textContent = `${state.charts.length} saved chart${state.charts.length === 1 ? "" : "s"}`;
-  list.innerHTML = state.charts.map(chart => {
-    const summary = chart.summary || {};
-    const rising = summary.time_known === false || !summary.rising ? "Time unknown" : `Rising ${esc(summary.rising)}`;
-    const legalName = [chart.first_name, chart.last_name].filter(Boolean).join(" ");
-    const meta = [REL_LABELS[chart.relationship_type] || chart.relationship_type || "Other", legalName, chart.birthplace_name].filter(Boolean).join(" · ");
-    return `<article class="saved-chart-card" data-active="${chart.is_active}">
-      <div class="saved-chart-card__top">
-        <div class="saved-chart-card__name">${esc(chart.nickname || "Untitled Chart")}</div>
-        <div class="saved-chart-card__badges">
-          ${chart.is_active ? '<span class="o-pill o-pill--success">Active</span>' : ""}
-          ${chart.is_primary ? '<span class="o-badge">Primary</span>' : ""}
-          ${summary.time_known === false ? '<span class="o-badge">Time unknown</span>' : ""}
-        </div>
+  setStatus(`${state.charts.length} saved chart${state.charts.length === 1 ? "" : "s"}`);
+  setLists(state.charts.map(savedChartCardHtml).join(""));
+}
+
+function savedChartCardHtml(chart) {
+  const summary = chart.summary || {};
+  const rising = summary.time_known === false || !summary.rising ? "Rising needs birth time" : `Rising ${esc(summary.rising)}`;
+  const legalName = [chart.first_name, chart.last_name].filter(Boolean).join(" ");
+  const meta = [
+    REL_LABELS[chart.relationship_type] || chart.relationship_type || "Other",
+    legalName,
+    chart.birth_date ? formatBirthDate(chart.birth_date) : "",
+    chart.birthplace_name,
+  ].filter(Boolean).join(" · ");
+  const timeInfo = timeAccuracyInfo(chart.time_accuracy || (summary.time_known === false ? "unknown" : "exact"));
+  return `<article class="saved-chart-card" data-active="${chart.is_active}">
+    <div class="saved-chart-card__top">
+      <div class="saved-chart-card__name">${esc(chart.nickname || "Untitled Chart")}</div>
+      <div class="saved-chart-card__badges">
+        ${chart.is_active ? '<span class="o-pill o-pill--success">Active</span>' : ""}
+        ${chart.is_primary ? '<span class="o-badge">Primary</span>' : ""}
+        <span class="o-badge">${esc(timeInfo.label)}</span>
       </div>
-      <div class="saved-chart-card__meta">${esc(meta)}</div>
-      <div class="saved-chart-card__summary">Sun ${esc(summary.sun || "—")} · Moon ${esc(summary.moon || "—")} · ${rising}</div>
-      <div class="saved-chart-card__actions">
-        <button type="button" data-action="activate" data-id="${esc(chart.id)}" ${chart.is_active ? "disabled" : ""}>Set active</button>
-        <button type="button" data-action="edit" data-id="${esc(chart.id)}">Edit</button>
-        <button type="button" data-action="delete" data-id="${esc(chart.id)}">Delete</button>
-      </div>
-    </article>`;
-  }).join("");
+    </div>
+    <div class="saved-chart-card__meta">${esc(meta)}</div>
+    <div class="saved-chart-card__summary">Sun ${esc(summary.sun || "—")} · Moon ${esc(summary.moon || "—")} · ${rising}</div>
+    <div class="saved-chart-card__actions">
+      <button type="button" data-action="activate" data-id="${esc(chart.id)}" ${chart.is_active ? "disabled" : ""}>${chart.is_active ? "Active" : "Set active"}</button>
+      <button type="button" data-action="edit" data-id="${esc(chart.id)}">Edit</button>
+      <button type="button" data-action="delete" data-id="${esc(chart.id)}">Delete</button>
+    </div>
+  </article>`;
 }
 
 async function refreshActiveExperience() {
@@ -1101,9 +1155,11 @@ async function refreshActiveExperience() {
     axisShowReadingFor(active.nickname);
     try {
       const data = await get(`/api/charts/${active.id}`);
-      renderChart(data.chart, data.profile?.nickname || active.nickname);
+      renderChart(data.chart, data.profile?.nickname || active.nickname, data.profile);
       fillMyChartForm(data.profile);
     } catch { /* Home still owns the failure state */ }
+  } else {
+    renderMeOverview(null, null, "");
   }
   await axisLoadToday();
   if (currentWorkspace() === "history") await axisLoadHistory($("#history-scope")?.value || "active");
@@ -1598,17 +1654,79 @@ const SIGN_GLYPH = {
   Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓",
 };
 const ELEMENT_CLASS = { Fire: "fire", Earth: "earth", Air: "air", Water: "water" };
+const PLACEMENT_ROLES = {
+  Sun: { role: "core identity", meaning: "Your core identity, vitality, and the way you naturally shine." },
+  Moon: { role: "emotional patterns", meaning: "Your emotional patterns, instincts, and what helps you feel held." },
+  Rising: { role: "outward style and chart orientation", meaning: "Your outward style and the orientation point for houses." },
+  Mercury: { role: "communication and thinking", meaning: "How you process ideas, speak, learn, and make sense of things." },
+  Venus: { role: "attraction, taste, and relating", meaning: "Your sense of beauty, affection, attraction, and ease with others." },
+  Mars: { role: "drive, conflict, and action", meaning: "How you pursue, protect, compete, and move when energy rises." },
+  Jupiter: { role: "growth and faith", meaning: "Where you seek growth, meaning, confidence, and broader possibility." },
+  Saturn: { role: "structure and responsibility", meaning: "Where life asks for patience, boundaries, discipline, and maturity." },
+};
+const KEY_PLACEMENTS = ["Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
+const TIME_ACCURACY_COPY = {
+  exact: { label: "Exact birth time", note: "Rising sign, houses, and angles can be read with confidence." },
+  reported: { label: "Reported birth time", note: "Rising sign, houses, and angles use the saved reported time." },
+  approximate: { label: "Approximate birth time", note: "Your Rising sign and houses may shift because the birth time is approximate." },
+  unknown: { label: "Unknown birth time", note: "A birth time is needed to calculate your Rising sign and houses reliably." },
+};
 
 function degLabel(p) {
   if (!p || p.unavailable) return "";
   return `${p.degrees}° ${String(p.minutes).padStart(2, "0")}′`;
 }
 
+function formatBirthDate(value) {
+  if (!value) return "Birth date not set";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
+function formatBirthTime(profile) {
+  if (!profile || profile.time_accuracy === "unknown" || !profile.birth_time) return "Time unknown";
+  const time = String(profile.birth_time).slice(0, 5);
+  const [hour, minute] = time.split(":").map(Number);
+  if (Number.isFinite(hour) && Number.isFinite(minute)) {
+    return new Date(2000, 0, 1, hour, minute).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+  return time;
+}
+
+function timeAccuracyInfo(value) {
+  return TIME_ACCURACY_COPY[value] || TIME_ACCURACY_COPY.unknown;
+}
+
+function houseLabel(chart, bodyName) {
+  const house = chart?.planet_houses?.[bodyName];
+  return house ? `House ${house}` : "House unavailable";
+}
+
+function modalityElement(sign) {
+  return [elementOfSign(sign), modalityOfSign(sign)].filter(Boolean).join(" · ");
+}
+
+function elementOfSign(sign) {
+  if (["Aries", "Leo", "Sagittarius"].includes(sign)) return "Fire";
+  if (["Taurus", "Virgo", "Capricorn"].includes(sign)) return "Earth";
+  if (["Gemini", "Libra", "Aquarius"].includes(sign)) return "Air";
+  if (["Cancer", "Scorpio", "Pisces"].includes(sign)) return "Water";
+  return "";
+}
+
+function modalityOfSign(sign) {
+  if (["Aries", "Cancer", "Libra", "Capricorn"].includes(sign)) return "Cardinal";
+  if (["Taurus", "Leo", "Scorpio", "Aquarius"].includes(sign)) return "Fixed";
+  if (["Gemini", "Virgo", "Sagittarius", "Pisces"].includes(sign)) return "Mutable";
+  return "";
+}
+
 function renderBigThree(bt) {
   const items = [
-    { glyph: "☉", label: "Sun", body: bt.sun },
-    { glyph: "☾", label: "Moon", body: bt.moon },
-    { glyph: "↑", label: "Rising", body: bt.rising },
+    { glyph: "☉", label: "Sun", body: bt.sun, role: PLACEMENT_ROLES.Sun },
+    { glyph: "☾", label: "Moon", body: bt.moon, role: PLACEMENT_ROLES.Moon },
+    { glyph: "↑", label: "Rising", body: bt.rising, role: PLACEMENT_ROLES.Rising },
   ];
   $("#bigthree").innerHTML = items.map(({ glyph, label, body }) => {
     if (!body || body.unavailable) {
@@ -1616,18 +1734,24 @@ function renderBigThree(bt) {
         <div class="bt-glyph">${glyph}</div>
         <div class="bt-label">${label}</div>
         <div class="bt-sign">Unavailable</div>
-        <div class="bt-deg">${esc(body?.reason || "Birth time required")}</div></div>`;
+        <div class="bt-role">${esc(PLACEMENT_ROLES[label]?.role || "")}</div>
+        <p>A birth time is needed to calculate your Rising sign and houses reliably.</p></div>`;
     }
+    const mode = modalityElement(body.sign);
     return `<div class="bigthree-item">
       <div class="bt-glyph">${glyph} ${SIGN_GLYPH[body.sign] || ""}</div>
       <div class="bt-label">${label}</div>
       <div class="bt-sign">${esc(body.sign)}</div>
-      <div class="bt-deg">${degLabel(body)}</div></div>`;
+      <div class="bt-deg">${degLabel(body)}</div>
+      <div class="bt-role">${esc(PLACEMENT_ROLES[label]?.role || "")}</div>
+      <p>${esc(PLACEMENT_ROLES[label]?.meaning || "")}</p>
+      ${mode ? `<div class="bt-advanced advanced-only">${esc(mode)}</div>` : ""}</div>`;
   }).join("");
 }
 
 function renderBars(elId, percentages, classMap) {
   const el = $(elId);
+  if (!el) return;
   el.innerHTML = Object.entries(percentages).map(([key, pct]) => `
     <div class="bar-row">
       <span class="bar-key">${esc(key)}</span>
@@ -1636,38 +1760,156 @@ function renderBars(elId, percentages, classMap) {
     </div>`).join("");
 }
 
+function renderKeyPlacements(chart) {
+  const target = $("#key-placements");
+  if (!target) return;
+  target.innerHTML = KEY_PLACEMENTS.map((name) => {
+    const p = chart.planets?.[name];
+    if (!p) return "";
+    const info = PLACEMENT_ROLES[name];
+    const extra = [
+      degLabel(p),
+      chart.time_known ? houseLabel(chart, name) : "",
+      p.retrograde ? "Retrograde" : "",
+    ].filter(Boolean).join(" · ");
+    const advanced = [
+      modalityElement(p.sign),
+      p.longitude != null ? `${Number(p.longitude).toFixed(2)}° absolute longitude` : "",
+    ].filter(Boolean).join(" · ");
+    return `<article class="placement-card">
+      <div class="placement-card__head">
+        <span class="placement-card__name">${esc(name)}</span>
+        <span class="placement-card__role">${esc(info.role)}</span>
+      </div>
+      <div class="placement-card__sign">${SIGN_GLYPH[p.sign] || ""} ${esc(p.sign)}</div>
+      <div class="placement-card__meta">${esc(extra)}</div>
+      <p>${esc(info.meaning)}</p>
+      ${advanced ? `<div class="placement-card__advanced advanced-only">${esc(advanced)}</div>` : ""}
+    </article>`;
+  }).join("");
+}
+
 function renderPlacements(chart) {
+  const target = $("#chart-placements");
+  if (!target) return;
   const rows = Object.values(chart.planets).map((p) =>
-    `<tr><td>${esc(p.name)}</td><td>${SIGN_GLYPH[p.sign] || ""} ${esc(p.sign)}</td><td>${degLabel(p)}</td><td>${p.retrograde ? "℞" : ""}</td><td>${chart.planet_houses[p.name] ? "H" + chart.planet_houses[p.name] : ""}</td></tr>`
+    `<tr><td>${esc(p.name)}</td><td>${SIGN_GLYPH[p.sign] || ""} ${esc(p.sign)}</td><td>${degLabel(p)}</td><td>${p.retrograde ? "Retrograde" : ""}</td><td>${chart.planet_houses[p.name] ? "H" + chart.planet_houses[p.name] : "—"}</td></tr>`
   ).join("");
   const asp = chart.aspects.slice(0, 12).map((a) =>
     `<li>${esc(a.a)} ${esc(a.aspect.toLowerCase())} ${esc(a.b)} <span class="orb">(orb ${a.orb}°)</span></li>`
   ).join("");
-  $("#chart-placements").innerHTML = `
-    <table class="placements">
-      <thead><tr><th>Body</th><th>Sign</th><th>Degree</th><th>R</th><th>House</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div class="chart-meta">Chart ruler: ${esc(chart.chart_ruler || "—")} · Dominant: ${esc(chart.element_balance.dominant)} / ${esc(chart.modality_balance.dominant)} · ${esc(chart.calculation_version)}</div>
-    <h4>Major aspects</h4><ul class="aspect-list">${asp}</ul>`;
+  const houseRows = chart.houses?.length ? chart.houses.map((h) =>
+    `<tr><td>House ${h.house}</td><td>${SIGN_GLYPH[h.sign] || ""} ${esc(h.sign)}</td><td>${h.degrees}°${String(h.minutes).padStart(2, "0")}′</td></tr>`
+  ).join("") : "";
+  const angleRows = chart.time_known && chart.angles ? Object.entries(chart.angles).map(([name, angle]) =>
+    angle ? `<tr><td>${name === "midheaven" ? "Midheaven" : "Ascendant"}</td><td>${SIGN_GLYPH[angle.sign] || ""} ${esc(angle.sign)}</td><td>${degLabel(angle)}</td></tr>` : ""
+  ).join("") : "";
+  const retro = chart.retrogrades?.length ? chart.retrogrades.join(", ") : "None";
+  target.innerHTML = `
+    <details class="chart-details">
+      <summary>All planetary placements</summary>
+      <table class="placements">
+        <thead><tr><th>Body</th><th>Sign</th><th>Degree</th><th>Status</th><th>House</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </details>
+    <details class="chart-details">
+      <summary>Houses</summary>
+      ${houseRows ? `<table class="placements"><thead><tr><th>House</th><th>Sign</th><th>Cusp</th></tr></thead><tbody>${houseRows}</tbody></table>` : `<p class="me-muted">A birth time is needed to calculate houses reliably.</p>`}
+    </details>
+    <details class="chart-details">
+      <summary>Major aspects</summary>
+      <ul class="aspect-list">${asp || "<li>No major aspects in the current calculation.</li>"}</ul>
+    </details>
+    <details class="chart-details">
+      <summary>Angles</summary>
+      ${angleRows ? `<table class="placements"><thead><tr><th>Angle</th><th>Sign</th><th>Degree</th></tr></thead><tbody>${angleRows}</tbody></table>` : `<p class="me-muted">A birth time is needed to calculate angles reliably.</p>`}
+    </details>
+    <details class="chart-details">
+      <summary>Elements, modalities, and retrogrades</summary>
+      <div class="chart-meta">Chart ruler: ${esc(chart.chart_ruler || "—")} · Dominant: ${esc(chart.element_balance.dominant)} / ${esc(chart.modality_balance.dominant)} · Retrograde: ${esc(retro)} · ${esc(chart.calculation_version)}</div>
+    </details>`;
 }
 
-function renderChart(chart, name) {
-  $("#mychart-name").textContent = name ? `· ${name}` : "· Preview";
+function renderMeOverview(profile, chart, name) {
+  const target = $("#me-overview");
+  const status = $("#me-status");
+  if (!target) return;
+  if (!profile || !chart) {
+    if (status) status.textContent = authSignedIn() && state.chartsStatus === "error"
+      ? "We couldn't load your saved charts. Try again from Home."
+      : "No active chart yet.";
+    $("#mychart-name").textContent = "No active chart yet";
+    $("#me-active-badge")?.setAttribute("hidden", "");
+    target.innerHTML = `<div class="me-empty">
+      <h2>No active chart yet</h2>
+      <p>Create your chart to see your Big Three, key placements, and saved profiles.</p>
+      <button type="button" class="o-btn o-btn--primary" data-action="add-chart">Create your chart</button>
+    </div>`;
+    $("#bigthree").innerHTML = "";
+    $("#key-placements").innerHTML = "";
+    $("#chart-warnings").innerHTML = "";
+    $("#chart-placements").innerHTML = "";
+    renderBars("#element-bars", {}, null);
+    renderBars("#modality-bars", {}, null);
+    return;
+  }
+  if (status) status.textContent = "Active chart loaded.";
+  $("#mychart-name").textContent = name || profile.nickname || "My Chart";
+  $("#me-active-badge")?.removeAttribute("hidden");
+  const timeInfo = timeAccuracyInfo(profile.time_accuracy || chart.time_accuracy);
+  const rising = chart.big_three.rising?.unavailable ? "Needs birth time" : chart.big_three.rising?.sign;
+  const mode = AXIS.detail;
+  const cautions = [];
+  if ((profile.time_accuracy || chart.time_accuracy) === "approximate") cautions.push(TIME_ACCURACY_COPY.approximate.note);
+  if ((profile.time_accuracy || chart.time_accuracy) === "unknown" || chart.big_three.rising?.unavailable) cautions.push(TIME_ACCURACY_COPY.unknown.note);
+  if (chart.warnings?.includes("moon_approximate")) cautions.push("Moon is calculated from the date and may shift signs without a birth time.");
+  target.innerHTML = `
+    <div class="me-overview__top">
+      <div>
+        <p class="u-eyebrow">Active Chart</p>
+        <h2>${esc(name || profile.nickname || "My Chart")}</h2>
+      </div>
+      <button type="button" class="o-btn o-btn--secondary" data-action="edit" data-id="${esc(profile.id)}">Edit Chart</button>
+    </div>
+    <div class="me-overview__big">
+      <span><strong>Sun</strong>${esc(chart.big_three.sun?.sign || "—")}</span>
+      <span><strong>Moon</strong>${esc(chart.big_three.moon?.sign || "—")}</span>
+      <span><strong>Rising</strong>${esc(rising || "—")}</span>
+    </div>
+    <dl class="me-facts">
+      <div><dt>Birth date</dt><dd>${esc(formatBirthDate(profile.birth_date))}</dd></div>
+      <div><dt>Birth location</dt><dd>${esc(profile.birthplace_name || "Location not set")}</dd></div>
+      <div><dt>Birth time</dt><dd>${esc(formatBirthTime(profile))}</dd></div>
+      <div><dt>Accuracy</dt><dd>${esc(timeInfo.label)}</dd></div>
+      <div><dt>Mode</dt><dd>${esc(mode)}</dd></div>
+    </dl>
+    <p class="me-overview__note">${esc(timeInfo.note)}</p>
+    ${cautions.length ? `<div class="chart-warnings">${cautions.map((c) => `<span class="warn-chip">${esc(c)}</span>`).join("")}</div>` : ""}`;
+}
+
+function renderChart(chart, name, profile = null) {
+  state.activeNatalChart = chart;
+  state.activeProfile = profile;
   const warn = $("#chart-warnings");
-  if (chart.warnings && chart.warnings.length) {
-    const human = { birth_time_unknown: "Birth time unknown — Rising and houses are hidden.", houses_unavailable: "Houses unavailable.", rising_unavailable: "Rising unavailable.", moon_approximate: "Moon position is approximate without a birth time." };
+  if (warn && chart.warnings && chart.warnings.length) {
+    const human = { birth_time_unknown: "Birth time unknown — Rising and houses are hidden.", houses_unavailable: "Houses unavailable.", rising_unavailable: "Rising unavailable.", moon_approximate: "Moon may shift signs without a birth time." };
     const seen = new Set();
     warn.innerHTML = chart.warnings.filter((w) => !seen.has(w) && seen.add(w)).map((w) => `<span class="warn-chip">${esc(human[w] || w)}</span>`).join("");
-  } else warn.innerHTML = "";
+  } else if (warn) warn.innerHTML = "";
+  renderMeOverview(profile, chart, name);
   renderBigThree(chart.big_three);
+  renderKeyPlacements(chart);
   renderBars("#element-bars", chart.element_balance.percentages, ELEMENT_CLASS);
   renderBars("#modality-bars", chart.modality_balance.percentages, null);
   renderPlacements(chart);
 }
 
 function fillMyChartForm(profile) {
-  if (!profile || !$("#chart-form")) return;
+  if (!profile || !$("#chart-form")) {
+    renderChartProfileMeta(profile);
+    return;
+  }
   $("#cf-first").value = profile.first_name || "";
   $("#cf-last").value = profile.last_name || "";
   $("#cf-date").value = profile.birth_date || "";
@@ -1729,14 +1971,16 @@ function wireMyChart() {
 }
 
 async function loadMoonTonight() {
+  const target = $("#moon-tonight");
+  if (!target) return;
   try {
     const { moon } = await get("/api/moon/current");
-    $("#moon-tonight").innerHTML = `
+    target.innerHTML = `
       <div class="moon-phase">${SIGN_GLYPH[moon.sign] || ""} ${esc(moon.phase_name)}</div>
       <div class="moon-illum">${moon.illumination_percent}% illuminated · ${moon.waxing ? "waxing" : "waning"}</div>
       <div class="moon-sign">Moon in ${esc(moon.sign)} · times in UTC</div>`;
   } catch {
-    $("#moon-tonight").textContent = "Moon data unavailable.";
+    target.textContent = "Moon data unavailable.";
   }
 }
 
@@ -1839,6 +2083,7 @@ function axisApplyDetail(rerender = true) {
   if (rerender) {
     if (AXIS.lastFortune) axisRenderFortune(AXIS.lastFortune);
     if (AXIS.lastSky) axisRenderSky(AXIS.lastSky);
+    if (state.activeNatalChart) renderMeOverview(state.activeProfile, state.activeNatalChart, state.activeProfile?.nickname || state.activeChartName);
   }
 }
 async function axisSetDetail(level) {

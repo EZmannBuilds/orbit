@@ -87,6 +87,15 @@ test("unknown birth time hides Rising and houses, flags warnings", () => {
   assert.equal(c.planets.Sun.sign, "Gemini");
 });
 
+test("approximate birth time keeps calculated houses but marks the chart approximate", () => {
+  const c = computeNatalChart({ ...REF, time_accuracy: "approximate" });
+  assert.equal(c.time_known, true);
+  assert.equal(c.time_accuracy, "approximate");
+  assert.equal(c.big_three.rising.sign, "Leo");
+  assert.equal(c.houses.length, 12);
+  assert.ok(c.angles.ascendant, "approximate time still calculates angles with a visible UI caution");
+});
+
 test("unknown-time hash differs from known-time hash", () => {
   const unknown = { ...REF, time_accuracy: "unknown", birth_time: null };
   assert.notEqual(chartInputHash(REF), chartInputHash(unknown));

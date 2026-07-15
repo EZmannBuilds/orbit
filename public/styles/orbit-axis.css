@@ -200,12 +200,10 @@
    them. The engine/calculations are untouched — this only controls what a
    beginner sees by default. Any unknown data-detail value falls through to the
    Simple-hiding rules below, so a stale "Balanced" attribute degrades safely. */
-:root[data-detail="Simple"] #panel-me .bt-deg { display: none; }
-:root[data-detail="Simple"] #panel-me .chart-details { display: none; }
-:root[data-detail="Simple"] #panel-me .chart-meta-advanced { display: none; }
-:root:not([data-detail="Advanced"]) #panel-me .bt-deg { display: none; }
-:root:not([data-detail="Advanced"]) #panel-me .chart-details { display: none; }
-:root:not([data-detail="Advanced"]) #panel-me .chart-meta-advanced { display: none; }
+:root[data-detail="Simple"] #panel-me .advanced-only,
+:root[data-detail="Simple"] #panel-me .me-panel--advanced { display: none; }
+:root:not([data-detail="Advanced"]) #panel-me .advanced-only,
+:root:not([data-detail="Advanced"]) #panel-me .me-panel--advanced { display: none; }
 
 /* `hidden` attribute must win over the flex display above. */
 .axis-chart-picker[hidden], .axis-reading-for[hidden] { display: none !important; }
