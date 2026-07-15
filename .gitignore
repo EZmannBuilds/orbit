@@ -28,3 +28,9 @@ build/
 # ── OS cruft ──
 .DS_Store
 ._*
+
+# Local Supabase CLI state
+supabase/.branches/
+
+# Local Supabase CLI state
+supabase/.branches/
