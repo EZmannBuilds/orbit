@@ -298,21 +298,21 @@
           <div class="me-grid">
             <article class="me-panel me-panel--overview" id="me-overview"></article>
 
-            <section class="me-panel" aria-labelledby="me-big-three-title">
+            <section class="me-panel me-panel--placements" aria-labelledby="me-chart-keys-title">
               <div class="me-section-head">
-                <h2 id="me-big-three-title">Big Three</h2>
-                <p>Sun, Moon, and Rising are the quickest doorway into the chart.</p>
+                <h2 id="me-chart-keys-title">The Keys to Your Chart</h2>
+                <p>Rising, Sun, and Moon are the fastest way into the chart.</p>
               </div>
               <div class="chart-warnings" id="chart-warnings"></div>
-              <div class="bigthree" id="bigthree"></div>
+              <div class="placement-grid placement-grid--keys" id="bigthree"></div>
             </section>
 
-            <section class="me-panel" aria-labelledby="me-key-placements-title">
+            <section class="me-panel me-panel--placements" aria-labelledby="me-planets-title">
               <div class="me-section-head">
-                <h2 id="me-key-placements-title">Key Placements</h2>
-                <p>Simple mode focuses on the personal planets and the life patterns people ask about most.</p>
+                <h2 id="me-planets-title">Planets</h2>
+                <p>All major planets stay visible so you can scan the whole chart quickly.</p>
               </div>
-              <div class="key-placements" id="key-placements"></div>
+              <div class="placement-grid placement-grid--planets" id="key-placements"></div>
             </section>
 
             <section class="me-panel me-panel--advanced" aria-labelledby="me-advanced-title">
@@ -767,6 +767,23 @@
         <button type="button" class="o-btn o-btn--secondary" id="confirm-cancel">Cancel</button>
         <button type="button" class="o-btn o-btn--danger" id="confirm-accept">Delete</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Placement detail dialog ──────────────────────────────────────── -->
+  <div class="o-modal placement-detail-modal" id="placement-detail-modal" hidden role="dialog" aria-modal="true" aria-labelledby="placement-detail-title">
+    <div class="o-modal__backdrop" data-modal-close></div>
+    <div class="o-modal__panel placement-detail-panel">
+      <header class="o-modal__head">
+        <div>
+          <p class="u-eyebrow" id="placement-detail-kicker">Placement</p>
+          <h2 id="placement-detail-title">Placement detail</h2>
+        </div>
+        <button type="button" class="o-modal__close" id="placement-detail-close" aria-label="Close placement detail" data-modal-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+      <div id="placement-detail-body" class="placement-detail-body"></div>
     </div>
   </div>
 

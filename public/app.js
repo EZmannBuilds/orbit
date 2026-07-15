@@ -1513,6 +1513,7 @@ async function boot() {
   wireOnboarding();
   wireSavedCharts();
   wireChartModal();
+  wirePlacementDetails();
   wireHomeChartActions();
   wireKeyboard();
   wireChat();
@@ -1653,18 +1654,27 @@ const SIGN_GLYPH = {
   Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍",
   Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓",
 };
+const PLACEMENT_GLYPHS = {
+  Rising: "ASC", Sun: "☉", Moon: "☾", Mercury: "☿", Venus: "♀", Mars: "♂",
+  Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
+};
 const ELEMENT_CLASS = { Fire: "fire", Earth: "earth", Air: "air", Water: "water" };
 const PLACEMENT_ROLES = {
-  Sun: { role: "core identity", meaning: "Your core identity, vitality, and the way you naturally shine." },
-  Moon: { role: "emotional patterns", meaning: "Your emotional patterns, instincts, and what helps you feel held." },
-  Rising: { role: "outward style and chart orientation", meaning: "Your outward style and the orientation point for houses." },
-  Mercury: { role: "communication and thinking", meaning: "How you process ideas, speak, learn, and make sense of things." },
-  Venus: { role: "attraction, taste, and relating", meaning: "Your sense of beauty, affection, attraction, and ease with others." },
-  Mars: { role: "drive, conflict, and action", meaning: "How you pursue, protect, compete, and move when energy rises." },
-  Jupiter: { role: "growth and faith", meaning: "Where you seek growth, meaning, confidence, and broader possibility." },
-  Saturn: { role: "structure and responsibility", meaning: "Where life asks for patience, boundaries, discipline, and maturity." },
+  Rising: { role: "Chart ruler and outward style", meaning: "How you approach life, first impressions, and new situations.", advanced: "Sets the house layout and orients the whole chart when birth time is reliable." },
+  Sun: { role: "Core identity", meaning: "Where you develop confidence, vitality, and purpose.", advanced: "A luminary weighted strongly in element and modality balance." },
+  Moon: { role: "Emotional nature", meaning: "What helps you feel secure, understood, and restored.", advanced: "A luminary that can shift noticeably when birth time is unknown." },
+  Mercury: { role: "Communication and thinking", meaning: "How you process ideas, speak, learn, and make decisions.", advanced: "Shows mental style, information flow, and practical interpretation patterns." },
+  Venus: { role: "Attraction, taste, and relating", meaning: "How you seek ease, pleasure, beauty, and connection.", advanced: "Highlights relational style, creative preference, and receptive values." },
+  Mars: { role: "Drive, conflict, and action", meaning: "How you pursue goals, protect energy, and handle friction.", advanced: "Shows directness, urgency, motivation, and conflict rhythm." },
+  Jupiter: { role: "Growth and faith", meaning: "Where you seek meaning, confidence, and wider possibility.", advanced: "Points to expansion, trust, study, and opportunity patterns." },
+  Saturn: { role: "Boundaries, discipline, and responsibility", meaning: "Where life asks for patience, structure, and maturity.", advanced: "Shows pressure points, commitments, and long-term mastery." },
+  Uranus: { role: "Change, freedom, and disruption", meaning: "Where you need room to innovate and break stale patterns.", advanced: "A generational planet that becomes personal through house, aspects, and chart emphasis." },
+  Neptune: { role: "Dreams, intuition, and ideals", meaning: "Where imagination, longing, and spiritual sensitivity gather.", advanced: "A generational planet refined through house placement, aspects, and chart context." },
+  Pluto: { role: "Power, depth, and transformation", meaning: "Where intensity, release, and deep renewal tend to unfold.", advanced: "A generational planet made personal by house position, aspects, and emphasis." },
 };
-const KEY_PLACEMENTS = ["Mercury", "Venus", "Mars", "Jupiter", "Saturn"];
+const CHART_KEY_PLACEMENTS = ["Rising", "Sun", "Moon"];
+const PLANET_GRID_PLACEMENTS = ["Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
+const STANDARD_PLANET_ORDER = ["Sun", "Moon", ...PLANET_GRID_PLACEMENTS];
 const TIME_ACCURACY_COPY = {
   exact: { label: "Exact birth time", note: "Rising sign, houses, and angles can be read with confidence." },
   reported: { label: "Reported birth time", note: "Rising sign, houses, and angles use the saved reported time." },
@@ -1722,31 +1732,109 @@ function modalityOfSign(sign) {
   return "";
 }
 
-function renderBigThree(bt) {
-  const items = [
-    { glyph: "☉", label: "Sun", body: bt.sun, role: PLACEMENT_ROLES.Sun },
-    { glyph: "☾", label: "Moon", body: bt.moon, role: PLACEMENT_ROLES.Moon },
-    { glyph: "↑", label: "Rising", body: bt.rising, role: PLACEMENT_ROLES.Rising },
-  ];
-  $("#bigthree").innerHTML = items.map(({ glyph, label, body }) => {
-    if (!body || body.unavailable) {
-      return `<div class="bigthree-item unavailable">
-        <div class="bt-glyph">${glyph}</div>
-        <div class="bt-label">${label}</div>
-        <div class="bt-sign">Unavailable</div>
-        <div class="bt-role">${esc(PLACEMENT_ROLES[label]?.role || "")}</div>
-        <p>A birth time is needed to calculate your Rising sign and houses reliably.</p></div>`;
+function reliableHouseLabel(chart, bodyName) {
+  if (!chart?.time_known) return "House unavailable";
+  return houseLabel(chart, bodyName);
+}
+
+function placementData(chart, name) {
+  const info = PLACEMENT_ROLES[name] || { role: "", meaning: "", advanced: "" };
+  if (name === "Rising") {
+    const rising = chart?.big_three?.rising;
+    if (!rising || rising.unavailable) {
+      return {
+        name,
+        glyph: PLACEMENT_GLYPHS.Rising,
+        title: "Rising unavailable",
+        sign: null,
+        degree: "Birth time needed",
+        house: "House unavailable",
+        meta: "Birth time needed",
+        role: info.role,
+        meaning: info.meaning,
+        advanced: info.advanced,
+        unavailable: true,
+        warning: TIME_ACCURACY_COPY.unknown.note,
+      };
     }
-    const mode = modalityElement(body.sign);
-    return `<div class="bigthree-item">
-      <div class="bt-glyph">${glyph} ${SIGN_GLYPH[body.sign] || ""}</div>
-      <div class="bt-label">${label}</div>
-      <div class="bt-sign">${esc(body.sign)}</div>
-      <div class="bt-deg">${degLabel(body)}</div>
-      <div class="bt-role">${esc(PLACEMENT_ROLES[label]?.role || "")}</div>
-      <p>${esc(PLACEMENT_ROLES[label]?.meaning || "")}</p>
-      ${mode ? `<div class="bt-advanced advanced-only">${esc(mode)}</div>` : ""}</div>`;
-  }).join("");
+    const chartRuler = chart.chart_ruler ? `${chart.chart_ruler} chart ruler` : "Chart ruler";
+    return {
+      name,
+      glyph: PLACEMENT_GLYPHS.Rising,
+      title: `Rising in ${rising.sign}`,
+      sign: rising.sign,
+      degree: degLabel(rising),
+      house: "Chart angle",
+      meta: `${degLabel(rising)} · ${chartRuler}`,
+      role: info.role,
+      meaning: info.meaning,
+      advanced: [modalityElement(rising.sign), chart.angles?.ascendant?.longitude != null ? `${Number(chart.angles.ascendant.longitude).toFixed(2)}° absolute longitude` : ""].filter(Boolean).join(" · "),
+      source: chart.angles?.ascendant || rising,
+      unavailable: false,
+    };
+  }
+
+  const body = chart?.planets?.[name];
+  if (!body) {
+    return {
+      name,
+      glyph: PLACEMENT_GLYPHS[name] || name.slice(0, 2),
+      title: `${name} unavailable`,
+      sign: null,
+      degree: "Degree unavailable",
+      house: "House unavailable",
+      meta: "Placement unavailable",
+      role: info.role,
+      meaning: info.meaning || "This placement is not available in the current calculation.",
+      advanced: info.advanced,
+      unavailable: true,
+    };
+  }
+  const house = reliableHouseLabel(chart, name);
+  const titleHouse = house === "House unavailable" ? "" : ` · ${house}`;
+  const degree = degLabel(body);
+  const retro = body.retrograde ? " · Retrograde" : "";
+  return {
+    name,
+    glyph: PLACEMENT_GLYPHS[name] || name.slice(0, 2),
+    title: `${name} in ${body.sign}${titleHouse}`,
+    sign: body.sign,
+    degree,
+    house,
+    meta: `${degree}${retro}`,
+    role: info.role,
+    meaning: info.meaning,
+    advanced: [info.advanced, modalityElement(body.sign), body.longitude != null ? `${Number(body.longitude).toFixed(2)}° absolute longitude` : ""].filter(Boolean).join(" · "),
+    retrograde: !!body.retrograde,
+    source: body,
+    unavailable: false,
+  };
+}
+
+function placementCardHtml(chart, name, { group }) {
+  const data = placementData(chart, name);
+  const technical = data.sign
+    ? [elementOfSign(data.sign), modalityOfSign(data.sign), data.retrograde ? "Retrograde" : ""].filter(Boolean).join(" · ")
+    : "";
+  const warning = data.warning ? `<span class="placement-card__warning">${esc(data.warning)}</span>` : "";
+  return `<button type="button" class="placement-card${data.unavailable ? " is-unavailable" : ""}" data-placement-name="${esc(name)}" data-placement-group="${esc(group)}" aria-label="${esc(data.title)} details">
+    <span class="placement-card__glyph" aria-hidden="true">${esc(data.glyph)}</span>
+    <span class="placement-card__main">
+      <span class="placement-card__title">${esc(data.title)}</span>
+      <span class="placement-card__meta">${esc(data.meta || data.degree)}</span>
+      <span class="placement-card__role">${esc(data.role)}</span>
+      ${warning}
+      ${technical ? `<span class="placement-card__tech advanced-only">${esc(technical)}</span>` : ""}
+    </span>
+    <span class="placement-card__chevron" aria-hidden="true">›</span>
+  </button>`;
+}
+
+function renderBigThree(bt) {
+  const chart = state.activeNatalChart;
+  const target = $("#bigthree");
+  if (!target || !chart) return;
+  target.innerHTML = CHART_KEY_PLACEMENTS.map((name) => placementCardHtml(chart, name, { group: "keys" })).join("");
 }
 
 function renderBars(elId, percentages, classMap) {
@@ -1763,36 +1851,82 @@ function renderBars(elId, percentages, classMap) {
 function renderKeyPlacements(chart) {
   const target = $("#key-placements");
   if (!target) return;
-  target.innerHTML = KEY_PLACEMENTS.map((name) => {
-    const p = chart.planets?.[name];
-    if (!p) return "";
-    const info = PLACEMENT_ROLES[name];
-    const extra = [
-      degLabel(p),
-      chart.time_known ? houseLabel(chart, name) : "",
-      p.retrograde ? "Retrograde" : "",
-    ].filter(Boolean).join(" · ");
-    const advanced = [
-      modalityElement(p.sign),
-      p.longitude != null ? `${Number(p.longitude).toFixed(2)}° absolute longitude` : "",
-    ].filter(Boolean).join(" · ");
-    return `<article class="placement-card">
-      <div class="placement-card__head">
-        <span class="placement-card__name">${esc(name)}</span>
-        <span class="placement-card__role">${esc(info.role)}</span>
+  target.innerHTML = PLANET_GRID_PLACEMENTS.map((name) => placementCardHtml(chart, name, { group: "planets" })).join("");
+}
+
+function placementDetailBodyHtml(chart, name) {
+  const data = placementData(chart, name);
+  const timeInfo = timeAccuracyInfo(chart.time_accuracy);
+  const detailRows = [
+    ["Sign", data.sign || "Unavailable"],
+    ["Exact degree", data.degree || "Unavailable"],
+    ["House", data.house || "House unavailable"],
+    ["Retrograde", data.retrograde ? "Yes" : "No"],
+  ];
+  const reliability = [];
+  if (chart.time_accuracy === "reported") reliability.push(TIME_ACCURACY_COPY.reported.note);
+  if (chart.time_accuracy === "approximate") reliability.push(TIME_ACCURACY_COPY.approximate.note);
+  if (chart.time_accuracy === "unknown" || data.unavailable || data.house === "House unavailable") reliability.push(TIME_ACCURACY_COPY.unknown.note);
+  if (chart.warnings?.includes("moon_approximate") && name === "Moon") reliability.push("Moon may shift signs without a birth time.");
+  return `
+    <div class="placement-detail-hero">
+      <span class="placement-detail-glyph" aria-hidden="true">${esc(data.glyph)}</span>
+      <div>
+        <p class="u-eyebrow">${esc(timeInfo.label)}</p>
+        <h3>${esc(data.title)}</h3>
+        <p>${esc(data.role)}</p>
       </div>
-      <div class="placement-card__sign">${SIGN_GLYPH[p.sign] || ""} ${esc(p.sign)}</div>
-      <div class="placement-card__meta">${esc(extra)}</div>
-      <p>${esc(info.meaning)}</p>
-      ${advanced ? `<div class="placement-card__advanced advanced-only">${esc(advanced)}</div>` : ""}
-    </article>`;
-  }).join("");
+    </div>
+    <dl class="placement-detail-facts">
+      ${detailRows.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}
+    </dl>
+    ${reliability.length ? `<div class="placement-detail-warnings">${[...new Set(reliability)].map((item) => `<span class="warn-chip">${esc(item)}</span>`).join("")}</div>` : ""}
+    <section class="placement-detail-section">
+      <h3>Simple interpretation</h3>
+      <p>${esc(data.meaning)}</p>
+    </section>
+    <section class="placement-detail-section advanced-only">
+      <h3>Advanced notes</h3>
+      <p>${esc(data.advanced || "No additional technical notes are available for this placement.")}</p>
+    </section>`;
+}
+
+function openPlacementDetail(button) {
+  const modal = $("#placement-detail-modal");
+  const chart = state.activeNatalChart;
+  const name = button?.dataset?.placementName;
+  if (!modal || !chart || !name) return;
+  const data = placementData(chart, name);
+  $("#placement-detail-kicker").textContent = button.dataset.placementGroup === "keys" ? "Chart Key" : "Planet";
+  $("#placement-detail-title").textContent = data.title;
+  $("#placement-detail-body").innerHTML = placementDetailBodyHtml(chart, name);
+  if (document.activeElement !== button) button.focus({ preventScroll: true });
+  openModal(modal, { initialFocus: $("#placement-detail-close") });
+}
+
+function wirePlacementDetails() {
+  const panel = $("#panel-me");
+  if (!panel || panel._placementDetailsWired) return;
+  panel._placementDetailsWired = true;
+  panel.addEventListener("click", (event) => {
+    const button = event.target.closest(".placement-card[data-placement-name]");
+    if (!button) return;
+    openPlacementDetail(button);
+  });
+  panel.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const button = event.target.closest(".placement-card[data-placement-name]");
+    if (!button) return;
+    event.preventDefault();
+    openPlacementDetail(button);
+  });
 }
 
 function renderPlacements(chart) {
   const target = $("#chart-placements");
   if (!target) return;
-  const rows = Object.values(chart.planets).map((p) =>
+  const orderedPlanets = STANDARD_PLANET_ORDER.map((name) => chart.planets?.[name]).filter(Boolean);
+  const rows = orderedPlanets.map((p) =>
     `<tr><td>${esc(p.name)}</td><td>${SIGN_GLYPH[p.sign] || ""} ${esc(p.sign)}</td><td>${degLabel(p)}</td><td>${p.retrograde ? "Retrograde" : ""}</td><td>${chart.planet_houses[p.name] ? "H" + chart.planet_houses[p.name] : "—"}</td></tr>`
   ).join("");
   const asp = chart.aspects.slice(0, 12).map((a) =>
@@ -1843,7 +1977,7 @@ function renderMeOverview(profile, chart, name) {
     $("#me-active-badge")?.setAttribute("hidden", "");
     target.innerHTML = `<div class="me-empty">
       <h2>No active chart yet</h2>
-      <p>Create your chart to see your Big Three, key placements, and saved profiles.</p>
+      <p>Create your chart to see your chart keys, planet grid, and saved profiles.</p>
       <button type="button" class="o-btn o-btn--primary" data-action="add-chart">Create your chart</button>
     </div>`;
     $("#bigthree").innerHTML = "";

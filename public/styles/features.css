@@ -98,6 +98,11 @@
 .me-panel--wide {
   grid-column: 1 / -1;
 }
+.me-panel--placements {
+  grid-column: 1 / -1;
+  padding: 16px;
+  background: color-mix(in oklab, var(--color-surface-elevated) 82%, transparent);
+}
 .me-section-head {
   display: grid;
   gap: 4px;
@@ -214,59 +219,153 @@
 .warn-chip { background: #3a2a12; border: 1px solid #6a4d1e; color: var(--gold);
   font-size: 12px; padding: 3px 9px; border-radius: 999px; }
 
-.bigthree { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
-.bigthree-item { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
-  padding: 16px; text-align: left; display: grid; gap: 6px; }
-.bigthree-item.unavailable { border-style: dashed; }
-.bt-glyph { font-size: 30px; color: var(--gold); }
-.bt-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-top: 6px; }
-.bt-sign { font-size: 20px; font-weight: 600; margin-top: 2px; }
-.bt-deg { font-size: 13px; color: var(--dim); }
-.bt-role,
-.bt-advanced {
-  color: var(--muted);
-  font-size: 12px;
-}
-.bigthree-item p {
-  color: var(--color-secondary);
-  line-height: 1.45;
-}
-
-.key-placements {
+.placement-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: 1fr;
+  grid-auto-rows: 1fr;
   gap: 10px;
 }
 .placement-card {
+  width: 100%;
+  min-height: 104px;
   display: grid;
-  gap: 7px;
+  grid-template-columns: 46px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
-  padding: 14px;
+  padding: 12px 14px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border: 1px solid color-mix(in oklab, var(--axis-lavender) 14%, var(--color-border));
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--color-surface-sunken) 92%, var(--axis-indigo) 8%);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard),
+    background var(--duration-fast) var(--ease-standard),
+    transform var(--duration-instant) var(--ease-standard);
+}
+.placement-card:hover {
+  border-color: color-mix(in oklab, var(--axis-lavender) 50%, var(--color-border));
+  background: color-mix(in oklab, var(--color-surface-sunken) 80%, var(--axis-indigo) 20%);
+}
+.placement-card:active { transform: translateY(1px); }
+.placement-card:focus-visible {
+  outline: 2px solid var(--axis-blue);
+  outline-offset: 2px;
+}
+.placement-card.is-unavailable {
+  border-style: dashed;
+}
+.placement-card__glyph {
+  width: 46px;
+  min-height: 46px;
+  display: grid;
+  place-items: center;
+  color: var(--axis-moon);
+  background: color-mix(in oklab, var(--axis-lavender) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--axis-lavender) 22%, transparent);
+  border-radius: 8px;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1;
+}
+.placement-card__main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.placement-card__title {
+  color: var(--color-primary);
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.placement-card__role,
+.placement-card__meta,
+.placement-card__tech,
+.placement-card__warning {
+  color: var(--color-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.placement-card__meta {
+  color: var(--axis-lavender);
+  font-weight: 700;
+}
+.placement-card__warning {
+  color: var(--gold);
+}
+.placement-card__chevron {
+  color: var(--color-muted);
+  font-size: 24px;
+  line-height: 1;
+  justify-self: end;
+}
+.placement-detail-panel {
+  max-width: 680px;
+}
+.placement-detail-body {
+  display: grid;
+  gap: 16px;
+}
+.placement-detail-hero {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+.placement-detail-glyph {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, var(--axis-lavender) 28%, var(--color-border));
+  background: color-mix(in oklab, var(--color-surface-sunken) 75%, var(--axis-indigo) 25%);
+  color: var(--axis-moon);
+  font-size: 26px;
+  font-weight: 700;
+}
+.placement-detail-hero h3,
+.placement-detail-section h3 {
+  color: var(--color-primary);
+}
+.placement-detail-hero p,
+.placement-detail-section p {
+  color: var(--color-secondary);
+  line-height: 1.55;
+}
+.placement-detail-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.placement-detail-facts div {
+  min-width: 0;
+  padding: 10px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface-sunken);
 }
-.placement-card__head {
-  display: grid;
-  gap: 2px;
-}
-.placement-card__name {
-  color: var(--color-primary);
-  font-weight: 700;
-}
-.placement-card__role,
-.placement-card__meta,
-.placement-card__advanced {
+.placement-detail-facts dt {
   color: var(--color-secondary);
   font-size: 12px;
 }
-.placement-card__sign {
-  color: var(--gold);
-  font-weight: 700;
+.placement-detail-facts dd {
+  margin: 2px 0 0;
+  color: var(--color-primary);
+  overflow-wrap: anywhere;
 }
-.placement-card p {
-  color: var(--color-secondary);
-  line-height: 1.45;
+.placement-detail-warnings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.placement-detail-section {
+  display: grid;
+  gap: 6px;
 }
 
 .balance-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 8px; }
@@ -293,15 +392,22 @@
 @media (max-width: 640px) {
   .me-page-head { align-items: start; }
   .me-grid,
-  .bigthree,
   .balance-row,
   .me-overview__big,
   .me-facts,
   .me-section-head--actions { grid-template-columns: 1fr; }
   .me-panel { padding: 14px; }
+  .placement-card { min-height: 96px; }
+  .placement-detail-facts { grid-template-columns: 1fr; }
   .saved-chart-card__actions button { flex: 1 1 120px; }
 }
 @media (min-width: 641px) and (max-width: 960px) {
   .me-grid { grid-template-columns: 1fr; }
   .me-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .placement-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .placement-grid > .placement-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (min-width: 961px) {
+  .placement-grid--keys { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .placement-grid--planets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
