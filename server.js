@@ -37,6 +37,7 @@ import { chartInputHash } from "./lib/astro/natal.js";
 import { randomUUID } from "node:crypto";
 import { handleChartsRoute } from "./lib/charts/api.js";
 import { handleFortuneRoute } from "./lib/fortune/api.js";
+import { handleAskRoute } from "./lib/ask-orbit/api.js";
 import { LocationError, searchGeoapify } from "./lib/locations/geoapify.js";
 import {
   authenticateRequest,
@@ -719,6 +720,17 @@ const server = http.createServer(async (req, res) => {
       const body = (req.method === "POST" || req.method === "PUT")
         ? await readBody(req) : {};
       const handled = await handleFortuneRoute(req.method, route, url.searchParams, body, authContext(auth));
+      if (handled) return json(res, handled.status, handled.body, auth?.setCookie ? { "Set-Cookie": auth.setCookie } : {});
+    }
+
+    // Ask Orbit — evidence-grounded astrology consultation + conversation
+    // history. Owner-scoped: every request requires a Supabase Auth session.
+    if (route === "/api/ask" || route.startsWith("/api/ask/")) {
+      const auth = await requireAuth(req, res);
+      if (!auth) return;
+      const body = (req.method === "POST" || req.method === "PATCH")
+        ? await readBody(req) : {};
+      const handled = await handleAskRoute(req.method, route, url.searchParams, body, authContext(auth));
       if (handled) return json(res, handled.status, handled.body, auth?.setCookie ? { "Set-Cookie": auth.setCookie } : {});
     }
 
