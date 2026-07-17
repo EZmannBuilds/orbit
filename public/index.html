@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/styles/features.css" />
   <link rel="stylesheet" href="/styles/orbit-axis.css" />
   <link rel="stylesheet" href="/styles/chat.css" />
+  <link rel="stylesheet" href="/styles/ask.css" />
   <link rel="stylesheet" href="/styles/tarot.css" />
   <link rel="stylesheet" href="/styles/learn.css" />
   <link rel="stylesheet" href="/styles/news.css" />
@@ -104,7 +105,7 @@
 
           <div class="axis-card">
             <div class="axis-ask">
-              <a class="axis-ask__btn" href="#ask">✦ Ask Orbit Axis</a>
+              <a class="axis-ask__btn" href="#ask">✦ Ask Orbit</a>
               <span class="axis-ask__hint">Curious about a word or placement? Ask in plain language — it runs on your machine.</span>
             </div>
           </div>
@@ -375,69 +376,75 @@
         <section class="workspace-panel" id="panel-ask" role="tabpanel" aria-labelledby="tab-ask" hidden>
           <div class="o-section-head">
             <div class="o-section-head__text">
-              <h1 class="u-title">Ask Orbit Axis</h1>
-              <p class="u-caption">A calm place to ask about your chart, today’s sky, tarot symbolism, and astrology basics.</p>
+              <h1 class="u-title">Ask Orbit</h1>
+              <p class="u-caption">A guided astrology consultation. Answers are grounded in your active chart and the current sky, and every one shows its evidence.</p>
+            </div>
+            <div class="o-section-head__actions">
+              <button class="o-btn o-btn--ghost o-btn--sm" id="ask-history-btn" type="button" aria-haspopup="dialog">History</button>
+              <button class="o-btn o-btn--secondary o-btn--sm" id="ask-new-btn" type="button">New conversation</button>
             </div>
           </div>
 
-          <div class="chat-shell" aria-label="Orbit Axis chat">
-            <header class="chat-head">
-              <div class="chat-orbit" aria-hidden="true"><span></span></div>
-              <div>
-                <div class="chat-head__title">Orbit Axis</div>
-                <div class="chat-head__chart">Using: <strong id="chat-active-chart">My Chart</strong></div>
-              </div>
-              <div class="chat-head__actions">
-                <button class="chat-icon-btn" id="chat-close" type="button" aria-label="Back to Home">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
-                </button>
-                <button class="chat-icon-btn" id="chat-history" type="button" aria-label="Conversation history">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>
-                </button>
-                <button class="chat-icon-btn" id="chat-new" type="button" aria-label="New conversation">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                </button>
-              </div>
-            </header>
+          <div class="ask-shell">
+            <div class="ask-using" id="ask-using">Using <strong id="ask-active-chart">your active chart</strong></div>
 
-            <div class="chat-welcome" id="chat-welcome">
-              <div class="chat-welcome__art" aria-hidden="true">
-                <span class="chat-planet"></span>
-                <span class="chat-ring chat-ring--one"></span>
-                <span class="chat-ring chat-ring--two"></span>
-              </div>
-              <div>
-                <h2>What would you like to understand?</h2>
-                <p>Ask in everyday language. Orbit Axis keeps calculated chart facts separate from interpretation.</p>
-              </div>
-              <div class="chat-prompts" aria-label="Suggested prompts">
-                <button type="button" data-chat-prompt="Explain my Big Three">Explain my Big Three</button>
-                <button type="button" data-chat-prompt="What does today’s Moon mean for me?">What does today’s Moon mean for me?</button>
-                <button type="button" data-chat-prompt="What does my Venus sign mean?">What does my Venus sign mean?</button>
-                <button type="button" data-chat-prompt="Compare me with someone">Compare me with someone</button>
-                <button type="button" data-chat-prompt="Explain Mercury retrograde">Explain Mercury retrograde</button>
-                <button type="button" data-chat-prompt="Give me a tarot reflection">Give me a tarot reflection</button>
-                <button type="button" data-chat-prompt="What house rules relationships?">What house rules relationships?</button>
-                <button type="button" data-chat-prompt="What does this transit mean?">What does this transit mean?</button>
-              </div>
+            <!-- Distinct failure / gate states (never onboarding). -->
+            <div class="ask-state" id="ask-signedout" hidden>
+              <h2>Sign in to ask Orbit</h2>
+              <p>Ask Orbit reads your saved chart, so it needs you signed in. Head to Home to sign in, then come back.</p>
+              <button class="o-btn o-btn--primary" type="button" data-goto="home">Go to Home</button>
+            </div>
+            <div class="ask-state" id="ask-nochart" hidden>
+              <h2>Add a chart first</h2>
+              <p>Ask Orbit answers from your natal chart. Add one on Home, then ask away.</p>
+              <button class="o-btn o-btn--primary" type="button" data-goto="home">Add a chart</button>
+            </div>
+            <div class="ask-state ask-state--error" id="ask-loaderror" role="alert" hidden>
+              <h2>We couldn’t load Ask Orbit</h2>
+              <p>Something interrupted loading your chart context.</p>
+              <button class="o-btn o-btn--secondary" type="button" id="ask-reload">Try again</button>
             </div>
 
-            <div class="chat-log" id="chat-log" aria-live="polite"></div>
+            <!-- Empty state: intro + adaptive suggestions. -->
+            <div class="ask-empty" id="ask-empty" hidden>
+              <div class="ask-empty__intro">
+                <h2>What would you like to understand?</h2>
+                <p>Ask in everyday language. Orbit keeps calculated chart facts separate from interpretation, and shows the evidence behind every answer.</p>
+              </div>
+              <div class="ask-suggestions" id="ask-suggestions" aria-label="Suggested questions"></div>
+            </div>
 
-            <div class="chat-footer">
-              <div class="chat-status" id="chat-status" role="status" aria-live="polite" hidden></div>
-              <form class="chat-compose" id="chat-form">
-                <label class="sr-only" for="chat-prompt">Ask Orbit Axis</label>
-                <textarea id="chat-prompt" rows="2" placeholder="Ask Orbit Axis…" autocomplete="off"></textarea>
-                <button type="button" id="chat-stop" class="chat-stop" hidden aria-label="Stop generating">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-                  <span>Stop</span>
+            <!-- Conversation thread. -->
+            <div class="ask-thread" id="ask-thread" aria-live="polite"></div>
+
+            <!-- Question composer. -->
+            <form class="ask-compose" id="ask-form" hidden>
+              <label class="ask-compose__label" for="ask-input">Ask a question</label>
+              <div class="ask-compose__row">
+                <textarea id="ask-input" rows="2" maxlength="2000" placeholder="e.g. What should I pay attention to today?" autocomplete="off" aria-describedby="ask-hint"></textarea>
+                <div class="ask-compose__actions">
+                  <button type="button" id="ask-cancel" class="ask-cancel" hidden aria-label="Stop this answer">Stop</button>
+                  <button type="submit" id="ask-send" class="ask-send">Ask</button>
+                </div>
+              </div>
+              <div class="ask-compose__foot">
+                <span class="ask-hint" id="ask-hint">Enter to send · Shift + Enter for a new line</span>
+                <span class="ask-status" id="ask-status" role="status" aria-live="polite" hidden></span>
+              </div>
+            </form>
+          </div>
+
+          <!-- History drawer (focus-trapped modal). -->
+          <div class="ask-drawer" id="ask-drawer" role="dialog" aria-modal="true" aria-label="Conversation history" hidden>
+            <div class="ask-drawer__scrim" data-ask-drawer-dismiss></div>
+            <div class="ask-drawer__panel">
+              <header class="ask-drawer__head">
+                <h2 class="u-card-title">Recent conversations</h2>
+                <button class="chat-icon-btn" id="ask-drawer-close" type="button" aria-label="Close history">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
                 </button>
-                <button type="submit" id="chat-send" aria-label="Send message">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4Z"/></svg>
-                  <span>Ask</span>
-                </button>
-              </form>
+              </header>
+              <div class="ask-drawer__list" id="ask-drawer-list"></div>
             </div>
           </div>
         </section>

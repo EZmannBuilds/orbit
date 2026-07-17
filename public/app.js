@@ -185,7 +185,7 @@ const WORKSPACES = [
   { id: "home", label: "Home", crumb: "Your day", icon: "home", primary: true },
   { id: "me", label: "Me", crumb: "Your chart", icon: "me", primary: true },
   { id: "tarot", label: "Tarot", crumb: "Daily cards", icon: "tarot", primary: true },
-  { id: "ask", label: "Ask", desktopLabel: "Ask Orbit Axis", crumb: "Chat", icon: "ask", primary: true, central: true },
+  { id: "ask", label: "Ask", desktopLabel: "Ask Orbit", crumb: "Astrology consultation", icon: "ask", primary: true, central: true },
   { id: "learn", label: "Learn", crumb: "Courses", icon: "learn", primary: true },
   { id: "news", label: "News", crumb: "Verified articles", icon: "news", primary: true },
   { id: "more", label: "More", crumb: "Tools & settings", icon: "more", primary: true },
@@ -460,7 +460,7 @@ const cmd = { open: false, index: 0, items: [] };
 function commandItems() {
   const nav = WORKSPACES.map(ws => ({ group: "Go to", label: ws.label, glyph: "→", hint: `#${ws.id}`, run: () => navigate(ws.id) }));
   const actions = [
-    { group: "Actions", label: "Ask Orbit Axis", glyph: "?", run: () => { navigate("ask"); setTimeout(() => $("#chat-prompt").focus(), 60); } },
+    { group: "Actions", label: "Ask Orbit", glyph: "?", run: () => { navigate("ask"); setTimeout(() => $("#ask-input")?.focus(), 60); } },
     { group: "Actions", label: "Look up a birth sign", glyph: "☉", run: () => { navigate("charts"); setTimeout(() => $("#birth-date").focus(), 60); } },
     { group: "Actions", label: "Toggle theme", glyph: "◐", run: () => settings.set("theme", document.documentElement.dataset.theme === "dark" ? "light" : "dark") },
     { group: "Actions", label: "Toggle density", glyph: "▤", run: () => settings.set("density", document.documentElement.dataset.density === "compact" ? "comfortable" : "compact") },
@@ -1243,21 +1243,23 @@ function wireKeyboard() {
   $("#cmd-overlay").addEventListener("click", e => { if (e.target === $("#cmd-overlay")) closeCommand(); });
 }
 
-/* ── Central Orbit Axis chat (streamed) ────────────────────────────────── */
-// Session-only conversation. `messages` holds completed turns; a browser
-// refresh clears it, so a refresh can never leave a permanently "typing"
-// bubble. `controller` lets the Stop button abort an in-flight stream.
-const chatState = { messages: [], streaming: false, controller: null };
+/* ── Ask Orbit — guided astrology consultation (Update 4.0) ──────────────── */
+// A focused astrology advisor. Every answer is grounded in the deterministic
+// astrology engine and shows its evidence ("Why Orbit Said This"). One request
+// per question (not streamed); the deterministic engine answers even if the
+// optional local model is offline. Session state holds the active conversation
+// so follow-ups thread together; a refresh starts a fresh view.
+const askState = { conversationId: null, submitting: false, controller: null, loaded: false, lastQuestion: "" };
 
 function setActiveChartName(name) {
   state.activeChartName = name || "My Chart";
-  const chatChart = $("#chat-active-chart");
-  if (chatChart) chatChart.textContent = state.activeChartName;
+  const el = $("#ask-active-chart");
+  if (el) el.textContent = state.activeChartName;
 }
 
-// Short, non-technical status copy. Technical detail stays in dev logs.
-function setChatStatus(stateName, text = "") {
-  const el = $("#chat-status");
+// Short, non-technical status copy under the composer.
+function setAskStatus(stateName, text = "") {
+  const el = $("#ask-status");
   if (!el) return;
   if (!text) { el.hidden = true; el.textContent = ""; el.dataset.state = ""; return; }
   el.hidden = false;
@@ -1265,207 +1267,298 @@ function setChatStatus(stateName, text = "") {
   el.textContent = text;
 }
 
-// Toggle the composer between "send" and "streaming" (Stop visible) modes.
-function setComposerStreaming(on) {
-  chatState.streaming = on;
-  const send = $("#chat-send");
-  const stop = $("#chat-stop");
-  if (send) send.hidden = on;
-  if (stop) stop.hidden = !on;
+// Toggle the composer between idle and submitting (Stop visible) modes.
+function setAskSubmitting(on) {
+  askState.submitting = on;
+  const send = $("#ask-send");
+  const cancel = $("#ask-cancel");
+  const input = $("#ask-input");
+  if (send) { send.disabled = on; send.setAttribute("aria-busy", String(on)); }
+  if (cancel) cancel.hidden = !on;
+  if (input) input.setAttribute("aria-busy", String(on));
 }
 
-// Only auto-scroll if the user is already near the bottom, so we never yank a
-// user who has scrolled up to read earlier messages.
-function chatNearBottom(log) {
-  return log.scrollHeight - log.scrollTop - log.clientHeight < 80;
-}
-function chatScroll(log, force = false) {
-  if (force || chatNearBottom(log)) log.scrollTop = log.scrollHeight;
-}
-
-// Minimal, safe Markdown: escape everything first, then re-introduce a small,
-// fixed set of inline formatting. No raw HTML, scripts, or links survive.
+// Minimal, safe Markdown for answer prose: escape first, then re-introduce a
+// small fixed set of inline formatting. No raw HTML, scripts, or links survive.
 function renderMarkdownSafe(text) {
   let html = esc(String(text ?? ""));
-  html = html.replace(/```([\s\S]*?)```/g, (_, code) => `<pre class="chat-code"><code>${code.replace(/^\n/, "")}</code></pre>`);
   html = html.replace(/`([^`\n]+)`/g, "<code>$1</code>");
   html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
   html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
-  return html;
+  return html.replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>");
 }
 
-function chatUserMessage(text) {
-  return `<article class="chat-message chat-message--user">
-    <div class="chat-message__label">You</div>
-    <div class="chat-message__body">${esc(text)}</div>
-  </article>`;
+// Show exactly one of the Ask panel's mutually-exclusive states.
+function showAskState(which) {
+  const states = { signedout: "#ask-signedout", nochart: "#ask-nochart", loaderror: "#ask-loaderror", empty: "#ask-empty" };
+  for (const [key, sel] of Object.entries(states)) {
+    const el = $(sel);
+    if (el) el.hidden = key !== which;
+  }
+  // The composer is usable only when we have a chart to talk about.
+  const form = $("#ask-form");
+  if (form) form.hidden = !(which === "empty" || which === "thread");
+  if (which === "thread") { const e = $("#ask-empty"); if (e) e.hidden = true; }
 }
 
-function chatAssistantShell(id) {
-  return `<article class="chat-message chat-message--axis" id="${id}" aria-live="polite">
-    <div class="chat-message__label">Orbit Axis</div>
-    <div class="chat-message__body" data-body>
-      <span class="chat-typing" aria-label="Orbit Axis is thinking"><span></span><span></span><span></span></span>
+function askEvidenceHtml(evidence = []) {
+  if (!evidence.length) return "";
+  const items = evidence.map((e) => {
+    const kind = String(e.type || "").startsWith("limitation")
+      ? "ask-evidence__item ask-evidence__item--limit"
+      : "ask-evidence__item";
+    return `<li class="${kind}">${esc(e.label)}</li>`;
+  }).join("");
+  return `<details class="ask-why">
+    <summary>Why Orbit Said This</summary>
+    <ul class="ask-evidence">${items}</ul>
+  </details>`;
+}
+
+function askTurnHtml(id, question) {
+  return `<article class="ask-turn" id="${id}">
+    <div class="ask-q"><span class="ask-q__label">You asked</span><p class="ask-q__text">${esc(question)}</p></div>
+    <div class="ask-a" data-answer aria-live="polite">
+      <span class="ask-thinking" aria-label="Orbit is consulting your chart"><span></span><span></span><span></span></span>
     </div>
-    <div class="chat-message__meta" data-meta hidden></div>
   </article>`;
 }
 
-function wireChat() {
-  const form = $("#chat-form");
-  if (!form) return;
-  const prompt = $("#chat-prompt");
+function answerBodyHtml(data) {
+  const a = data.answer || {};
+  const parts = [];
+  if (a.direct) parts.push(`<p class="ask-a__direct">${renderMarkdownSafe(a.direct)}</p>`);
+  if (a.interpretation) parts.push(`<p class="ask-a__interp">${renderMarkdownSafe(a.interpretation)}</p>`);
+  if (a.reflection) parts.push(`<p class="ask-a__reflect">${renderMarkdownSafe(a.reflection)}</p>`);
+  const rel = data.birth_time_reliability;
+  const relNote = (rel === "unknown" || rel === "approximate")
+    ? `<p class="ask-a__reliability">Birth-time reliability: ${esc(rel)}.</p>` : "";
+  return `${parts.join("")}${relNote}${askEvidenceHtml(data.evidence)}
+    <p class="ask-a__disclaimer">${esc(data.disclaimer || "Orbit offers symbolic reflection, not prediction or medical, legal, or financial advice.")}</p>`;
+}
 
-  $$("[data-chat-prompt]").forEach(button => {
-    button.addEventListener("click", () => {
-      navigate("ask");
-      setTimeout(() => { prompt.value = button.dataset.chatPrompt; prompt.focus(); }, 60);
+function askErrorHtml(message, question) {
+  return `<div class="ask-a__error" role="alert">${esc(message)}</div>
+    <button type="button" class="o-btn o-btn--secondary o-btn--sm ask-retry" data-retry="${esc(question)}">Try again</button>`;
+}
+
+// Populate the empty-state suggestion chips (context-adaptive, from the server).
+function renderAskSuggestions(list = []) {
+  const wrap = $("#ask-suggestions");
+  if (!wrap) return;
+  if (!list.length) { wrap.innerHTML = ""; return; }
+  wrap.innerHTML = list.map((s) =>
+    `<button type="button" class="ask-chip" data-ask-suggestion="${esc(s.text)}">${esc(s.text)}</button>`
+  ).join("");
+}
+
+// Load the empty-state context: active chart + adaptive suggestions, plus the
+// distinct not-signed-in / no-chart / load-error states.
+async function loadAskEmptyState({ force = false } = {}) {
+  if (askState.loaded && !force) return;
+  const res = await get("/api/ask/suggestions").catch(() => ({ ok: false, _network: true }));
+  askState.loaded = true;
+  if (!res || res.ok === false) {
+    if (res && res._network) { showAskState("loaderror"); return; }
+    // requireAuth returns 401 with ok:false → treat as signed-out.
+    showAskState("signedout");
+    return;
+  }
+  if (!res.active_chart) { showAskState("nochart"); return; }
+  setActiveChartName(res.active_chart.nickname || "My Chart");
+  renderAskSuggestions(res.suggestions || []);
+  // Only reset to the empty state if no conversation is in progress.
+  if (!askState.conversationId && !$("#ask-thread")?.children.length) showAskState("empty");
+}
+
+function onAskShown() {
+  if (currentWorkspace() !== "ask") return;
+  loadAskEmptyState();
+  setTimeout(() => $("#ask-input")?.focus(), 60);
+}
+
+// Submit a question. Keeps the user's text until the request is accepted; on
+// failure the question card stays with a Retry. Never reports success on error.
+async function submitAsk(question, { isRetry = false, retryCard = null } = {}) {
+  const text = String(question || "").trim();
+  if (!text) { setAskStatus("error", "Enter a question first."); return; }
+  if (text.length > 2000) { setAskStatus("error", "That question is too long (2000 characters max)."); return; }
+  if (askState.submitting) return;
+
+  showAskState("thread");
+  const thread = $("#ask-thread");
+  const input = $("#ask-input");
+  askState.lastQuestion = text;
+
+  const id = `ask-${Date.now()}`;
+  if (retryCard) retryCard.remove();
+  thread.insertAdjacentHTML("beforeend", askTurnHtml(id, text));
+  const card = $(`#${id}`);
+  const answerEl = card.querySelector("[data-answer]");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  card.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+  setAskSubmitting(true);
+  setAskStatus("thinking", "Orbit is consulting your chart…");
+
+  const controller = new AbortController();
+  askState.controller = controller;
+
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question: text, conversation_id: askState.conversationId }),
+      signal: controller.signal,
     });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // Distinct, honest failure states — never fall back to onboarding.
+      if (res.status === 401) { answerEl.innerHTML = askErrorHtml("Please sign in to ask Orbit.", text); }
+      else if (data.code === "no_active_chart") { answerEl.innerHTML = askErrorHtml("Add a chart first, then ask Orbit about it.", text); }
+      else if (data.code === "chart_load_failed") { answerEl.innerHTML = askErrorHtml("We couldn't load your chart just now.", text); }
+      else if (data.code === "question_too_long") { answerEl.innerHTML = askErrorHtml("That question is too long.", text); }
+      else if (data.code === "generation_failed") { answerEl.innerHTML = askErrorHtml("Orbit couldn't generate an answer just now. Your question was saved.", text); }
+      else { answerEl.innerHTML = askErrorHtml(data.error || `Request failed (${res.status}).`, text); }
+      setAskStatus("error", "Couldn't complete that. You can try again.");
+      return;
+    }
+    // Success: render answer + evidence, thread the conversation, clear input.
+    askState.conversationId = data.conversation?.id || askState.conversationId;
+    if (data.active_chart?.nickname) setActiveChartName(data.active_chart.nickname);
+    answerEl.innerHTML = answerBodyHtml(data);
+    if (input && !isRetry) input.value = "";
+    const note = data.provider === "ollama" ? "" : (data.provider_note ? "Answered from your chart’s calculated evidence." : "");
+    setAskStatus("complete", note);
+    if (!note) setTimeout(() => setAskStatus("ready", ""), 1000);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      answerEl.innerHTML = `<div class="ask-a__cancelled">Cancelled.</div>` + askErrorHtml("You stopped this answer.", text).replace(/^<div[^>]*>.*?<\/div>/, "");
+      setAskStatus("ready", "");
+    } else {
+      answerEl.innerHTML = askErrorHtml("Something interrupted the request. Check your connection and try again.", text);
+      setAskStatus("error", "Network problem. You can try again.");
+    }
+  } finally {
+    askState.controller = null;
+    setAskSubmitting(false);
+  }
+}
+
+function startNewConversation() {
+  if (askState.submitting) askState.controller?.abort();
+  askState.conversationId = null;
+  const thread = $("#ask-thread");
+  if (thread) thread.innerHTML = "";
+  setAskStatus("ready", "");
+  showAskState("empty");
+  const input = $("#ask-input");
+  if (input) { input.value = ""; input.focus(); }
+}
+
+// ── History drawer (owner-scoped conversations) ──────────────────────────────
+async function openAskHistory() {
+  const drawer = $("#ask-drawer");
+  const listEl = $("#ask-drawer-list");
+  if (!drawer || !listEl) return;
+  listEl.innerHTML = `<p class="ask-drawer__empty">Loading…</p>`;
+  openModal(drawer, { initialFocus: $("#ask-drawer-close") });
+  const res = await get("/api/ask/conversations").catch(() => ({ ok: false }));
+  const conversations = (res && res.ok && res.conversations) || [];
+  if (!conversations.length) {
+    listEl.innerHTML = `<p class="ask-drawer__empty">No saved conversations yet. Your questions will collect here.</p>`;
+    return;
+  }
+  listEl.innerHTML = conversations.map((c) =>
+    `<button type="button" class="ask-history-item" data-conversation="${esc(c.id)}">
+      <span class="ask-history-item__title">${esc(c.title || "Conversation")}</span>
+    </button>`
+  ).join("");
+}
+
+async function reopenConversation(id) {
+  const res = await get(`/api/ask/conversations/${encodeURIComponent(id)}`).catch(() => ({ ok: false }));
+  if (!res || !res.ok) { toast("Couldn't open that conversation."); return; }
+  closeModal($("#ask-drawer"));
+  askState.conversationId = id;
+  const thread = $("#ask-thread");
+  thread.innerHTML = "";
+  showAskState("thread");
+  for (const m of res.messages || []) {
+    const turnId = `ask-${m.id}`;
+    thread.insertAdjacentHTML("beforeend", askTurnHtml(turnId, m.question));
+    const answerEl = $(`#${turnId}`).querySelector("[data-answer]");
+    if (m.status === "failed" || !m.answer) {
+      answerEl.innerHTML = askErrorHtml("This answer didn't complete. You can ask again.", m.question);
+    } else {
+      answerEl.innerHTML = answerBodyHtml({
+        answer: m.answer_parts && Object.keys(m.answer_parts).length ? m.answer_parts : { direct: m.answer, interpretation: "", reflection: "" },
+        evidence: m.evidence || [],
+        birth_time_reliability: m.birth_time_reliability,
+        disclaimer: "Orbit offers symbolic reflection, not prediction or medical, legal, or financial advice.",
+      });
+    }
+  }
+  navigate("ask");
+}
+
+function wireAsk() {
+  const form = $("#ask-form");
+  if (!form) return;
+  const input = $("#ask-input");
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitAsk(input.value);
   });
 
-  $("#chat-new")?.addEventListener("click", () => {
-    if (chatState.streaming) chatState.controller?.abort();
-    chatState.messages = [];
-    $("#chat-log").innerHTML = "";
-    $("#chat-welcome").hidden = false;
-    setChatStatus("ready", "");
-    prompt.value = "";
-    prompt.focus();
-  });
-
-  $("#chat-close")?.addEventListener("click", () => navigate("home"));
-  $("#chat-history")?.addEventListener("click", () => toast("Conversation history is coming soon."));
-  $("#chat-stop")?.addEventListener("click", () => chatState.controller?.abort());
-
-  // Enter sends; Shift+Enter inserts a newline.
-  prompt.addEventListener("keydown", (event) => {
+  // Enter submits; Shift+Enter inserts a newline.
+  input?.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       form.requestSubmit();
     }
   });
 
-  // Retry (delegated): re-run the original message without duplicating it.
-  $("#chat-log")?.addEventListener("click", (event) => {
+  $("#ask-cancel")?.addEventListener("click", () => askState.controller?.abort());
+  $("#ask-new-btn")?.addEventListener("click", startNewConversation);
+  $("#ask-history-btn")?.addEventListener("click", openAskHistory);
+  $("#ask-drawer-close")?.addEventListener("click", () => closeModal($("#ask-drawer")));
+  $("#ask-reload")?.addEventListener("click", () => loadAskEmptyState({ force: true }));
+  $("[data-ask-drawer-dismiss]")?.addEventListener("click", () => closeModal($("#ask-drawer")));
+
+  // Suggested-question chips populate + submit predictably.
+  $("#ask-suggestions")?.addEventListener("click", (event) => {
+    const chip = event.target.closest("[data-ask-suggestion]");
+    if (!chip) return;
+    if (input) input.value = chip.dataset.askSuggestion;
+    submitAsk(chip.dataset.askSuggestion);
+  });
+
+  // Retry (delegated), reusing the original question without duplicating it.
+  $("#ask-thread")?.addEventListener("click", (event) => {
     const retry = event.target.closest("[data-retry]");
-    if (!retry || chatState.streaming) return;
-    const text = retry.dataset.retry;
-    retry.closest(".chat-message")?.remove();
-    runChatTurn(text, { isRetry: true });
+    if (!retry || askState.submitting) return;
+    submitAsk(retry.dataset.retry, { isRetry: true, retryCard: retry.closest(".ask-turn") });
   });
 
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    if (chatState.streaming) return;
-    const text = prompt.value.trim();
-    if (!text) return;
-    prompt.value = "";
-    runChatTurn(text);
+  // History drawer list (delegated).
+  $("#ask-drawer-list")?.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-conversation]");
+    if (item) reopenConversation(item.dataset.conversation);
   });
-}
 
-function parseSseFrame(frame) {
-  const event = (frame.match(/^event: (.*)$/m) || [])[1] || "message";
-  const dataLine = (frame.match(/^data: ([\s\S]*)$/m) || [])[1] || "{}";
-  let data = {};
-  try { data = JSON.parse(dataLine); } catch { /* skip malformed frame */ }
-  return { event, data };
-}
-
-async function runChatTurn(promptText, { isRetry = false } = {}) {
-  $("#chat-welcome").hidden = true;
-  const log = $("#chat-log");
-  if (!isRetry) log.insertAdjacentHTML("beforeend", chatUserMessage(promptText));
-
-  const id = `axis-${Date.now()}`;
-  log.insertAdjacentHTML("beforeend", chatAssistantShell(id));
-  const article = $(`#${id}`);
-  const bodyEl = article.querySelector("[data-body]");
-  const metaEl = article.querySelector("[data-meta]");
-  chatScroll(log, true);
-  setChatStatus("thinking", "Orbit Axis is thinking…");
-  setComposerStreaming(true);
-
-  const controller = new AbortController();
-  chatState.controller = controller;
-  let acc = "", got = false, notice = null, finalPath = null, streamError = false;
-
-  try {
-    const res = await fetch("/api/axis/chat/stream", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ message: promptText, messages: chatState.messages.slice(-8) }),
-      signal: controller.signal,
+  // Compatibility: existing [data-chat-prompt] buttons across the app prefill
+  // the Ask composer and jump here.
+  $$("[data-chat-prompt]").forEach((button) => {
+    button.addEventListener("click", () => {
+      navigate("ask");
+      setTimeout(() => { if (input) { input.value = button.dataset.chatPrompt; input.focus(); } }, 80);
     });
-    if (!res.ok || !res.body) {
-      const data = await res.json().catch(() => ({}));
-      const err = new Error(data.error || `Request failed (${res.status})`);
-      err.userFacing = true;
-      throw err;
-    }
+  });
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let idx;
-      while ((idx = buffer.indexOf("\n\n")) >= 0) {
-        const frame = buffer.slice(0, idx);
-        buffer = buffer.slice(idx + 2);
-        if (!frame.trim()) continue;
-        const { event, data } = parseSseFrame(frame);
-        if (event === "meta") {
-          if (data.chart) setActiveChartName(data.chart);
-        } else if (event === "delta") {
-          got = true;
-          acc += data.text;
-          bodyEl.innerHTML = renderMarkdownSafe(acc);
-          setChatStatus(notice ? "fallback" : "streaming", notice || "Orbit Axis is replying…");
-          chatScroll(log);
-        } else if (event === "notice") {
-          notice = data.text;
-          setChatStatus("fallback", notice);
-        } else if (event === "done") {
-          finalPath = data.path;
-        } else if (event === "error") {
-          streamError = true;
-        }
-      }
-    }
-
-    if (!got && streamError) throw Object.assign(new Error("The response was interrupted."), { userFacing: true });
-
-    // Finalize a single assistant message (no duplicates).
-    bodyEl.innerHTML = got ? renderMarkdownSafe(acc) : renderMarkdownSafe("I don't have a response for that right now.");
-    if (notice) { metaEl.hidden = false; metaEl.textContent = notice; }
-    chatState.messages.push({ role: "user", content: promptText }, { role: "assistant", content: acc });
-    setChatStatus("complete", finalPath === "fallback" ? (notice || "Answered from verified data.") : "");
-    if (finalPath !== "fallback") setTimeout(() => setChatStatus("ready", ""), 1200);
-  } catch (error) {
-    if (controller.signal.aborted) {
-      // Stopped by the user: keep whatever streamed, mark it stopped, no retry.
-      if (got) {
-        bodyEl.innerHTML = renderMarkdownSafe(acc);
-        metaEl.hidden = false; metaEl.textContent = "Stopped.";
-        chatState.messages.push({ role: "user", content: promptText }, { role: "assistant", content: acc });
-      } else {
-        article.remove();
-      }
-      setChatStatus("ready", "");
-    } else {
-      // Failure: offer Retry, reusing the original message.
-      bodyEl.innerHTML = `<span class="chat-error">Something interrupted the reply.</span>`;
-      metaEl.hidden = false;
-      metaEl.innerHTML = `<button type="button" class="chat-retry" data-retry="${esc(promptText)}">Retry</button>`;
-      setChatStatus("error", "Couldn't complete that. You can retry.");
-    }
-  } finally {
-    chatState.controller = null;
-    setComposerStreaming(false);
-  }
+  // Load the empty state when the Ask panel is shown.
+  window.addEventListener("hashchange", onAskShown);
+  onAskShown();
 }
 
 /* ── Data ──────────────────────────────────────────────────────────────── */
@@ -1516,7 +1609,7 @@ async function boot() {
   wirePlacementDetails();
   wireHomeChartActions();
   wireKeyboard();
-  wireChat();
+  wireAsk();
 
   $("#topnav-date").textContent = new Date().toLocaleDateString("en-US", {
     weekday: "short", month: "short", day: "numeric",
