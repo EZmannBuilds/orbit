@@ -30,6 +30,9 @@ Supabase stores live structured application data:
 - runtime logs and LLM run metadata
 - vault edit proposals and note version records
 - structured business metrics
+- Ask Orbit conversations and messages (owner-scoped, RLS), including the
+  evidence, question type, and engine version behind each answer — see
+  [`ask-orbit.md`](ask-orbit.md)
 
 Raw monthly revenue rows, subscription counts, active users, conversion rates,
 and operating expenses belong in Supabase. A human-readable monthly business

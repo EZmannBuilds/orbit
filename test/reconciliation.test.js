@@ -119,6 +119,16 @@ test("reconciled: Simple keeps all planets; Advanced only adds technical detail"
 });
 
 // ── Both lines coexist with the new Update 4.0 surface ───────────────────────
+test("Ask Orbit distinguishes signed-out, no-chart, and chart-load-failure states", () => {
+  // 401 must render the sign-in state, not a generic error.
+  assert.match(appJs, /error\.status === 401 \? "signedout" : "loaderror"/, "401 maps to the signed-out state");
+  // A failed chart lookup must never be shown as "you have no chart".
+  assert.match(appJs, /res\.chart_status === "error"[\s\S]{0,80}showAskState\("loaderror"\)/, "chart_status=error maps to load error");
+  assert.match(appJs, /!res\.active_chart[\s\S]{0,60}showAskState\("nochart"\)/, "only a genuine zero-chart result shows no-chart");
+  // The shared request helper exposes the status the branching depends on.
+  assert.match(appJs, /error\.status = response\.status/, "request() exposes HTTP status to callers");
+});
+
 test("reconciled base also carries the new Ask Orbit surface (no feature lost)", () => {
   assert.ok(html.includes('id="panel-ask"') && html.includes('id="ask-input"'), "Ask Orbit panel present");
   assert.ok(html.includes('id="panel-me"'), "Me panel still present");

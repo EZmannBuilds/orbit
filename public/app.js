@@ -48,6 +48,7 @@ async function request(path, { method = "GET", body = null } = {}) {
   if (!response.ok) {
     const error = new Error(data.error || data.validation?.errors?.join("; ") || `HTTP ${response.status}`);
     error.data = data;
+    error.status = response.status; // lets callers distinguish 401 from a real failure
     throw error;
   }
   return data;
@@ -1356,14 +1357,17 @@ function renderAskSuggestions(list = []) {
 // distinct not-signed-in / no-chart / load-error states.
 async function loadAskEmptyState({ force = false } = {}) {
   if (askState.loaded && !force) return;
-  const res = await get("/api/ask/suggestions").catch(() => ({ ok: false, _network: true }));
   askState.loaded = true;
-  if (!res || res.ok === false) {
-    if (res && res._network) { showAskState("loaderror"); return; }
-    // requireAuth returns 401 with ok:false → treat as signed-out.
-    showAskState("signedout");
+  let res;
+  try {
+    res = await get("/api/ask/suggestions");
+  } catch (error) {
+    // Distinct states: not signed in vs. a genuine load/network failure.
+    showAskState(error.status === 401 ? "signedout" : "loaderror");
     return;
   }
+  // A failed chart lookup must never be reported as "you have no chart".
+  if (res.chart_status === "error") { showAskState("loaderror"); return; }
   if (!res.active_chart) { showAskState("nochart"); return; }
   setActiveChartName(res.active_chart.nickname || "My Chart");
   renderAskSuggestions(res.suggestions || []);

@@ -95,6 +95,9 @@ All responses are JSON and include a `disclaimer` field where relevant.
 | GET    | `/api/events?count=`              | Upcoming sky events.                    |
 | POST   | `/api/query`                      | Free-text query (`{ "prompt": "" }`).   |
 | GET    | `/api/chakra`, `/api/chakra/:id`  | Chakra reference data.                  |
+| POST   | `/api/ask`                        | Ask Orbit: evidence-grounded astrology answer (auth). |
+| GET    | `/api/ask/suggestions`            | Empty-state context + adaptive suggestions (auth). |
+| GET    | `/api/ask/conversations`          | List / start Ask Orbit conversations (auth). |
 | GET    | `/api/local-llm/status`           | Local Ollama status.                    |
 | GET    | `/api/local-llm/models`           | Installed Ollama models.                |
 | POST   | `/api/local-llm/generate`         | Grounded local project answer.          |
@@ -145,7 +148,8 @@ orbit/
 │   ├── symbols.js     # Knowledge base + deterministic query algorithms
 │   ├── sky.js         # Sun season / moon phase / Mercury / events math
 │   ├── llm.js         # Optional local Ollama symbolic fallback
-│   └── local-llm/     # Ollama provider, vault retrieval, proposal workflow
+│   ├── local-llm/     # Ollama provider, vault retrieval, proposal workflow
+│   └── ask-orbit/     # Ask Orbit: deterministic context engine + history (see docs/ask-orbit.md)
 └── public/            # Static frontend (vanilla JS, no build step)
     ├── index.html     # App shell + workspace panels
     ├── app.js         # Router, data loading, renderers, command palette
