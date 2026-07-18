@@ -149,7 +149,8 @@ orbit/
 │   ├── sky.js         # Sun season / moon phase / Mercury / events math
 │   ├── llm.js         # Optional local Ollama symbolic fallback
 │   ├── local-llm/     # Ollama provider, vault retrieval, proposal workflow
-│   └── ask-orbit/     # Ask Orbit: deterministic context engine + history (see docs/ask-orbit.md)
+│   └── ask-orbit/     # Ask Orbit: deterministic context engine + history
+│                       #   docs/ask-orbit.md · docs/ask-orbit-local-setup.md
 └── public/            # Static frontend (vanilla JS, no build step)
     ├── index.html     # App shell + workspace panels
     ├── app.js         # Router, data loading, renderers, command palette

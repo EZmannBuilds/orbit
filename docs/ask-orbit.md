@@ -116,16 +116,34 @@ Ollama endpoint is configured and reachable.
 
 `supabase/migrations/20260717120000_ask_orbit_conversations.sql` creates
 `ask_conversations` and `ask_messages` with RLS + authenticated grants. It is
-**reversible** (rollback block at the bottom) and was **not applied to
-production**. To apply locally / in a preview branch:
+**reversible** (rollback block at the bottom).
+
+As of Update 4.0.1 it has been applied to a **local** database and verified
+there; it has **not** been applied to the hosted project. Apply it locally with:
 
 ```bash
-supabase migration up      # or: supabase db reset
+supabase start
+supabase migration up --local     # non-destructive; never `db push`
 ```
 
-Until it is applied to a database, history persists through the in-memory store
-fallback (local dev) — a documented trade-off; the Supabase store is
-authoritative once the table exists.
+See [`ask-orbit-local-setup.md`](ask-orbit-local-setup.md) for the full ordered
+walkthrough.
+
+## Storage modes (honest by construction)
+
+`usesPersistentStore(auth)` in `store.js` is the single source of truth;
+`askStorageMode()` and `askStoreFor()` are both derived from it, so the mode the
+UI reports can never drift from the store actually used (a test enforces this).
+
+| Mode | Store | Meaning |
+| --- | --- | --- |
+| `persistent` | Supabase | Conversations survive a server restart. |
+| `session` | in-memory | Local dev / tests. History clears on restart, and the UI says so. |
+
+A save that fails is never reported as success: the answer is still returned, but
+`persisted: false` and a plain-language note tell the user it wasn't saved. The
+question is never lost, failed answers stay marked failed, and retrying reuses
+the same conversation rather than duplicating the question.
 
 ## Testing
 
@@ -137,3 +155,15 @@ authoritative once the table exists.
   rollback validation, and the route-level auth guard.
 - `test/reconciliation.test.js` (8) — proves both reconciled feature lines
   survived (returning-user flow + Me planet grid).
+- `test/ask-storage-fallback.test.js` (12) — storage mode reporting, in-memory
+  vs persistent, database-unavailable behavior, no false persistence, failed
+  saves, retry without duplicates.
+- `test/ask-provider.test.js` (17) — prose-format opt-out, output validation
+  (markup/JSON/code fences rejected), think-block stripping, timeout/offline/
+  error fallbacks, evidence immutability, and a LIVE Ollama case that skips when
+  no model is installed.
+- `test/ask-supabase-integration.test.js` (11) — REAL local Supabase: RLS
+  anonymous + cross-user rejection, persistence across a new service instance,
+  message ordering, unknown/approximate birth-time storage, failed-message
+  persistence. Skips automatically without a local stack and refuses any
+  non-loopback host.

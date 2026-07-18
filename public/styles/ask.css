@@ -15,6 +15,26 @@
 }
 .ask-using strong { color: var(--color-secondary); }
 
+/* Plain-language service status (only shown when something is genuinely off). */
+.ask-service-status {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--axis-pale-gold, #f0d48c);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-secondary);
+  font-size: var(--text-caption);
+}
+.ask-service-status[hidden] { display: none; }
+
+/* Per-answer note when a save genuinely failed. */
+.ask-a__savenote {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--axis-pale-gold, #f0d48c);
+}
+
 /* ── gate / failure states ─────────────────────────────────────────────── */
 .ask-state {
   display: flex;
@@ -131,10 +151,16 @@
 .ask-why > summary::-webkit-details-marker { display: none; }
 .ask-why > summary::before { content: "▸"; transition: transform 120ms ease; }
 .ask-why[open] > summary::before { transform: rotate(90deg); }
+/* Setting `display` on a direct child of <details> overrides the UA's native
+   collapse, which silently left this list permanently expanded. Bind the flex
+   layout to the [open] state so the section genuinely collapses. */
 .ask-evidence {
   list-style: none;
   margin: var(--space-3) 0 0;
   padding: 0;
+  display: none;
+}
+.ask-why[open] > .ask-evidence {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);

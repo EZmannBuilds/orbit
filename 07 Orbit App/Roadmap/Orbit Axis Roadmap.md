@@ -26,28 +26,76 @@ Current implemented foundation:
   `feat/orbit-axis-ask-orbit-foundation` integration branch. The history was
   already linear (018efe1 contained e753165), so no merge conflicts occurred.
   See [[Orbit Branch Reconciliation]].
-
-## Current
-
 - **Update 4.0 — Ask Orbit Foundation.** A dedicated Ask Orbit experience: a
   guided astrology consultation where a user asks personal questions and gets an
   answer grounded in their active natal chart, birth-time reliability, current
   sky, relevant placements, houses (when reliable), natal aspects, and current
   transits — with a "Why Orbit Said This" evidence panel, Simple/Advanced
   wording, and an initial conversation history. See [[Ask Orbit Foundation]].
+- **Update 4.0.1 — Ask Orbit Live Integration Hardening.** Closed the gaps the
+  4.0 report left open: the conversation migration was applied to a local
+  database, the whole signed-in flow was verified against a real session and real
+  Postgres (including a server restart), RLS cross-user isolation was proven, and
+  the Ollama adapter ran live against `qwen3:14b`. Two real defects surfaced and
+  were fixed — the provider was being asked for JSON so Ask Orbit never received
+  prose, and model output containing markup was sanitized instead of rejected.
+  Storage state is now reported honestly instead of implying permanence. See
+  [[Ask Orbit Live Integration Hardening]].
+
+## Next
+
+- **Update 4.1 — Transit Synthesis Engine.** Turn individual transits into
+  coherent, timed themes. Smallest intended scope:
+  - applying, exact, and separating transit states
+  - transit-strength scoring
+  - evidence grouping by natal target
+  - clear merged transit themes
+  - no fabricated dates or degrees
 
 ## Planned
 
-- **Update 4.1 — Transit Synthesis Engine.** Rank and combine transits and
-  timing factors into dominant themes (applying/exact/separating, strength
-  scoring, start/peak/end dating) so answers describe developmental periods, not
-  isolated aspects.
 - **Update 4.2 — Reading Memory and Feedback.** Continuity across readings,
   per-answer relevance/usefulness feedback, and optional private life-event
   notes that improve relevance without fabricating astrological evidence.
 - **Update 4.3 — Astrology and Tarot Synthesis.** Connect the astrology evidence
   model to tarot symbolism once the tarot reference data and daily-card system
   exist.
+- **Update 5.0 — Launch Measurement Foundation.** Product analytics and privacy
+  consent only. No billing.
+- **Update 5.1 — Orbit Plus and Stripe Test Billing.** Test-mode billing and
+  entitlements, kept separate from production billing readiness.
+- **Update 5.2 — Controlled Beta Readiness.** Beta operations, feedback intake,
+  and security review.
+
+### Why measurement and monetization were split
+
+An earlier combined "Launch Measurement and Monetization" proposal bundled
+analytics, privacy consent, billing, entitlements, experiments, licensing,
+feedback, security auditing, and beta operations into one update. Those are
+separate systems with different testing and legal requirements, so they are now
+phased:
+
+- Orbit's core personalized experience should be persistent and verified before
+  billing is introduced — which is what Update 4.0.1 established.
+- Measurement must exist before monetization experiments, otherwise pricing and
+  packaging decisions have no evidence behind them.
+- Stripe **test** billing (5.1) is deliberately separate from production billing
+  readiness; passing test mode is not launch approval.
+- Swiss Ephemeris licensing remains an open launch gate. It must not be
+  described as resolved without written proof of the applicable licence.
+
+No standalone monetization planning document exists in this repository or the
+Obsidian vault, so there was nothing to mark as superseded; this section is the
+record. If such a document surfaces later, mark it superseded by the phased
+5.0 → 5.1 → 5.2 sequence rather than deleting it.
+
+## Business research and strategy
+
+Startup-potential and market research belongs here, as background that informs
+prioritisation — it does not replace the product-development update sequence
+above. No prior Orbit Axis startup-potential research document was found in this
+repository or the vault at the time of Update 4.0.1; this section is the place
+for it when it is written.
 
 ## Architectural direction (Update 4.0 onward)
 

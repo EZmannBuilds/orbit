@@ -664,6 +664,7 @@ function wireAuth() {
     if (!$("#chart-modal").hidden) closeModal($("#chart-modal"));
     $("#today-chart-error").hidden = true;
     $("#auth-gate").hidden = false;
+    resetAskForAuthChange(); // never leave one account's conversation on screen
     toast("Signed out");
   });
 }
@@ -711,6 +712,7 @@ async function applySignedIn(user, { quiet = false } = {}) {
   setStartupStatus("Loading your charts…");
   await loadSavedCharts();
   await resolveChartState();
+  resetAskForAuthChange(); // Ask Orbit must re-resolve for the new session
   if (!quiet) toast("Signed in");
 }
 
@@ -1250,7 +1252,7 @@ function wireKeyboard() {
 // per question (not streamed); the deterministic engine answers even if the
 // optional local model is offline. Session state holds the active conversation
 // so follow-ups thread together; a refresh starts a fresh view.
-const askState = { conversationId: null, submitting: false, controller: null, loaded: false, lastQuestion: "" };
+const askState = { conversationId: null, submitting: false, controller: null, loaded: false, view: null, lastQuestion: "" };
 
 function setActiveChartName(name) {
   state.activeChartName = name || "My Chart";
@@ -1291,6 +1293,7 @@ function renderMarkdownSafe(text) {
 
 // Show exactly one of the Ask panel's mutually-exclusive states.
 function showAskState(which) {
+  askState.view = which;
   const states = { signedout: "#ask-signedout", nochart: "#ask-nochart", loaderror: "#ask-loaderror", empty: "#ask-empty" };
   for (const [key, sel] of Object.entries(states)) {
     const el = $(sel);
@@ -1334,13 +1337,39 @@ function answerBodyHtml(data) {
   const rel = data.birth_time_reliability;
   const relNote = (rel === "unknown" || rel === "approximate")
     ? `<p class="ask-a__reliability">Birth-time reliability: ${esc(rel)}.</p>` : "";
-  return `${parts.join("")}${relNote}${askEvidenceHtml(data.evidence)}
+  // Never let a silent storage failure look like a saved answer.
+  const saveNote = data.persisted === false
+    ? `<p class="ask-a__savenote">${esc(data.storage_note || "This answer couldn't be saved to your history.")}</p>` : "";
+  return `${parts.join("")}${relNote}${saveNote}${askEvidenceHtml(data.evidence)}
     <p class="ask-a__disclaimer">${esc(data.disclaimer || "Orbit offers symbolic reflection, not prediction or medical, legal, or financial advice.")}</p>`;
 }
 
 function askErrorHtml(message, question) {
   return `<div class="ask-a__error" role="alert">${esc(message)}</div>
     <button type="button" class="o-btn o-btn--secondary o-btn--sm ask-retry" data-retry="${esc(question)}">Try again</button>`;
+}
+
+// Plain-language service status. Says nothing when everything is normal — a
+// user should never have to think about databases or model processes. Only two
+// situations are worth a sentence: history that won't be kept, and history we
+// temporarily can't read. Announced once via role="status" (not aria-live
+// spam), and re-rendered only when the message actually changes.
+let lastAskStatusMessage = "";
+function renderAskServiceStatus(res = {}) {
+  const el = $("#ask-service-status");
+  if (!el) return;
+  const storage = res.storage || {};
+  let message = "";
+  if (storage.persistent === false) {
+    message = "Heads up: in this environment your conversations aren't saved — they'll clear when the app restarts.";
+  } else if (storage.history_available === false) {
+    message = "Your past conversations can't be loaded right now. You can still ask questions.";
+  }
+  if (message === lastAskStatusMessage) return; // never re-announce the same thing
+  lastAskStatusMessage = message;
+  if (!message) { el.hidden = true; el.textContent = ""; return; }
+  el.hidden = false;
+  el.textContent = message;
 }
 
 // Populate the empty-state suggestion chips (context-adaptive, from the server).
@@ -1368,6 +1397,7 @@ async function loadAskEmptyState({ force = false } = {}) {
   }
   // A failed chart lookup must never be reported as "you have no chart".
   if (res.chart_status === "error") { showAskState("loaderror"); return; }
+  renderAskServiceStatus(res);
   if (!res.active_chart) { showAskState("nochart"); return; }
   setActiveChartName(res.active_chart.nickname || "My Chart");
   renderAskSuggestions(res.suggestions || []);
@@ -1377,8 +1407,23 @@ async function loadAskEmptyState({ force = false } = {}) {
 
 function onAskShown() {
   if (currentWorkspace() !== "ask") return;
-  loadAskEmptyState();
+  // A gate state (signed out / no chart / load error) can be resolved elsewhere
+  // in the app, so re-check it on every visit rather than trusting the first
+  // answer. A live conversation or a ready empty state is left alone.
+  const transient = askState.view !== "empty" && askState.view !== "thread";
+  loadAskEmptyState({ force: transient });
   setTimeout(() => $("#ask-input")?.focus(), 60);
+}
+
+// Auth changes invalidate everything Ask Orbit resolved for the previous user.
+function resetAskForAuthChange() {
+  askState.loaded = false;
+  askState.view = null;
+  askState.conversationId = null;
+  lastAskStatusMessage = "";
+  const thread = $("#ask-thread");
+  if (thread) thread.innerHTML = "";
+  if (currentWorkspace() === "ask") loadAskEmptyState({ force: true });
 }
 
 // Submit a question. Keeps the user's text until the request is accepted; on
