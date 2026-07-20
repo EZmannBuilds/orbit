@@ -1,5 +1,13 @@
 # Vercel Deployment Readiness (Update 4.0.3)
 
+> **Status correction (Update 4.0.4).** This was originally reported as making
+> the repository "deployment ready". That overstated it — real blockers
+> remained, one of them fatal: the Swiss Ephemeris binary was macOS-only and
+> could not run on Vercel. Accurate status: **implementation complete locally,
+> Preview blocked.** The fatal blocker was resolved by Update 4.0.4
+> (`07 Orbit App/Updates/Orbit Core Portability.md`). Live status lives in
+> `07 Orbit App/Release Notes/Deployment Status and Blockers.md`.
+
 Branch: `feat/orbit-axis-vercel-deployment-readiness`
 Base: `3bfe4c2` (Update 4.0.2)
 Date: 2026-07-20

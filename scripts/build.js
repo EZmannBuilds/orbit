@@ -20,6 +20,8 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { REPO_ROOT } from "../lib/local-llm/config.js";
+import { runtimeManifest, checkEphemerisData, sha256File } from "../lib/astro/runtime/resolve.js";
+import { modelBundle } from "../lib/deploy/bundle.js";
 
 const problems = [];
 const notes = [];
@@ -66,20 +68,42 @@ if (indexPath) {
   notes.push(`${assetCount} referenced static asset(s) resolved from public/.`);
 }
 
-// ── 3. Things that must NOT be shipped ──────────────────────────────────────
-// .env.local is excluded by .gitignore and .vercelignore. This is a last check
-// that the exclusion is actually configured, not a check of the upload itself.
-const vercelIgnore = join(REPO_ROOT, ".vercelignore");
-if (!existsSync(vercelIgnore)) {
-  problems.push("Missing .vercelignore — private notes and local Supabase state could be uploaded.");
-} else {
-  const ignored = readFileSync(vercelIgnore, "utf8");
-  for (const required of ["07 Orbit App/", "supabase/", "test/", ".env.local"]) {
-    if (!ignored.split("\n").some((line) => line.trim() === required)) {
-      problems.push(`.vercelignore does not exclude ${required}`);
-    }
+// ── 3. The astronomy runtime this build will ship ───────────────────────────
+// Added in 4.0.4. A build that omits the Linux executable or the .se1 data
+// would deploy an app whose every astrology feature fails at runtime, so it is
+// a build failure, not a warning. Checked without executing anything: the
+// binary for the deployment target is not runnable on the build machine.
+const runtime = runtimeManifest();
+notes.push(`Swiss Ephemeris ${runtime.swissEphemerisVersion}; declared runtimes: ${Object.keys(runtime.runtimes).join(", ")}.`);
+for (const [key, entry] of Object.entries(runtime.runtimes)) {
+  if (!entry.supported) continue;
+  const path = join(REPO_ROOT, "lib", "astro", entry.executable);
+  if (!existsSync(path)) {
+    problems.push(`The ${key} Swiss Ephemeris executable (lib/astro/${entry.executable}) is missing.`);
+  } else if (sha256File(path) !== entry.sha256) {
+    problems.push(`The ${key} Swiss Ephemeris executable does not match its recorded checksum.`);
   }
-  notes.push(".vercelignore excludes the vault, local Supabase state, tests, and env files.");
+}
+const data = checkEphemerisData(runtime, { verifyChecksums: true });
+if (!data.ok) problems.push(`Ephemeris data problem: ${data.detail}`);
+else notes.push(`${Object.keys(runtime.dataFiles).length} ephemeris data file(s) present and matching their checksums.`);
+
+// ── 4. What would actually ship, and what must never ship ───────────────────
+// Modelled from .vercelignore + vercel.json rather than guessed. See
+// lib/deploy/bundle.js for why this is a model and what it does not cover.
+const bundle = modelBundle(REPO_ROOT);
+if (!existsSync(join(REPO_ROOT, ".vercelignore"))) {
+  problems.push("Missing .vercelignore — private notes and local Supabase state could be uploaded.");
+}
+for (const missing of bundle.missing) {
+  problems.push(`${missing} would NOT be included in the deployed function.`);
+}
+for (const leak of bundle.leaked) {
+  problems.push(`${leak.path} would be uploaded to Vercel — ${leak.why}.`);
+}
+if (bundle.ok) {
+  notes.push(`Deployment bundle models ${bundle.uploadedCount} file(s), ${(bundle.uploadedBytes / 1048576).toFixed(1)} MB; every required runtime file is included and nothing forbidden leaks.`);
+  notes.push(`Force-included by vercel.json includeFiles (${bundle.includePatterns.join(", ")}): ${bundle.forceIncluded.length} file(s), including the linux-x64 executable and the .se1 data.`);
 }
 
 // ── 4. Syntax check every shipped module ────────────────────────────────────

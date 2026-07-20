@@ -25,6 +25,9 @@ import { REPO_ROOT } from "../lib/local-llm/config.js";
 import { resolveEnvironment, describeTarget } from "../lib/env/environment.js";
 import { PRODUCTION_PROJECT_REF, APPROVED_PREVIEW_PROJECT_REFS, configuredPreviewRefs } from "../lib/env/known-targets.js";
 import { ephemerisCapability } from "../lib/astro/ephemeris.js";
+import { runtimeManifest, resolveRuntime } from "../lib/astro/runtime/resolve.js";
+import { modelBundle } from "../lib/deploy/bundle.js";
+import { envFileStatus } from "../lib/local-llm/config.js";
 
 const findings = [];
 const add = (level, area, message, action = null) => findings.push({ level, area, message, action });
@@ -39,6 +42,19 @@ function git(args) {
 
 // ── 1. Environment and database classification ──────────────────────────────
 const env = resolveEnvironment();
+const envFiles = envFileStatus();
+// Stated up front because Update 4.0.3 could not explain why this command
+// behaved differently in a worktree. It is not a path bug: a worktree simply
+// has no untracked .env.local, so it has no configuration to check.
+info("environment", `Checkout root: ${envFiles.root}`);
+info("environment", envFiles.loaded.length
+  ? `Env file(s) loaded: ${envFiles.loaded.join(", ")}.`
+  : `No env file found (looked for ${envFiles.searched.join(", ")}). Expected in a git worktree — .env.local is untracked and does not travel between checkouts.`);
+if (!envFiles.loaded.length && (env.databaseTarget === "missing" || env.databaseTarget === "invalid")) {
+  warn("environment", "This checkout has no database configuration at all.",
+    "Nothing unsafe, but not a working setup either. Run `npm run env:check` for the full explanation, "
+    + "or `npm run dev:local`, which pins the local Supabase stack without needing .env.local.");
+}
 info("environment", `Resolved environment: ${env.environment} (from ${env.environmentSource}).`);
 info("environment", `Database target: ${describeTarget(env)}.`);
 info("environment", env.isVercel
@@ -170,32 +186,130 @@ try {
   blocker("vercel", `The Vercel handler module failed to import: ${error.message}`, "Fix the import error before deploying.");
 }
 
-// ── 6. Swiss Ephemeris: platform and licensing ──────────────────────────────
-const ephe = ephemerisCapability();
+// ── 6. Orbit Core runtime portability (rebuilt in Update 4.0.4) ─────────────
+// Update 4.0.3 found that the only bundled executable was macOS/arm64 and
+// blocked on it. That blocker clears only when a Linux x64 runtime genuinely
+// exists, matches its checksum, passes a real calculation, and is actually
+// packaged into the deployed function — four separate conditions, checked
+// separately below so a partial fix cannot look like a complete one.
+const manifest = runtimeManifest();
+info("runtime", `Swiss Ephemeris ${manifest.swissEphemerisVersion}; declared runtimes: ${Object.keys(manifest.runtimes).join(", ")}.`);
+
+const ephe = ephemerisCapability({ fresh: true, verifyChecksum: true });
 if (ephe.ok) {
-  info("ephemeris", `Astronomy engine: ${ephe.detail}`);
+  info("runtime", `This machine (${ephe.runtime}): ${ephe.detail}`);
 } else {
-  blocker("ephemeris", `Astronomy engine unavailable: ${ephe.detail}`,
-    "Every chart, current-sky, fortune, and Ask Orbit answer depends on it.");
+  blocker("runtime", `Astronomy engine unavailable on this machine (${ephe.runtime}): ${ephe.detail}`,
+    "Every chart, current-sky, fortune, and Ask Orbit answer depends on it. Run npm run orbit:runtime:check.");
 }
-const swetest = join(REPO_ROOT, "lib", "astro", "bin", "swetest");
-if (existsSync(swetest)) {
-  const fileType = spawnSync("file", ["-b", swetest], { encoding: "utf8" });
-  const desc = fileType.status === 0 ? String(fileType.stdout).trim() : "unknown";
-  info("ephemeris", `Bundled binary: ${desc}`);
-  if (/Mach-O|arm64/i.test(desc)) {
-    blocker("ephemeris", "The bundled swetest binary is built for macOS/arm64, but Vercel functions run Linux x86-64.",
-      "It cannot execute on Vercel, so all astrology features would fail there. Options: build a "
-      + "linux-x64 swetest and ship it alongside the macOS one, replace the subprocess with a "
-      + "JavaScript/WASM ephemeris, or run the calculation in a separate service. This is an owner decision.");
+
+// The deployment target, which is not this machine. Resolved for linux-x64
+// explicitly rather than inferred from whatever host happens to run the check.
+const linux = resolveRuntime({ platform: "linux", arch: "x64", verifyChecksum: true });
+if (!linux.ok) {
+  blocker("runtime", `No usable linux-x64 Swiss Ephemeris runtime: ${linux.detail}`,
+    "Vercel functions run Linux x64. Without this, every astrology feature fails on a deployment. "
+    + "Build it from official Astrodienst source and record its checksum in lib/astro/runtime/manifest.json.");
+} else {
+  info("runtime", `linux-x64 runtime present and checksum-verified (${linux.linkage}ally linked, ${manifest.runtimes["linux-x64"].version}).`);
+  if (linux.linkage !== "static") {
+    warn("runtime", "The linux-x64 executable is dynamically linked.",
+      "It may fail on a host with a different glibc than the one it was built against. A static build avoids this entirely.");
   }
+}
+
+// Packaging: present in the repository is not the same as present in the
+// deployed function. Vercel traces imports, and this binary is opened by path,
+// so it only ships because vercel.json force-includes it.
+const bundle = modelBundle(REPO_ROOT);
+if (bundle.missing.length) {
+  for (const missing of bundle.missing) {
+    blocker("packaging", `${missing} would NOT be included in the deployed function.`,
+      "Check vercel.json \"includeFiles\" and .vercelignore.");
+  }
+} else {
+  info("packaging", `Deployment bundle models ${bundle.uploadedCount} file(s), ${(bundle.uploadedBytes / 1048576).toFixed(1)} MB; the linux-x64 executable, the .se1 data, and the runtime manifest are all included.`);
+}
+for (const leak of bundle.leaked) {
+  blocker("security", `${leak.path} would be uploaded to Vercel — ${leak.why}.`, "Add it to .vercelignore.");
+}
+if (!bundle.leaked.length) info("security", "Nothing forbidden (env files, vault, Supabase state, tests, macOS binary) reaches the deployment bundle.");
+
+// Linux execution evidence. This check runs on whatever machine invokes it, so
+// it can confirm the artifact and the packaging but NOT that Linux execution
+// was witnessed. That evidence comes from running this same command, and
+// orbit:core:smoke, inside a Linux x64 container — recorded in the update note.
+if (process.platform === "linux" && process.arch === "x64") {
+  info("runtime", "Running ON linux-x64: the checks above are direct evidence for the deployment target.");
+} else {
+  info("runtime", `Running on ${process.platform}-${process.arch}. Linux execution is verified separately by running `
+    + "`npm run orbit:runtime:check` and `npm run orbit:core:smoke` inside a linux/amd64 container. "
+    + "See docs/deployment/orbit-core-runtime.md for the exact commands and recorded results.");
 }
 warn("legal", "Swiss Ephemeris licensing is UNRESOLVED and undocumented in this repository.",
   "Swiss Ephemeris is dual-licensed (AGPL or a paid commercial licence). Deploying it in a publicly "
-  + "reachable app has obligations under either choice. Resolve and document the licence before any "
-  + "public Production launch. This check cannot verify a licence.");
+  + "reachable app has obligations under either choice. Keeping this Git repository private does NOT "
+  + "by itself establish that a publicly reachable hosted service complies with either licence. "
+  + "Resolve and document the licence before any public Production launch. This check cannot verify a licence.");
 
-// ── 7. Git deployment state ─────────────────────────────────────────────────
+// ── 7. Local Vercel build status ────────────────────────────────────────────
+// `vercel build` needs a linked project (.vercel/project.json) plus CLI
+// authentication. Neither can be created here without touching the owner's
+// account, so this reports the state rather than attempting it.
+const vercelDir = join(REPO_ROOT, ".vercel");
+const linked = existsSync(join(vercelDir, "project.json"));
+const builtOutput = existsSync(join(vercelDir, "output", "config.json"));
+if (!linked) {
+  blocker("vercel-build", "The repository is not linked to a Vercel project, so `npx vercel build` cannot run.",
+    "Owner action, and it requires your Vercel account: run `npx vercel link` in the repository root, "
+    + "then `npx vercel build`. Do not commit .vercel/ — it is git-ignored. Until this runs, the Vercel "
+    + "build is UNVERIFIED; the local `npm run build` is not a substitute for it.");
+} else if (!builtOutput) {
+  warn("vercel-build", "The project is linked but no local Vercel build output exists.",
+    "Run `npx vercel build` and re-run this check.");
+} else {
+  info("vercel-build", "Local Vercel build output is present in .vercel/output.");
+  // If a build did run, confirm the runtime actually made it into the artifact.
+  const bundledRuntime = existsSync(join(vercelDir, "output", "functions", "api", "index.func", "lib", "astro", "bin", "linux-x64", "swetest"));
+  if (bundledRuntime) info("vercel-build", "The linux-x64 Swiss Ephemeris executable is present inside the built function.");
+  else blocker("vercel-build", "The built function does not contain the linux-x64 Swiss Ephemeris executable.",
+    "Check `includeFiles` in vercel.json.");
+}
+
+// ── 8. Canonical Obsidian vault synchronisation ─────────────────────────────
+// The repository carries a mirror of the Orbit App notes. The canonical vault
+// lives outside the repository. Update 4.0.3 updated only the mirror, which is
+// how documentation quietly drifts, so the gap is now reported.
+const VAULT_PATH = process.env.ORBIT_VAULT_PATH || "/Users/mr.mann/Projects/Orbit vault";
+const mirrorDir = join(REPO_ROOT, "07 Orbit App");
+if (!existsSync(mirrorDir)) {
+  info("vault", "This checkout has no repository vault mirror.");
+} else if (!existsSync(VAULT_PATH)) {
+  warn("vault", `The canonical Obsidian vault was not found at ${VAULT_PATH}.`,
+    "Set ORBIT_VAULT_PATH if it lives elsewhere. Vault synchronisation cannot be checked without it.");
+} else {
+  const listMd = (dir, base = dir, out = []) => {
+    for (const name of readdirSync(dir, { withFileTypes: true })) {
+      if (name.name.startsWith(".")) continue;
+      const full = join(dir, name.name);
+      if (name.isDirectory()) listMd(full, base, out);
+      else if (name.name.endsWith(".md")) out.push(full.slice(base.length + 1));
+    }
+    return out;
+  };
+  const mirror = listMd(mirrorDir);
+  const canonicalDir = join(VAULT_PATH, "07 Orbit App");
+  const canonical = existsSync(canonicalDir) ? listMd(canonicalDir) : [];
+  const onlyInMirror = mirror.filter((f) => !canonical.includes(f));
+  if (onlyInMirror.length) {
+    warn("vault", `${onlyInMirror.length} note(s) exist in the repository mirror but not in the canonical vault: ${onlyInMirror.slice(0, 5).join(", ")}${onlyInMirror.length > 5 ? ", …" : ""}.`,
+      "The canonical vault is the source of truth for project documentation. Copy them across, or run the vault sync tooling.");
+  } else {
+    info("vault", `Repository mirror (${mirror.length} note(s)) is fully represented in the canonical vault.`);
+  }
+}
+
+// ── 9. Git deployment state ─────────────────────────────────────────────────
 const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
 info("git", `Current branch: ${branch || "unknown"}.`);
 const dirty = git(["status", "--porcelain"]);

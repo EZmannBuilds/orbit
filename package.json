@@ -10,13 +10,14 @@
     "dev:local": "node scripts/dev-local.js",
     "env:check": "node scripts/env-check.js",
     "env:check:production": "node scripts/env-check.js --production",
-    "lint": "node --check server.js && node --check api/*.js && node --check lib/*.js && node --check lib/auth/*.js && node --check lib/env/*.js && node --check lib/server/*.js && node --check lib/local-llm/*.js && node --check lib/astro/*.js && node --check lib/charts/*.js && node --check lib/fortune/*.js && node --check lib/ask-orbit/*.js && node --check lib/locations/*.js && node --check public/app.js && node --check public/moon-phase.js && node --check public/startup-state.js && node --check scripts/*.js",
+    "lint": "node --check server.js && node --check api/*.js && node --check lib/*.js && node --check lib/auth/*.js && node --check lib/env/*.js && node --check lib/server/*.js && node --check lib/deploy/*.js && node --check lib/local-llm/*.js && node --check lib/astro/*.js && node --check lib/astro/runtime/*.js && node --check lib/charts/*.js && node --check lib/fortune/*.js && node --check lib/ask-orbit/*.js && node --check lib/locations/*.js && node --check public/app.js && node --check public/moon-phase.js && node --check public/startup-state.js && node --check scripts/*.js",
     "typecheck": "npm run lint",
     "pretest": "node scripts/test-guard.js",
     "test": "node --test",
     "test:local": "node scripts/test-local.js",
     "build": "node scripts/build.js",
     "deploy:check": "node scripts/deploy-check.js",
+    "orbit:runtime:check": "node scripts/runtime-check.js",
     "supabase:start:orbit": "supabase start",
     "supabase:status:orbit": "supabase status",
     "supabase:stop:orbit": "supabase stop",
@@ -32,7 +33,8 @@
     "orbit:vault:validate": "node scripts/vault-sync.js validate",
     "orbit:vault:status": "node scripts/vault-sync.js status",
     "orbit:vault:sync": "node scripts/vault-sync.js sync",
-    "orbit:vault:push": "node scripts/vault-sync.js sync --push"
+    "orbit:vault:push": "node scripts/vault-sync.js sync --push",
+    "orbit:core:smoke": "node scripts/core-smoke.js"
   },
   "dependencies": {
     "luxon": "^3.7.2",

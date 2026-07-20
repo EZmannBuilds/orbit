@@ -1,8 +1,25 @@
 # Deploying Orbit Axis to Vercel
 
-Status as of Update 4.0.3: **the repository is technically ready to connect to
-Vercel. It has never been deployed, and several owner-controlled blockers remain
-open.** Run `npm run deploy:check` for the current, honest list.
+## Status
+
+```
+Update 4.0.3 — Vercel Deployment Foundation
+  Implementation complete locally.
+  Preview was BLOCKED pending portability and owner configuration.
+
+Update 4.0.4 — Orbit Core Portability
+  Code-level portability blocker RESOLVED and verified on Linux x64.
+  Preview still blocked pending owner-only configuration.
+```
+
+| Question | Answer |
+|---|---|
+| Is the ephemeris portability blocker resolved? | **Yes.** A statically linked linux-x64 Swiss Ephemeris 2.10.03 runtime ships and is checksum-verified. |
+| Is Linux execution verified? | **Yes.** Runtime check, full calculation chain, the whole test suite, and the real Vercel function handler all ran inside a `linux/amd64` container. |
+| Is the Vercel build verified? | **No.** `npx vercel build` requires linking the repository to a Vercel project, which is an owner action. It has never run. |
+| Is Preview healthy? | **No.** No Preview Deployment has ever been created. Preview must not be described as healthy until one has been tested. |
+
+Run `npm run deploy:check` for the current, honest list of what remains.
 
 This document describes the architecture, the exact dashboard settings, and how
 to troubleshoot. It does not authorise a deploy.

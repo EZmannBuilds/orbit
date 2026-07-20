@@ -8,9 +8,11 @@
 # by .gitignore, and is listed again here so the intent is explicit.
 
 # ── Secrets and local environment ──
-.env
-.env.local
-.env.*.local
+# Deliberately a single wildcard: nothing whose name begins with ".env" reaches
+# a deployment, including the placeholder-only *.example templates. They are
+# harmless but useless there, and one absolute rule is easier to audit than a
+# list of exceptions. Enforced by test/deployment-packaging.test.js.
+.env*
 
 # ── Obsidian vault and private project notes ──
 07 Orbit App/
@@ -24,6 +26,15 @@ supabase/
 
 # ── Tests and fixtures ──
 test/
+
+# ── Platform runtimes that a Linux function cannot use (Update 4.0.4) ──
+# Vercel functions are Linux x64. The macOS executable is ~820 KB of dead
+# weight there, and shipping a binary for another operating system into a
+# public deployment is exactly the kind of thing that should be deliberate.
+# lib/astro/bin/linux-x64/ and lib/astro/ephe/ are NOT excluded — they are
+# force-included by "includeFiles" in vercel.json, because they are opened by
+# path at runtime and so are invisible to Vercel's import tracing.
+lib/astro/bin/darwin-arm64/
 
 # ── Development tooling ──
 .claude/

@@ -7,7 +7,18 @@ explains the *why* behind each item.
 
 ## 1. What "deployment readiness" means here
 
-Update 4.0.3 makes the repository technically ready to connect to Vercel.
+```
+Update 4.0.3 — Vercel Deployment Foundation
+  Implementation complete locally.
+  Preview BLOCKED pending portability and owner configuration.
+
+Update 4.0.4 — Orbit Core Portability
+  Code-level portability blocker RESOLVED and verified on Linux x64.
+  Preview still blocked pending owner-only configuration.
+```
+
+After Update 4.0.4 there are **no known code-level blockers**. Everything
+remaining needs the owner's accounts or approval.
 
 It does **not** mean any of the following:
 
@@ -45,30 +56,39 @@ broken on purpose).
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ORBIT_ENVIRONMENT`, and
 `ORBIT_PREVIEW_PROJECT_REFS`. Only the owner can set these.
 
-**4. The Swiss Ephemeris binary cannot run on Vercel.**
-This is the most consequential finding of the update, and it is a genuine
-blocker rather than a warning.
+**4. Vercel project link / CLI authentication.**
+`npx vercel build` cannot run until the repository is linked to a Vercel
+project. The CLI is authenticated, but no link exists, and creating one changes
+account state — so it is an owner action. Until it runs, **the Vercel build is
+unverified**; `npm run build` is a local verification step, not a substitute.
 
-`lib/astro/bin/swetest` is a compiled **Mach-O 64-bit arm64** executable — built
-for Apple Silicon macOS. Vercel Functions run **Linux x86-64**. The binary
-cannot execute there, and *every* astrology feature shells out to it: natal
-charts, current sky, daily fortunes, and the evidence behind every Ask Orbit
-answer.
+### RESOLVED in Update 4.0.4 — the Swiss Ephemeris platform blocker
 
-Without this resolved, a Preview deployment will serve the frontend, sign users
-in, and then fail on every astrology request.
+This was the most consequential finding of Update 4.0.3 and it is now fixed.
 
-`ephemerisCapability()` (added in 4.0.3) detects this and reports it by name
-rather than failing with an opaque `ENOEXEC`, and `deploy:check` reports it
-before a deploy rather than after.
+The single bundled executable was Mach-O arm64 (Apple Silicon) and could not
+run on Vercel's Linux x86-64 functions, which would have failed *every*
+astrology request.
 
-*Owner options:*
-- build a `linux-x64` `swetest` and select the right binary per platform
-- replace the subprocess with a JavaScript or WASM ephemeris
-- move the calculation into a separate service the function calls
+Orbit now ships one executable per platform behind a single resolver
+(`lib/astro/runtime/`), selected from `process.platform` and `process.arch`:
 
-This has not been done, because each option is a real product decision with
-licensing and accuracy consequences.
+- `darwin-arm64` — local development
+- `linux-x64` — **statically linked**, for Vercel and any Linux host
+
+Verified inside a `linux/amd64` container: the resolver selects `linux-x64`,
+the executable runs, natal charts, transits, Current Sky, fortunes, and Ask
+Orbit evidence all compute, the full test suite passes, and the real Vercel
+function handler answers a live HTTP request with a genuine calculation while
+attempting **zero** connections to localhost Ollama or Supabase.
+
+Mac and Linux agree exactly: across 440 compared values the maximum longitude
+difference is **0.0°**. See
+[orbit-core-runtime.md](orbit-core-runtime.md) for provenance, checksums,
+tolerances, and the exact container commands.
+
+*Still true:* this resolved a **technical** blocker. It resolved nothing about
+Swiss Ephemeris licensing — see below.
 
 ### Must fix before Production
 
@@ -88,6 +108,15 @@ Swiss Ephemeris is dual-licensed: AGPL, or a paid commercial licence from
 Astrodienst. Both carry obligations for a publicly reachable deployment — the
 AGPL path requires offering corresponding source to users of the network
 service.
+
+**Keeping the GitHub repository private does not by itself establish that a
+publicly reachable hosted Orbit service complies with either licence.** The
+AGPL's network clause concerns providing software to users over a network,
+which is what a deployment does; repository visibility is a different question.
+
+Update 4.0.4 building a Linux executable resolved a *portability* blocker and
+resolved nothing here. Full detail:
+[swiss-ephemeris-licensing.md](swiss-ephemeris-licensing.md).
 
 No licence file, notice, or purchase record exists in this repository. This is
 stated as unresolved because it *is* unresolved; it must not be treated as
