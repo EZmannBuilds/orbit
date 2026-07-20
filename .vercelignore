@@ -1,0 +1,36 @@
+# Orbit Axis :: files that must never be uploaded to Vercel (Update 4.0.3).
+#
+# Everything listed here is either private, local-only, or useless to a
+# deployment. Keeping the upload small is a side benefit; the point is that
+# private notes and local database state never leave this machine.
+#
+# .env.local is already excluded by Vercel (it never uploads dotenv files) and
+# by .gitignore, and is listed again here so the intent is explicit.
+
+# ── Secrets and local environment ──
+.env
+.env.local
+.env.*.local
+
+# ── Obsidian vault and private project notes ──
+07 Orbit App/
+docs/
+prompts/
+.orbit/
+
+# ── Local Supabase stack: config, migrations, seeds, CLI state ──
+# Migrations are applied by the owner with the Supabase CLI, never by the app.
+supabase/
+
+# ── Tests and fixtures ──
+test/
+
+# ── Development tooling ──
+.claude/
+.github/
+
+# ── Local build/tooling noise ──
+node_modules/
+*.log
+.DS_Store
+DESIGN_SYSTEM.md

@@ -31,3 +31,8 @@ build/
 
 # Local Supabase CLI state
 supabase/.branches/
+
+# ── Vercel ──
+# `vercel link` / `vercel build` write project ids, org ids, and pulled
+# environment values here. None of it belongs in the repository.
+.vercel/

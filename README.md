@@ -150,13 +150,41 @@ reviewed, approved, hash-checked, backed up, and applied. See
 [`docs/local-llm.md`](docs/local-llm.md) and
 [`docs/vault-editing.md`](docs/vault-editing.md).
 
+## Deployment
+
+Orbit is **prepared for** a Vercel Preview Deployment and has never been
+deployed. Check the current state at any time:
+
+```bash
+npm run deploy:check   # read-only; reports BLOCKER / WARNING / INFORMATIONAL
+```
+
+It contacts nothing, prints no secret, and exits non-zero when a real blocker
+exists. Known open blockers include an unpushed branch, no approved Preview
+Supabase project, the unapplied hosted Ask Orbit migration, and the Swiss
+Ephemeris binary being built for macOS/arm64 rather than the Linux x86-64 that
+Vercel Functions run on.
+
+Documentation:
+
+- [`docs/deployment/vercel.md`](docs/deployment/vercel.md) — architecture, exact
+  dashboard settings, troubleshooting, rollback
+- [`docs/deployment/environment-variables.md`](docs/deployment/environment-variables.md) — every variable, where it belongs
+- [`docs/deployment/preview-environment.md`](docs/deployment/preview-environment.md) — blockers, security checklist, Preview setup
+- [`docs/deployment/hosted-supabase-migration.md`](docs/deployment/hosted-supabase-migration.md) — the pending migration
+- [`docs/deployment/auth-redirects.md`](docs/deployment/auth-redirects.md) — Supabase URL configuration
+
 ## Project layout
 
 ```
 orbit/
-├── server.js          # Zero-dependency HTTP server: JSON API + static host
+├── server.js          # Local entry point: creates an http server and listens
+├── api/index.js       # Vercel entry point: exports the same handler
+├── vercel.json        # Static from public/, /api/* to one Node Function
 ├── package.json
 ├── lib/
+│   ├── server/        # create-app.js — every route; binds nothing, calls nothing
+│   ├── env/           # Environment + database-target resolver and guards
 │   ├── symbols.js     # Knowledge base + deterministic query algorithms
 │   ├── sky.js         # Sun season / moon phase / Mercury / events math
 │   ├── llm.js         # Optional local Ollama symbolic fallback
