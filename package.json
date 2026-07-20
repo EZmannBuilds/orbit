@@ -7,10 +7,19 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "dev:local": "node scripts/dev-local.js",
+    "env:check": "node scripts/env-check.js",
+    "env:check:production": "node scripts/env-check.js --production",
     "lint": "node --check server.js && node --check lib/*.js && node --check lib/auth/*.js && node --check lib/local-llm/*.js && node --check lib/astro/*.js && node --check lib/charts/*.js && node --check lib/fortune/*.js && node --check lib/ask-orbit/*.js && node --check lib/locations/*.js && node --check public/app.js && node --check public/moon-phase.js && node --check public/startup-state.js && node --check scripts/*.js",
     "typecheck": "npm run lint",
+    "pretest": "node scripts/test-guard.js",
     "test": "node --test",
+    "test:local": "node scripts/test-local.js",
     "build": "npm run lint",
+    "supabase:start:orbit": "supabase start",
+    "supabase:status:orbit": "supabase status",
+    "supabase:stop:orbit": "supabase stop",
+    "supabase:migrate:local": "node scripts/migrate-local.js",
     "orbit:llm:status": "node scripts/local-llm.js status",
     "orbit:llm:models": "node scripts/local-llm.js models",
     "orbit:llm:test": "node scripts/local-llm.js test",
@@ -27,5 +36,8 @@
   "dependencies": {
     "luxon": "^3.7.2",
     "tz-lookup": "^6.1.25"
+  },
+  "engines": {
+    "node": ">=20.11"
   }
 }

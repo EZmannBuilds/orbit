@@ -41,6 +41,32 @@ Current implemented foundation:
   prose, and model output containing markup was sanitized instead of rejected.
   Storage state is now reported honestly instead of implying permanence. See
   [[Ask Orbit Live Integration Hardening]].
+- **Update 4.0.2 — Environment Safety and Database Target Guard.** One resolver
+  now decides the environment (`local` / `test` / `preview` / `production`) and
+  classifies the configured database, and every dangerous path asserts against it
+  before acting: server startup, migrations, seeds, disposable users, the test
+  suite, and vault pushes. Plain-language errors name the safe command and never
+  print a key. New `dev:local`, `env:check`, `test:local`, and
+  `supabase:migrate:local` commands make the safe path the easy one. See
+  [[Environment Safety and Database Target Guard]].
+
+### Why 4.0.2 was inserted between 4.0.1 and 4.1
+
+Real integration testing in Update 4.0.1 revealed that an ordinary `npm start`
+could target the hosted production database, because `.env.local` points there
+and the app loads it automatically. Safety depended on a developer remembering
+per-process overrides.
+
+That is worth pausing feature work for:
+
+- Future automated agent work must be structurally unable to write to production
+  by accident, not merely unlikely to.
+- Database safety is a prerequisite for moving *faster* on features — it makes
+  experiments cheap and reversible.
+- Guards remove reliance on anyone remembering a manual override.
+
+The completed Ask Orbit updates keep their numbering; this is an inserted safety
+update, not a renumbering.
 
 ## Next
 

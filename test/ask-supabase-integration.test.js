@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseAskStore } from "../lib/ask-orbit/store.js";
 import { createAskService } from "../lib/ask-orbit/service.js";
 import { ASK_ENGINE_VERSION } from "../lib/ask-orbit/context-engine.js";
+import { classifyDatabaseTarget } from "../lib/env/environment.js";
 
 const URL_ = process.env.ORBIT_TEST_SUPABASE_URL || "http://127.0.0.1:55321";
 const ANON = process.env.ORBIT_TEST_SUPABASE_ANON_KEY
@@ -26,6 +27,14 @@ const ANON = process.env.ORBIT_TEST_SUPABASE_ANON_KEY
 
 // Hard safety rail: loopback only. Never a hosted project.
 const isLoopback = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i.test(URL_.replace(/\/+$/, ""));
+
+// Update 4.0.2, defence in depth: the shared classifier must also agree this is
+// not production, so this file can never be pointed at the hosted project even
+// if the regex above is later loosened.
+const classified = classifyDatabaseTarget(URL_);
+if (classified.target === "production") {
+  throw new Error("Refusing to run integration tests against the hosted production database.");
+}
 
 let reachable = false;
 let userA = null, userB = null;

@@ -24,6 +24,8 @@ import { readFileSync, readdirSync, statSync, existsSync, appendFileSync, mkdirS
 import { createHash } from "node:crypto";
 import { join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveEnvironment } from "../lib/env/environment.js";
+import { assertNonProductionTarget, EnvironmentSafetyError } from "../lib/env/guard.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -179,6 +181,18 @@ async function sync() {
     }
     logSync("vault_to_db", "dry-run", `${eligible.length} eligible`, "ok");
     return;
+  }
+
+  // Update 4.0.2: a real write. Refuse to modify vault-sync state on the hosted
+  // production database from an ordinary local session.
+  try {
+    assertNonProductionTarget("Pushing vault notes", resolveEnvironment());
+  } catch (error) {
+    if (error instanceof EnvironmentSafetyError) {
+      console.error(`\n${error.message}\n`);
+      process.exit(1);
+    }
+    throw error;
   }
 
   if (!url || !key) {

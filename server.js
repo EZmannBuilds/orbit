@@ -38,6 +38,9 @@ import { randomUUID } from "node:crypto";
 import { handleChartsRoute } from "./lib/charts/api.js";
 import { handleFortuneRoute } from "./lib/fortune/api.js";
 import { handleAskRoute } from "./lib/ask-orbit/api.js";
+import {
+  assertStartupSafe, EnvironmentSafetyError, environmentStatusLines,
+} from "./lib/env/guard.js";
 import { LocationError, searchGeoapify } from "./lib/locations/geoapify.js";
 import {
   authenticateRequest,
@@ -742,8 +745,40 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+// ── Environment safety gate (Update 4.0.2) ───────────────────────────────────
+// Runs BEFORE the port is bound and before any database request, so a
+// misconfigured session stops at startup instead of reaching the wrong database.
+// Nothing here prints a key or a credential-bearing URL.
+let ENV_INFO;
+try {
+  ENV_INFO = assertStartupSafe();
+} catch (error) {
+  if (error instanceof EnvironmentSafetyError) {
+    console.error(`\n${error.message}\n`);
+    process.exit(1);
+  }
+  throw error;
+}
+
+server.listen(PORT, async () => {
   console.log(`Orbit astrology app listening at http://localhost:${PORT}`);
+  // Concise, non-sensitive status so the target database is never a guess.
+  if (!ENV_INFO.isProduction) {
+    const askHistory = ENV_INFO.databaseTarget === "local" || ENV_INFO.databaseTarget === "preview"
+      ? "persistent" : "not persistent (in-memory)";
+    let ollama = "disabled";
+    if (ENV_INFO.allowsLocalLanguageProvider && localLlmConfig().enabled) {
+      try {
+        const health = await createLocalLLMProvider().health();
+        ollama = health?.reachable
+          ? ((health.model_available ?? health.installed_model)
+            ? `available (${health.configured_model || health.selected_model})`
+            : "running, configured model not installed — using the built-in formatter")
+          : "unavailable — using the built-in formatter";
+      } catch { ollama = "unavailable — using the built-in formatter"; }
+    }
+    for (const line of environmentStatusLines(ENV_INFO, { askHistory, ollama })) console.log(line);
+  }
   warmupModel();
 });
 

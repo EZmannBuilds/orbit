@@ -32,10 +32,19 @@ npm install
 ## Run
 
 ```bash
-# Simplest: zero config, listens on port 3001.
+# Local development, pinned to the local Supabase stack (recommended).
+supabase start          # starts the local database (Docker)
+npm run env:check       # confirms which database Orbit would use
+npm run dev:local       # → Orbit astrology app listening at http://localhost:3001
+
+# Zero-config start. Refuses to run if configuration points at the hosted
+# production database, and tells you what to run instead.
 npm start
-# → Orbit astrology app listening at http://localhost:3001
 ```
+
+Orbit refuses to start when the environment and the configured database
+disagree — for example local development pointed at the hosted production
+project. See [`docs/environment-safety.md`](docs/environment-safety.md).
 
 Then open <http://localhost:3001> in a browser.
 
@@ -75,6 +84,8 @@ npm start
 | `ORBIT_LOCAL_LLM_TIMEOUT_MS` | `180000` | Local generation timeout. |
 | `ORBIT_LOCAL_EMBEDDING_MODEL` | unset | Optional local embedding model. Keyword retrieval works without it. |
 | `ORBIT_VAULT_PATH` | `../Orbit vault` | Canonical Obsidian vault path. |
+| `ORBIT_ENVIRONMENT` | `local` | `local`, `test`, `preview`, or `production`. Drives the safety guards. |
+| `ORBIT_PREVIEW_PROJECT_REFS` | unset | Comma-separated hosted project refs explicitly approved as disposable previews. |
 
 **No secrets or API keys are required.** Never commit `.env` or `.env.local`
 (both are gitignored).
@@ -117,7 +128,8 @@ Run the built-in checks:
 
 ```bash
 npm run lint
-npm test
+npm run test:local     # tests pinned to the local database
+npm test               # same suite; refuses if configured for production
 ```
 
 Useful local intelligence commands:
