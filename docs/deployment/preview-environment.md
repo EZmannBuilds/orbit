@@ -39,9 +39,9 @@ Nothing was pushed, merged, deployed, or migrated remotely.
 
 ### Must fix before Preview
 
-**1. The deployment branch is not pushed.**
-Vercel can only build a commit that exists on GitHub. Updates 4.0 through 4.0.3
-are local-only — 18 commits ahead of `origin/main`.
+**1. ~~The deployment branch is not pushed.~~ RESOLVED.**
+`feat/orbit-axis-core-portability` was pushed on 2026-07-20 and now tracks
+`origin/feat/orbit-axis-core-portability`. The repository remains **private**.
 
 **2. No approved Preview Supabase project exists.**
 `APPROVED_PREVIEW_PROJECT_REFS` is deliberately empty and
@@ -56,11 +56,17 @@ broken on purpose).
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ORBIT_ENVIRONMENT`, and
 `ORBIT_PREVIEW_PROJECT_REFS`. Only the owner can set these.
 
-**4. Vercel project link / CLI authentication.**
-`npx vercel build` cannot run until the repository is linked to a Vercel
-project. The CLI is authenticated, but no link exists, and creating one changes
-account state — so it is an owner action. Until it runs, **the Vercel build is
-unverified**; `npm run build` is a local verification step, not a substitute.
+**4. No Orbit Vercel project exists.**
+The authenticated team (`lorehouse-team`) contains exactly one project,
+`the-lorehouse`, which belongs to a different application. There is no
+`orbit-axis` project to link to, so `npx vercel build` still cannot run and
+**the Vercel build remains unverified**; `npm run build` is a local
+verification step, not a substitute.
+
+Creating the project changes external account state, so it is an owner action.
+Do **not** link Orbit to `the-lorehouse` — that is exactly what caused the
+Update 4.0.4.1 incident ([vercel-link-incident.md](vercel-link-incident.md)),
+and `deploy:check` now blocks it.
 
 ### RESOLVED in Update 4.0.4 — the Swiss Ephemeris platform blocker
 
@@ -126,8 +132,8 @@ settled without documentation. Resolve before any public launch.
 
 ## 3. What will and will not work in Preview
 
-Assuming Preview variables are set and an approved Supabase project exists, but
-**before** the ephemeris blocker is resolved:
+Assuming an `orbit-axis` Vercel project exists, Preview variables are set, and
+an approved Preview Supabase project exists — i.e. after the owner-only work:
 
 | Feature | Preview |
 |---|---|
@@ -135,17 +141,18 @@ Assuming Preview variables are set and an approved Supabase project exists, but
 | Navigation between views | Works |
 | Sign up / sign in / sign out | Works |
 | Session restoration for a returning user | Works |
-| Saved chart list (metadata only) | Works |
-| Natal chart calculation | **Fails** — ephemeris binary |
-| Current Sky | **Fails** — ephemeris binary |
-| Daily fortune | **Fails** — ephemeris binary |
-| Ask Orbit answers | **Fails** — evidence comes from the ephemeris |
-| Ask Orbit history persistence | Fails until the hosted migration is applied |
+| Saved chart list | Works |
+| Natal chart calculation | Works — linux-x64 runtime, verified in a container |
+| Current Sky | Works |
+| Daily fortune | Works |
+| Ask Orbit answers and calculated evidence | Works |
+| Ask Orbit history persistence | **Fails until the hosted migration is applied** — the answer generates, is marked not-saved, and says so |
 | Ollama-worded answers | Never — deterministic engine only, by design |
 | Development routes, disposable users, seeds | Never — disabled on a deployment |
 
-Once the ephemeris is resolved, everything except Ask Orbit persistence works,
-and that is fixed by applying the migration.
+The ephemeris rows changed from *Fails* to *Works* in Update 4.0.4. That is
+verified on Linux x64 in a container, **not** on a real deployment — no Preview
+Deployment has ever existed.
 
 ---
 

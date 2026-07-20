@@ -21,6 +21,13 @@ Update 4.0.4 — Orbit Core Portability
 
 Run `npm run deploy:check` for the current, honest list of what remains.
 
+> **Before running any `vercel` command, read
+> [vercel-link-incident.md](vercel-link-incident.md).** Orbit was once linked to
+> a different project (`the-lorehouse`), which made the build look for `dist`
+> instead of `public`. Run Vercel commands only from the checkout that contains
+> the Update 4.0.4 portable runtime, and link only to an approved Orbit
+> project. `deploy:check` now blocks both mistakes.
+
 This document describes the architecture, the exact dashboard settings, and how
 to troubleshoot. It does not authorise a deploy.
 

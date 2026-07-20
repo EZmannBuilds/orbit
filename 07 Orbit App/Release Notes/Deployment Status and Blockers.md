@@ -3,7 +3,7 @@
 Single source of truth for "can Orbit be deployed yet?". Run
 `npm run deploy:check` in the repository for the live version.
 
-**Last updated: 2026-07-20, after Update 4.0.4.**
+**Last updated: 2026-07-20, after Update 4.0.4.1.**
 
 ## Status
 
@@ -15,10 +15,15 @@ Update 4.0.3 — Vercel Deployment Foundation
 Update 4.0.4 — Orbit Core Portability
   Code-level portability blocker RESOLVED and verified on Linux x64.
   Preview still blocked pending owner-only configuration.
+
+Update 4.0.4.1 — Vercel Project Link Repair
+  Accidental link to the-lorehouse removed; guards added.
+  Branch pushed. Still NO orbit-axis Vercel project, so the build is unverified.
 ```
 
 | Question | Answer |
 | --- | --- |
+| Wrong-project link repaired? | **Yes.** Removed, and `deploy:check` now blocks a repeat. Lorehouse was not modified. |
 | Ephemeris portability blocker resolved? | **Yes.** Statically linked `linux-x64` Swiss Ephemeris 2.10.03 ships and is checksum-verified. |
 | Linux execution verified? | **Yes.** Runtime check, full calculation chain, whole test suite, and the real Vercel function handler all ran in a `linux/amd64` container. |
 | Vercel build verified? | **No.** `npx vercel build` needs a project link — an owner action. It has never run. |
@@ -35,12 +40,16 @@ Update 4.0.4 — Orbit Core Portability
 Each needs the owner's accounts or approval. None can be resolved from the
 repository.
 
-1. **Branch not pushed.** Vercel can only build a commit that exists on GitHub.
-   Updates 4.0 → 4.0.4 are local-only.
-2. **Vercel project not linked.** The CLI is authenticated, but no link exists.
-   Creating one changes account state, so `npx vercel build` has never run and
-   the Vercel build is **unverified**. `npm run build` is a local verification
-   step, not a substitute.
+1. ~~**Branch not pushed.**~~ **RESOLVED 2026-07-20.**
+   `feat/orbit-axis-core-portability` is on GitHub and tracks its remote. The
+   repository remains private.
+2. **No `orbit-axis` Vercel project exists.** The team contains exactly one
+   project, `the-lorehouse`, which is a different application. There is nothing
+   correct to link to, so `npx vercel build` has never run and the Vercel build
+   is **unverified**. `npm run build` is a local verification step, not a
+   substitute. Creating the project changes account state — owner approval
+   required. **Do not link Orbit to `the-lorehouse`** — see
+   [[Vercel Project Link Repair]].
 3. **No approved Preview Supabase project.** Orbit refuses preview mode until a
    disposable project reference is explicitly approved. This is the guard
    working, not a bug.
@@ -66,14 +75,14 @@ hosted service complies with either licence.** Update 4.0.4 resolved a
 
 | Evidence | Where it ran |
 | --- | --- |
-| 449 tests, 0 failures | macOS, local Supabase |
+| 472 tests, 0 failures | macOS, local Supabase |
 | 449 tests, 437 passed / 12 skipped, 0 failures | Linux x64 container, no Supabase |
 | Runtime check, core calculation smoke | macOS **and** Linux x64 container |
 | Mac ↔ Linux parity, 440 values, max longitude drift 0.0° | both |
 | Real Vercel function handler serving live requests | Linux x64 container |
 | Zero localhost Ollama / Supabase connections under simulated Preview | Linux x64 container |
 | Browser at 375 / 768 / 1280, zero console errors | macOS, local Supabase |
-| Vercel CLI build | **never ran — unverified** |
+| Vercel CLI build | **never ran — unverified** (no Orbit project to link to) |
 | Hosted Supabase schema, RLS, indexes, grants | **never contacted — unverified** |
 | Preview / Production deployment behaviour | **simulated only** |
 

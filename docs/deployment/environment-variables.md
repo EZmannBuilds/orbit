@@ -109,6 +109,21 @@ Supplied automatically by Vercel. Orbit **reads** these; never set them by hand.
 | `VERCEL_GIT_COMMIT_REF` | Branch name. Informational only — never a safety input. |
 | `VERCEL_GIT_COMMIT_SHA` | Commit SHA, truncated to 12 characters. Informational only. |
 
+### Files the Vercel CLI writes locally
+
+`vercel link` and `vercel pull` write into your working tree. All of it is
+git-ignored and none of it belongs in a commit.
+
+| Path | What it is |
+|---|---|
+| `.vercel/project.json` | The project link. Contains account-private ids — never commit, never print. |
+| `.vercel/.env.<env>.local` | The linked project's environment values, downloaded. |
+| `.vercel/output/` | Local build output. |
+| `VERCEL_OIDC_TOKEN` in `.env.local` | Appended by the CLI for OIDC federation. **Orbit does not use it**, and no local build needs it. Safe to delete; never commit it. |
+
+Update 4.0.4.1 removed one of these that had been added by a link to the wrong
+project — see [vercel-link-incident.md](vercel-link-incident.md).
+
 `VERCEL_URL` alone does **not** make a process look deployed — it can be echoed
 into a local shell. `VERCEL=1` is required. Covered by
 `test/vercel-environment.test.js`.

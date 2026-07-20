@@ -27,6 +27,7 @@ import { PRODUCTION_PROJECT_REF, APPROVED_PREVIEW_PROJECT_REFS, configuredPrevie
 import { ephemerisCapability } from "../lib/astro/ephemeris.js";
 import { runtimeManifest, resolveRuntime } from "../lib/astro/runtime/resolve.js";
 import { modelBundle } from "../lib/deploy/bundle.js";
+import { checkoutPortability, inspectVercelLink, vercelArtifactsIgnored } from "../lib/deploy/vercel-link.js";
 import { envFileStatus } from "../lib/local-llm/config.js";
 
 const findings = [];
@@ -252,28 +253,87 @@ warn("legal", "Swiss Ephemeris licensing is UNRESOLVED and undocumented in this 
   + "by itself establish that a publicly reachable hosted service complies with either licence. "
   + "Resolve and document the licence before any public Production launch. This check cannot verify a licence.");
 
-// ── 7. Local Vercel build status ────────────────────────────────────────────
-// `vercel build` needs a linked project (.vercel/project.json) plus CLI
-// authentication. Neither can be created here without touching the owner's
-// account, so this reports the state rather than attempting it.
-const vercelDir = join(REPO_ROOT, ".vercel");
-const linked = existsSync(join(vercelDir, "project.json"));
-const builtOutput = existsSync(join(vercelDir, "output", "config.json"));
-if (!linked) {
-  blocker("vercel-build", "The repository is not linked to a Vercel project, so `npx vercel build` cannot run.",
-    "Owner action, and it requires your Vercel account: run `npx vercel link` in the repository root, "
-    + "then `npx vercel build`. Do not commit .vercel/ — it is git-ignored. Until this runs, the Vercel "
-    + "build is UNVERIFIED; the local `npm run build` is not a substitute for it.");
-} else if (!builtOutput) {
-  warn("vercel-build", "The project is linked but no local Vercel build output exists.",
-    "Run `npx vercel build` and re-run this check.");
+// ── 7. Vercel project link (added after the Update 4.0.4.1 incident) ────────
+// `npx vercel link` run in this repository attached it to `the-lorehouse` — a
+// different application — because no Orbit project existed to choose. Vercel
+// then used that project's Vite preset, looked for an output directory named
+// `dist`, and failed. Nothing inside Orbit could see the mismatch. Now it can.
+//
+// Only the project NAME is inspected. Project and org ids are never read.
+const portable = checkoutPortability(REPO_ROOT);
+if (!portable.ok) {
+  blocker("checkout", portable.detail,
+    "This source tree cannot produce a correct Vercel build. Run Vercel commands from the checkout "
+    + "that contains the Update 4.0.4 portable runtime, not from an older branch.");
 } else {
-  info("vercel-build", "Local Vercel build output is present in .vercel/output.");
-  // If a build did run, confirm the runtime actually made it into the artifact.
-  const bundledRuntime = existsSync(join(vercelDir, "output", "functions", "api", "index.func", "lib", "astro", "bin", "linux-x64", "swetest"));
-  if (bundledRuntime) info("vercel-build", "The linux-x64 Swiss Ephemeris executable is present inside the built function.");
-  else blocker("vercel-build", "The built function does not contain the linux-x64 Swiss Ephemeris executable.",
-    "Check `includeFiles` in vercel.json.");
+  info("checkout", portable.detail);
+}
+
+const link = inspectVercelLink({ root: REPO_ROOT });
+switch (link.status) {
+  case "foreign":
+    blocker("vercel-link", `This checkout is linked to the Lorehouse Vercel project.`,
+      `${link.detail} Orbit must never build against it: its framework preset expects a different `
+      + `output directory, and pulling its settings downloads another application's environment into `
+      + `this working tree. Fix: rm -rf .vercel, then link only to an approved Orbit project `
+      + `(${link.approved.join(", ")}).`);
+    break;
+  case "unapproved":
+    blocker("vercel-link", link.detail,
+      `Approved Orbit project name(s): ${link.approved.join(", ")}. If this project really is Orbit's, `
+      + "add its name to ORBIT_VERCEL_PROJECTS or to APPROVED_VERCEL_PROJECTS in lib/deploy/vercel-link.js.");
+    break;
+  case "malformed":
+    blocker("vercel-link", link.detail,
+      "Remove the local link and recreate it: rm -rf .vercel && npx vercel link");
+    break;
+  case "absent":
+    blocker("vercel-build", "This checkout is not linked to a Vercel project, so `npx vercel build` cannot run.",
+      "Owner action requiring your Vercel account. An Orbit project must exist first — do NOT link to "
+      + "an existing unrelated project. Until a real Vercel build runs, it is UNVERIFIED; `npm run build` "
+      + "is a local verification step, not a substitute.");
+    break;
+  default:
+    info("vercel-link", link.detail);
+    if (link.context?.outputDirectory && link.context.outputDirectory !== "public") {
+      warn("vercel-link", `The linked project's output directory is "${link.context.outputDirectory}"; Orbit serves static files from "public".`,
+        "vercel.json sets outputDirectory correctly, but the dashboard setting should agree.");
+    }
+    break;
+}
+
+// Build output, only meaningful once the link is correct.
+const vercelDir = join(REPO_ROOT, ".vercel");
+const builtOutput = existsSync(join(vercelDir, "output", "config.json"));
+if (link.status === "ok") {
+  if (!builtOutput) {
+    warn("vercel-build", "The project is linked but no local Vercel build output exists.",
+      "Run `npx vercel build` and re-run this check.");
+  } else {
+    info("vercel-build", "Local Vercel build output is present in .vercel/output.");
+    const bundledRuntime = existsSync(join(vercelDir, "output", "functions", "api", "index.func", "lib", "astro", "bin", "linux-x64", "swetest"));
+    if (bundledRuntime) info("vercel-build", "The linux-x64 Swiss Ephemeris executable is present inside the built function.");
+    else blocker("vercel-build", "The built function does not contain the linux-x64 Swiss Ephemeris executable.",
+      "Check `includeFiles` in vercel.json.");
+  }
+} else if (builtOutput) {
+  // Output from a build against the wrong project must not be mistaken for
+  // evidence that Orbit builds correctly.
+  blocker("vercel-build", "Local Vercel build output exists but the project link is not an approved Orbit project.",
+    "That output was produced against the wrong project. Delete it with rm -rf .vercel and rebuild once "
+    + "correctly linked.");
+}
+
+// Downloaded Vercel files must stay untracked.
+const ignoreCheck = vercelArtifactsIgnored((p) => {
+  const r = spawnSync("git", ["check-ignore", "-q", p], { cwd: REPO_ROOT });
+  return r.status === 0;
+});
+if (!ignoreCheck.ok) {
+  blocker("security", ignoreCheck.detail,
+    "Vercel writes another project's environment values into .vercel/. They must never be committable.");
+} else {
+  info("security", ignoreCheck.detail);
 }
 
 // ── 8. Canonical Obsidian vault synchronisation ─────────────────────────────
