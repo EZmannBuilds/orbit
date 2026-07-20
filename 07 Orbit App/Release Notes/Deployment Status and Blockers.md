@@ -3,7 +3,7 @@
 Single source of truth for "can Orbit be deployed yet?". Run
 `npm run deploy:check` in the repository for the live version.
 
-**Last updated: 2026-07-20, after Update 4.0.4.1.**
+**Last updated: 2026-07-20, after Update 4.0.4.2.**
 
 ## Status
 
@@ -17,8 +17,11 @@ Update 4.0.4 — Orbit Core Portability
   Preview still blocked pending owner-only configuration.
 
 Update 4.0.4.1 — Vercel Project Link Repair
-  Accidental link to the-lorehouse removed; guards added.
-  Branch pushed. Still NO orbit-axis Vercel project, so the build is unverified.
+  Accidental link to the-lorehouse removed; guards added. Branch pushed.
+
+Update 4.0.4.2 — Vercel Build Verification
+  Linked to orbit-axis. First real `vercel build` SUCCEEDED and was verified.
+  Only owner-controlled Supabase and licensing work remains.
 ```
 
 | Question | Answer |
@@ -26,7 +29,7 @@ Update 4.0.4.1 — Vercel Project Link Repair
 | Wrong-project link repaired? | **Yes.** Removed, and `deploy:check` now blocks a repeat. Lorehouse was not modified. |
 | Ephemeris portability blocker resolved? | **Yes.** Statically linked `linux-x64` Swiss Ephemeris 2.10.03 ships and is checksum-verified. |
 | Linux execution verified? | **Yes.** Runtime check, full calculation chain, whole test suite, and the real Vercel function handler all ran in a `linux/amd64` container. |
-| Vercel build verified? | **No.** `npx vercel build` needs a project link — an owner action. It has never run. |
+| Vercel build verified? | **Yes.** `npx vercel build` succeeded against `orbit-axis`, output directory `public`, runtime `nodejs22.x`. The built function was run on Linux x64 and performed a real calculation. |
 | Private Preview healthy? | **No.** No Preview Deployment has ever been created. Must not be called healthy until one is tested. |
 | Anything deployed or migrated? | **No.** Nothing pushed, merged, deployed, or migrated remotely. Hosted Supabase never contacted. |
 | Repository public? | **No.** It remains private. No public engine repository was created. |
@@ -43,13 +46,11 @@ repository.
 1. ~~**Branch not pushed.**~~ **RESOLVED 2026-07-20.**
    `feat/orbit-axis-core-portability` is on GitHub and tracks its remote. The
    repository remains private.
-2. **No `orbit-axis` Vercel project exists.** The team contains exactly one
-   project, `the-lorehouse`, which is a different application. There is nothing
-   correct to link to, so `npx vercel build` has never run and the Vercel build
-   is **unverified**. `npm run build` is a local verification step, not a
-   substitute. Creating the project changes account state — owner approval
-   required. **Do not link Orbit to `the-lorehouse`** — see
-   [[Vercel Project Link Repair]].
+2. ~~**No `orbit-axis` Vercel project exists.**~~ **RESOLVED 2026-07-20.**
+   Linked to `lorehouse-team/orbit-axis`, and the first real `vercel build`
+   succeeded. See [[Vercel Build Verification]]. One dashboard follow-up
+   remains: the project's Node setting is `24.x` while Orbit pins `22.x`. The
+   pin wins, but the two should be aligned.
 3. **No approved Preview Supabase project.** Orbit refuses preview mode until a
    disposable project reference is explicitly approved. This is the guard
    working, not a bug.
@@ -75,14 +76,16 @@ hosted service complies with either licence.** Update 4.0.4 resolved a
 
 | Evidence | Where it ran |
 | --- | --- |
-| 472 tests, 0 failures | macOS, local Supabase |
+| 510 tests, 0 failures | macOS, local Supabase |
 | 449 tests, 437 passed / 12 skipped, 0 failures | Linux x64 container, no Supabase |
 | Runtime check, core calculation smoke | macOS **and** Linux x64 container |
 | Mac ↔ Linux parity, 440 values, max longitude drift 0.0° | both |
 | Real Vercel function handler serving live requests | Linux x64 container |
 | Zero localhost Ollama / Supabase connections under simulated Preview | Linux x64 container |
 | Browser at 375 / 768 / 1280, zero console errors | macOS, local Supabase |
-| Vercel CLI build | **never ran — unverified** (no Orbit project to link to) |
+| Vercel CLI build | **ran and succeeded** against `orbit-axis` |
+| Built function executed on Linux x64, real calculation | **verified** — materialised bundle in a `linux/amd64` container |
+| Secret scan of `.vercel/output` | **clean** — 2 benign hits (published local demo key, a redaction regex) |
 | Hosted Supabase schema, RLS, indexes, grants | **never contacted — unverified** |
 | Preview / Production deployment behaviour | **simulated only** |
 

@@ -159,12 +159,16 @@ test("Orbit has no bundler, so no source map can leak server configuration", () 
 
 // ── the configuration that makes this work ──────────────────────────────────
 
-test("vercel.json force-includes the astro tree", () => {
+test("vercel.json force-includes exactly the subtrees the function needs", () => {
   const matcher = includeMatcher(config);
   assert.ok(matcher.patterns.length > 0, "vercel.json must declare includeFiles");
   assert.ok(matcher.test("lib/astro/bin/linux-x64/swetest"), "the Linux executable must match includeFiles");
   assert.ok(matcher.test("lib/astro/ephe/sepl_18.se1"), "ephemeris data must match includeFiles");
   assert.ok(matcher.test("lib/astro/runtime/manifest.json"), "the runtime manifest must match includeFiles");
+  // Update 4.0.4.2: a blanket lib/astro/** also force-included the macOS
+  // executable, which then shipped inside the Linux function.
+  assert.equal(matcher.test("lib/astro/bin/darwin-arm64/swetest"), false,
+    "includeFiles must not force-include the macOS executable");
 });
 
 test("vercel.json still targets the Other preset with static output from public/", () => {

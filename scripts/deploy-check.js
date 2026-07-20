@@ -28,6 +28,7 @@ import { ephemerisCapability } from "../lib/astro/ephemeris.js";
 import { runtimeManifest, resolveRuntime } from "../lib/astro/runtime/resolve.js";
 import { modelBundle } from "../lib/deploy/bundle.js";
 import { checkoutPortability, inspectVercelLink, vercelArtifactsIgnored } from "../lib/deploy/vercel-link.js";
+import { inspectVercelOutput, architectureWarning } from "../lib/deploy/vercel-output.js";
 import { envFileStatus } from "../lib/local-llm/config.js";
 
 const findings = [];
@@ -302,21 +303,36 @@ switch (link.status) {
     break;
 }
 
-// Build output, only meaningful once the link is correct.
-const vercelDir = join(REPO_ROOT, ".vercel");
-const builtOutput = existsSync(join(vercelDir, "output", "config.json"));
+// Build output, only meaningful once the link is correct. Read from the REAL
+// output rather than modelled — Update 4.0.4.2 found the model and the build
+// disagreeing about the function's contents, and the build was right.
+const inspection = inspectVercelOutput(REPO_ROOT);
 if (link.status === "ok") {
-  if (!builtOutput) {
+  if (!inspection.built) {
     warn("vercel-build", "The project is linked but no local Vercel build output exists.",
       "Run `npx vercel build` and re-run this check.");
   } else {
-    info("vercel-build", "Local Vercel build output is present in .vercel/output.");
-    const bundledRuntime = existsSync(join(vercelDir, "output", "functions", "api", "index.func", "lib", "astro", "bin", "linux-x64", "swetest"));
-    if (bundledRuntime) info("vercel-build", "The linux-x64 Swiss Ephemeris executable is present inside the built function.");
-    else blocker("vercel-build", "The built function does not contain the linux-x64 Swiss Ephemeris executable.",
-      "Check `includeFiles` in vercel.json.");
+    info("vercel-build", `Local Vercel build output present: ${inspection.physicalCount} file(s) in the function `
+      + `(${(inspection.functionBytes / 1048576).toFixed(1)} MB) plus ${inspection.mappedCount} mapped, `
+      + `${inspection.staticCount} static file(s), runtime ${inspection.runtime}, maxDuration ${inspection.maxDuration}s.`);
+
+    for (const missing of inspection.missing) {
+      blocker("vercel-build", `The built function cannot reach ${missing}.`,
+        "Check `includeFiles` in vercel.json — files opened by path are invisible to Vercel's import tracing.");
+    }
+    for (const bad of inspection.forbidden) {
+      blocker("security", `The built function contains ${bad.path} — ${bad.why}.`,
+        "Add an `excludeFiles` pattern in vercel.json. Note that .vercelignore does NOT affect function contents.");
+    }
+    if (inspection.ok) {
+      info("vercel-build", "The built function reaches the linux-x64 executable, all three .se1 data files, and the "
+        + "runtime manifest, and contains nothing forbidden.");
+    }
+
+    const archWarning = architectureWarning(inspection);
+    if (archWarning) warn("vercel-build", archWarning, "Never deploy this output with --prebuilt.");
   }
-} else if (builtOutput) {
+} else if (inspection.built) {
   // Output from a build against the wrong project must not be mistaken for
   // evidence that Orbit builds correctly.
   blocker("vercel-build", "Local Vercel build output exists but the project link is not an approved Orbit project.",

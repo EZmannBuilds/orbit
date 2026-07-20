@@ -14,6 +14,14 @@
 # list of exceptions. Enforced by test/deployment-packaging.test.js.
 .env*
 
+# ── Local Vercel metadata (Update 4.0.4.2) ──
+# `vercel link` and `vercel pull` write the linked project's id, org id, and
+# downloaded environment values here, plus local build output. None of it is
+# Orbit source and none of it belongs in an upload. One directory rule covers
+# project.json, README.txt, .env.*.local, and output/ — individual file rules
+# would be redundant and would rot as the CLI adds files.
+.vercel/
+
 # ── Obsidian vault and private project notes ──
 07 Orbit App/
 docs/
