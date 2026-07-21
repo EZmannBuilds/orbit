@@ -566,10 +566,24 @@
                 <div class="account-panel">
                   <div class="o-kv"><span class="o-kv__k">Signed in as</span><span class="o-kv__v" id="account-email">Not signed in</span></div>
                   <p class="more-note">Your account, saved charts, active chart, daily fortunes, history, and detail level are stored in Supabase. The vault is only for product documentation.</p>
-                  <p class="more-note">Export data is planned. Account deletion is intentionally disabled until the destructive flow is fully tested.</p>
+                  <p class="more-note">Export data is planned.</p>
                   <div class="more-actions">
                     <button class="o-btn o-btn--secondary" type="button" id="account-signout">Sign out</button>
-                    <button class="o-btn o-btn--secondary" type="button" disabled>Delete account request</button>
+                  </div>
+
+                  <!-- Destructive actions are separated from ordinary ones so
+                       "Delete account" is never adjacent to something harmless
+                       a person might be aiming for. -->
+                  <div class="danger-zone" id="danger-zone">
+                    <h3 class="danger-zone__title">Delete your account</h3>
+                    <p class="danger-zone__body">
+                      This permanently removes your saved charts, birth details, daily readings,
+                      reading history, Ask Orbit conversations, and preferences, and closes your
+                      account. It cannot be undone, and Orbit cannot recover it for you.
+                    </p>
+                    <button class="o-btn o-btn--danger" type="button" id="account-delete-open">
+                      Delete account
+                    </button>
                   </div>
                 </div>
               </details>
@@ -720,6 +734,51 @@
   </div>
 
   <!-- ── Chart modal (create / edit) ──────────────────────────────────── -->
+  <!-- ── Permanent account deletion ──────────────────────────────────────
+       Typed confirmation rather than a yes/no button: this is irreversible,
+       and the friction is the point. The submit button stays disabled until
+       the typed value is exactly right. -->
+  <div class="o-modal" id="delete-account-modal" hidden role="dialog" aria-modal="true"
+       aria-labelledby="delete-account-title" aria-describedby="delete-account-body">
+    <div class="o-modal__backdrop" data-modal-close></div>
+    <div class="o-modal__panel o-modal__panel--danger">
+      <header class="o-modal__head">
+        <h2 id="delete-account-title">Delete your account permanently</h2>
+        <button type="button" class="o-modal__close" id="delete-account-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+      <div class="o-modal__body">
+        <p id="delete-account-body">
+          This removes everything below, for good. Orbit keeps no copy and cannot restore it.
+        </p>
+        <ul class="delete-list">
+          <li>Your account and sign-in</li>
+          <li>Saved charts and birth details</li>
+          <li>Daily readings and reading history</li>
+          <li>Ask Orbit conversations</li>
+          <li>Preferences and detail level</li>
+        </ul>
+        <form id="delete-account-form" novalidate>
+          <label for="delete-account-confirm">
+            Type <strong>DELETE</strong> to confirm
+          </label>
+          <input type="text" id="delete-account-confirm" autocomplete="off"
+                 autocapitalize="characters" spellcheck="false"
+                 aria-describedby="delete-account-hint" />
+          <p class="field-hint" id="delete-account-hint">Exactly DELETE, in capitals.</p>
+          <div class="o-modal__actions">
+            <button type="button" class="o-btn o-btn--secondary" id="delete-account-cancel">Cancel</button>
+            <button type="submit" class="o-btn o-btn--danger" id="delete-account-submit" disabled>
+              Delete my account
+            </button>
+          </div>
+          <div class="auth-message" id="delete-account-message" role="status" aria-live="polite"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div class="o-modal" id="chart-modal" hidden role="dialog" aria-modal="true" aria-labelledby="chart-modal-title">
     <div class="o-modal__backdrop" data-modal-close></div>
     <div class="o-modal__panel">

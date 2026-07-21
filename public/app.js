@@ -185,10 +185,10 @@ const icon = (name, cls = "rail__icon") =>
 const WORKSPACES = [
   { id: "home", label: "Home", crumb: "Your day", icon: "home", primary: true },
   { id: "me", label: "Me", crumb: "Your chart", icon: "me", primary: true },
-  { id: "tarot", label: "Tarot", crumb: "Daily cards", icon: "tarot", primary: true },
+  { id: "tarot", label: "Tarot", crumb: "Daily cards", icon: "tarot", primary: true, feature: "tarot" },
   { id: "ask", label: "Ask", desktopLabel: "Ask Orbit", crumb: "Astrology consultation", icon: "ask", primary: true, central: true },
-  { id: "learn", label: "Learn", crumb: "Courses", icon: "learn", primary: true },
-  { id: "news", label: "News", crumb: "Verified articles", icon: "news", primary: true },
+  { id: "learn", label: "Learn", crumb: "Courses", icon: "learn", primary: true, feature: "learn" },
+  { id: "news", label: "News", crumb: "Verified articles", icon: "news", primary: true, feature: "news" },
   { id: "more", label: "More", crumb: "Tools & settings", icon: "more", primary: true },
   { id: "history", label: "History", crumb: "Past readings", icon: "history", primary: false },
   { id: "settings", label: "Settings", crumb: "Preferences", icon: "settings", primary: false },
@@ -197,9 +197,40 @@ const WORKSPACES = [
   { id: "research", label: "Research", crumb: "Atlas & queries", icon: "research", primary: false },
 ];
 
+/* ── Feature flags ─────────────────────────────────────────────────────────
+   Tarot, Learn, and News are built but unfinished, and are not part of version
+   one. The server decides — this is a cache of its answer, defaulting to OFF so
+   that a failed or slow /api/features never briefly reveals a feature that
+   should be hidden. Failing open here would show an unfinished page for exactly
+   as long as the request took, which is the one moment nobody is watching. */
+const featureState = { tarot: false, learn: false, news: false };
+
+async function loadFeatureFlags() {
+  try {
+    const res = await fetch("/api/features");
+    if (!res.ok) return;
+    const data = await res.json();
+    for (const key of Object.keys(featureState)) {
+      featureState[key] = data?.features?.[key] === true;   // strictly true
+    }
+  } catch {
+    // Keep the safe defaults. Hiding an unfinished feature because the app
+    // could not ask is the right way to be wrong.
+  }
+}
+
+/** Workspaces this environment may show. Ungated ones always pass. */
+function availableWorkspaces() {
+  return WORKSPACES.filter(ws => !ws.feature || featureState[ws.feature] === true);
+}
+
+function workspaceAvailable(id) {
+  return availableWorkspaces().some(ws => ws.id === id);
+}
+
 /* ── Router ────────────────────────────────────────────────────────────── */
 function buildRail() {
-  $("#rail-nav").innerHTML = WORKSPACES.filter(ws => ws.primary).map(ws => `
+  $("#rail-nav").innerHTML = availableWorkspaces().filter(ws => ws.primary).map(ws => `
     <a class="rail__link ${ws.central ? "rail__link--ask" : ""}" id="tab-${ws.id}" role="tab" href="#${ws.id}" data-ws="${ws.id}"
        aria-controls="panel-${ws.id}" aria-selected="false" aria-label="${esc(ws.desktopLabel || ws.label)}">
       ${icon(ws.icon)}<span class="rail__label" data-mobile-label="${esc(ws.label)}">${esc(ws.desktopLabel || ws.label)}</span>
@@ -208,7 +239,10 @@ function buildRail() {
 
 function currentWorkspace() {
   const hash = location.hash.replace("#", "");
-  return WORKSPACES.some(ws => ws.id === hash) ? hash : "home";
+  // A disabled feature's hash falls back to Home rather than rendering a panel
+  // that navigation deliberately hides. Someone with an old bookmark, or a
+  // guessed URL, gets the working app instead of an unfinished shell.
+  return workspaceAvailable(hash) ? hash : "home";
 }
 
 function navigate(id) {
@@ -219,6 +253,15 @@ function navigate(id) {
 function renderRoute() {
   const id = currentWorkspace();
   const ws = WORKSPACES.find(w => w.id === id);
+
+  // A disabled feature's panel is removed from the document entirely. `hidden`
+  // alone would leave its markup in the page, reachable by anyone reading the
+  // DOM — and "we hid it with an attribute" is not the same as "it is not
+  // shipped". The element is gone; only the source that builds it remains.
+  for (const gated of WORKSPACES.filter(w => w.feature && !featureState[w.feature])) {
+    $(`#panel-${gated.id}`)?.remove();
+    $(`#tab-${gated.id}`)?.remove();
+  }
 
   WORKSPACES.forEach(w => {
     const panel = $(`#panel-${w.id}`);
@@ -459,7 +502,7 @@ function wireTools() {
 /* ── Command palette ───────────────────────────────────────────────────── */
 const cmd = { open: false, index: 0, items: [] };
 function commandItems() {
-  const nav = WORKSPACES.map(ws => ({ group: "Go to", label: ws.label, glyph: "→", hint: `#${ws.id}`, run: () => navigate(ws.id) }));
+  const nav = availableWorkspaces().map(ws => ({ group: "Go to", label: ws.label, glyph: "→", hint: `#${ws.id}`, run: () => navigate(ws.id) }));
   const actions = [
     { group: "Actions", label: "Ask Orbit", glyph: "?", run: () => { navigate("ask"); setTimeout(() => $("#ask-input")?.focus(), 60); } },
     { group: "Actions", label: "Look up a birth sign", glyph: "☉", run: () => { navigate("charts"); setTimeout(() => $("#birth-date").focus(), 60); } },
@@ -693,21 +736,146 @@ function wireAuth() {
 
   $("#account-signout")?.addEventListener("click", async () => {
     await post("/api/auth/signout", {});
-    state.auth.user = null;
-    state.charts = [];
-    state.activeChartId = null;
-    state.activeProfile = null;
-    state.activeNatalChart = null;
-    state.chartsStatus = "idle";
-    state.onboardingDismissed = false; // a fresh sign-in gets a fresh decision
-    renderAccount();
-    renderSavedCharts();
-    if (!$("#onboarding-gate").hidden) closeModal($("#onboarding-gate"));
-    if (!$("#chart-modal").hidden) closeModal($("#chart-modal"));
-    $("#today-chart-error").hidden = true;
-    $("#auth-gate").hidden = false;
-    resetAskForAuthChange(); // never leave one account's conversation on screen
+    clearPrivateState();
     toast("Signed out");
+  });
+
+  wireAccountDeletion();
+}
+
+/**
+ * Return the app to a signed-out state, leaving nothing of the previous account
+ * on screen or in memory.
+ *
+ * Shared by sign-out and deletion so the two can never drift — if a new piece
+ * of private state is added and only one path clears it, that is exactly the
+ * kind of leak nobody notices until someone else uses the same browser.
+ *
+ * @param {{ purgeLocalData?: boolean }} options
+ *   purgeLocalData additionally clears locally cached birth details. Sign-out
+ *   deliberately does NOT: the person is coming back, and wiping their cached
+ *   chart on every sign-out would be hostile. Deletion always does.
+ */
+function clearPrivateState({ purgeLocalData = false } = {}) {
+  state.auth.user = null;
+  state.charts = [];
+  state.activeChartId = null;
+  state.activeProfile = null;
+  state.activeNatalChart = null;
+  state.chartsStatus = "idle";
+  state.onboardingDismissed = false; // a fresh sign-in gets a fresh decision
+
+  if (purgeLocalData) {
+    // oa_birth holds birth date, time, and coordinates. It is the most personal
+    // thing Orbit stores anywhere, and it lives in localStorage, which no
+    // server-side deletion can reach. Missing it would leave a deleted user's
+    // birth details sitting in the browser.
+    try {
+      localStorage.removeItem("oa_birth");
+      localStorage.removeItem("oa_detail");
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith("orbit.")) localStorage.removeItem(key);
+      }
+      sessionStorage.clear();
+    } catch { /* storage can be unavailable; deletion still succeeded */ }
+  }
+
+  // In-memory caches of the account's own content. These survive a re-render,
+  // so leaving them populated would keep a deleted account's reading on screen
+  // until something happened to overwrite it.
+  AXIS.lastFortune = null;
+  AXIS.lastSky = null;
+  AXIS.carousel = { key: null, index: 0, topics: [] };
+  AXIS.loadedOnce = false;
+
+  renderAccount();
+  renderSavedCharts();
+  if (!$("#onboarding-gate").hidden) closeModal($("#onboarding-gate"));
+  if (!$("#chart-modal").hidden) closeModal($("#chart-modal"));
+  $("#today-chart-error").hidden = true;
+  $("#auth-gate").hidden = false;
+  resetAskForAuthChange(); // never leave one account's conversation on screen
+}
+
+/* ── Permanent account deletion ────────────────────────────────────────────
+   Typed confirmation, not a yes/no button. The friction is deliberate: this
+   is the one action in Orbit that cannot be undone. */
+function wireAccountDeletion() {
+  const modal = $("#delete-account-modal");
+  const form = $("#delete-account-form");
+  if (!modal || !form) return;
+
+  const input = $("#delete-account-confirm");
+  const submit = $("#delete-account-submit");
+  const message = $("#delete-account-message");
+  const REQUIRED = "DELETE";
+  let deleting = false;
+
+  const reset = () => {
+    input.value = "";
+    submit.disabled = true;
+    message.textContent = "";
+    deleting = false;
+  };
+
+  // openModal already restores focus to whatever opened the dialog, so
+  // cancelling returns the person to the Delete account button they came from.
+  $("#account-delete-open")?.addEventListener("click", () => {
+    reset();
+    openModal(modal, { onClose: reset, initialFocus: input });
+  });
+  $("#delete-account-cancel")?.addEventListener("click", () => closeModal(modal));
+  $("#delete-account-close")?.addEventListener("click", () => closeModal(modal));
+
+  // The button stays disabled until the typed value is exactly right. Trimmed
+  // so a trailing space from a paste is not a confusing dead end, but not
+  // upper-cased — typing it in capitals is part of the deliberateness.
+  input.addEventListener("input", () => {
+    submit.disabled = input.value.trim() !== REQUIRED || deleting;
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (deleting || input.value.trim() !== REQUIRED) return;
+
+    deleting = true;
+    submit.disabled = true;
+    $("#delete-account-cancel").disabled = true;
+    message.textContent = "Deleting your account…";
+
+    try {
+      const res = await fetch("/api/v1/account", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: REQUIRED }),
+      });
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.data?.deleted) {
+        // Never a fake success. The person is told what actually happened and,
+        // where it is worth retrying, given the request id to quote.
+        const error = payload?.error;
+        const reference = payload?.meta?.requestId ? ` (reference ${payload.meta.requestId})` : "";
+        message.textContent = (error?.message || "Your account could not be deleted.") + reference;
+        deleting = false;
+        submit.disabled = input.value.trim() !== REQUIRED;
+        $("#delete-account-cancel").disabled = false;
+        return;
+      }
+
+      closeModal(modal);
+      clearPrivateState({ purgeLocalData: true });
+      // replaceState so the browser Back button cannot return to a private view
+      // rendered before the account was deleted.
+      if (history.replaceState) history.replaceState(null, "", "#home");
+      navigate("home");
+      toast("Your account has been permanently deleted.");
+    } catch {
+      message.textContent = "Could not reach Orbit. Your account was not deleted. Check your connection and try again.";
+      deleting = false;
+      submit.disabled = input.value.trim() !== REQUIRED;
+      $("#delete-account-cancel").disabled = false;
+    }
   });
 }
 
@@ -1279,7 +1447,11 @@ function wireKeyboard() {
     // Number keys jump between workspaces when not typing.
     const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
     if (!typing && !meta && /^[1-7]$/.test(e.key)) {
-      navigate(WORKSPACES[Number(e.key) - 1].id);
+      // Indexes the VISIBLE rail, so the numbers always match what is on
+      // screen rather than jumping to a hidden feature.
+      const visible = availableWorkspaces().filter(ws => ws.primary);
+      const target = visible[Number(e.key) - 1];
+      if (target) navigate(target.id);
     }
   });
 
@@ -1687,6 +1859,9 @@ async function refreshData(notify = false) {
 /* ── Boot ──────────────────────────────────────────────────────────────── */
 async function boot() {
   settings.load();
+  // Flags first: the rail is built from them, and building it twice would make
+  // hidden features flash on screen before disappearing.
+  await loadFeatureFlags();
   buildRail();
   wireSettings();
   wireAuth();

@@ -148,3 +148,62 @@
 @media (max-width: 760px) {
   .more-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Danger zone ───────────────────────────────────────────────────────────
+   Permanent account deletion. Visually separated from the ordinary account
+   actions so "Delete account" is never adjacent to something harmless someone
+   might be reaching for, and so the boundary is obvious at a glance rather
+   than only readable in the label. */
+.danger-zone {
+  margin-top: var(--space-4, 1.25rem);
+  padding: var(--space-3, 1rem);
+  border: 1px solid var(--danger-border, #7f2b34);
+  border-radius: var(--radius-md, 10px);
+  background: var(--danger-surface, rgba(160, 40, 52, 0.08));
+}
+
+.danger-zone__title {
+  margin: 0 0 var(--space-1, 0.35rem);
+  font-size: 0.95rem;
+  color: var(--danger-text, #f0a1aa);
+}
+
+.danger-zone__body {
+  margin: 0 0 var(--space-3, 1rem);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-muted, #9aa3b2);
+}
+
+.o-modal__panel--danger { border-top: 3px solid var(--danger-border, #7f2b34); }
+
+.delete-list {
+  margin: 0 0 var(--space-3, 1rem);
+  padding-left: 1.15rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-muted, #9aa3b2);
+}
+
+#delete-account-confirm {
+  width: 100%;
+  margin-top: var(--space-1, 0.35rem);
+  /* Monospace so a stray space or lowercase letter is visible rather than
+     something the person has to squint at while already anxious. */
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: 0.08em;
+}
+
+.field-hint {
+  margin: var(--space-1, 0.35rem) 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted, #9aa3b2);
+}
+
+/* A disabled destructive button must look unavailable, not merely dimmed —
+   this is the state it sits in until the confirmation is typed correctly. */
+.o-btn--danger:disabled { opacity: 0.45; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .danger-zone { transition: border-color 150ms ease; }
+}
