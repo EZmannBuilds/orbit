@@ -168,6 +168,36 @@ if (rls && rls.checksPassed === rls.checksTotal && rls.checksTotal > 0) {
     "This check never contacts the hosted project. Verify them from the Supabase dashboard before Production.");
 }
 
+// ── 3b. Branch-scoped Preview variables ─────────────────────────────────────
+// Vercel Preview variables can be scoped to a single git branch. That is the
+// safer choice here — it stops a stray preview branch from reaching the shared
+// production database — but it has a trap that has already cost one broken
+// deployment: create a new branch, deploy it, and the function starts with NO
+// configuration and refuses to boot with a 503 that says nothing useful in the
+// browser.
+//
+// This cannot read Vercel's variable scoping (that needs the API and a token),
+// so it does the next best thing: it reminds you, naming the branch, whenever
+// the current branch is not one that has been recorded as configured.
+const previewBranchesPath = join(REPO_ROOT, "docs", "deployment", "preview-branches.json");
+let configuredBranches = [];
+if (existsSync(previewBranchesPath)) {
+  try { configuredBranches = JSON.parse(readFileSync(previewBranchesPath, "utf8")).branches || []; }
+  catch { configuredBranches = []; }
+}
+const currentBranch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+if (currentBranch && currentBranch !== "HEAD") {
+  if (configuredBranches.includes(currentBranch)) {
+    info("vercel", `Preview variables are recorded as configured for branch "${currentBranch}".`);
+  } else {
+    warn("vercel", `Branch "${currentBranch}" is not recorded as having Preview variables configured.`,
+      "Vercel Preview variables here are scoped per branch. Deploying a branch without them starts the "
+      + "function with no database configuration, and it answers 503 for every request. Add them with "
+      + `\`vercel env add <NAME> preview ${currentBranch}\` and record the branch in `
+      + "docs/deployment/preview-branches.json.");
+  }
+}
+
 // ── 4. Environment variable names (names only — never values) ───────────────
 const REQUIRED_ON_VERCEL = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "ORBIT_ENVIRONMENT"];
 const OPTIONAL_ON_VERCEL = ["GEOAPIFY_API_KEY", "ORBIT_PREVIEW_PROJECT_REFS", "ORBIT_ASK_USE_MODEL"];

@@ -1,0 +1,20 @@
+{
+  "$comment": [
+    "Branches whose Vercel Preview environment variables have been configured.",
+    "",
+    "Vercel Preview variables are scoped PER BRANCH here on purpose: it stops a",
+    "stray preview branch from reaching the shared production Supabase project.",
+    "The cost is that a new branch deploys with no configuration and the function",
+    "answers 503 for every request — which is exactly what happened when the",
+    "Update 5.1.1 repair branch was first deployed.",
+    "",
+    "deploy:check reads this file and warns when the current branch is missing.",
+    "Add a branch here only AFTER running `vercel env add ... preview <branch>`.",
+    "",
+    "This records branch names only. No values, ever."
+  ],
+  "branches": [
+    "feat/orbit-axis-private-mobile-preview",
+    "feat/orbit-axis-mobile-auth-repair"
+  ]
+}
