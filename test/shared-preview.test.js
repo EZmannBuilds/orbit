@@ -221,3 +221,129 @@ test("development affordances stay off in an approved shared Preview", () => {
   assert.equal(info.allowsLocalLanguageProvider, false, "no Ollama on a deployed Preview");
   assert.equal(info.requiresPersistentStorage, true);
 });
+
+// ── Production shared-database approval (Update 5.1.2) ──────────────────────
+//
+// Production has its OWN variables. Approving a Preview must never silently
+// approve Production: a Preview is seen by the owner, Production is seen by
+// everyone, and the two decisions deserve to be made separately.
+
+import { sharedProductionVerdict } from "../lib/env/shared-preview.js";
+
+const PROD_VALID = Object.freeze({
+  ORBIT_ENVIRONMENT: "production",
+  ORBIT_PRODUCTION_DATABASE_MODE: SHARED_ORBIT_MODE,
+  ORBIT_PRODUCTION_PROJECT_REFS: PRODUCTION_PROJECT_REF,
+  SUPABASE_URL: ORBIT_URL,
+  SUPABASE_ANON_KEY: "test-anon-key",
+  VERCEL: "1",
+  VERCEL_ENV: "production",
+});
+const PROD_CONTEXT = { environment: "production", isVercel: true, vercelEnv: "production" };
+const prodVerdict = (overrides = {}, context = PROD_CONTEXT) =>
+  sharedProductionVerdict({ ...PROD_VALID, ...overrides }, context);
+
+test("a fully configured shared Production is approved", () => {
+  const v = prodVerdict();
+  assert.equal(v.approved, true, v.reason || "");
+  assert.equal(v.target, "approved-shared-production");
+});
+
+test("an approved shared Production starts and is classified distinctly", () => {
+  const info = resolve(PROD_VALID);
+  assert.equal(info.databaseTarget, "approved-shared-production");
+  assert.equal(info.rawDatabaseTarget, "production");
+  assert.equal(caught(() => assertStartupSafe(info)), null);
+});
+
+test("Preview approval is not sufficient for Production", () => {
+  // The exact trap this separation exists to prevent.
+  const v = prodVerdict({
+    ORBIT_PRODUCTION_DATABASE_MODE: undefined,
+    ORBIT_PRODUCTION_PROJECT_REFS: undefined,
+    ORBIT_PREVIEW_DATABASE_MODE: SHARED_ORBIT_MODE,
+    ORBIT_PREVIEW_PROJECT_REFS: PRODUCTION_PROJECT_REF,
+  });
+  assert.equal(v.approved, false);
+  assert.match(v.reason, /ORBIT_PRODUCTION_DATABASE_MODE is unset/);
+});
+
+test("Production approval is not sufficient for Preview", () => {
+  const v = sharedPreviewVerdict(
+    { ...PROD_VALID, ORBIT_ENVIRONMENT: "preview", VERCEL_ENV: "preview" },
+    { environment: "preview", isVercel: true, vercelEnv: "preview" },
+  );
+  assert.equal(v.approved, false);
+  assert.match(v.reason, /ORBIT_PREVIEW_DATABASE_MODE is unset/);
+});
+
+test("every Production condition fails closed", () => {
+  const cases = [
+    ["mode unset", { ORBIT_PRODUCTION_DATABASE_MODE: "" }],
+    ["mode misspelled", { ORBIT_PRODUCTION_DATABASE_MODE: "shared_orbit" }],
+    ["refs unset", { ORBIT_PRODUCTION_PROJECT_REFS: "" }],
+    ["refs wrong", { ORBIT_PRODUCTION_PROJECT_REFS: "someotherprojectref00" }],
+    ["url disagrees with refs", { SUPABASE_URL: "https://differentprojectref0.supabase.co" }],
+    ["localhost", { SUPABASE_URL: "http://127.0.0.1:55321" }],
+    ["anon key missing", { SUPABASE_ANON_KEY: "" }],
+    ["service-role present", { SUPABASE_SERVICE_ROLE_KEY: "x" }],
+    ["db password present", { SUPABASE_DB_PASSWORD: "x" }],
+    ["disposable users", { ORBIT_ALLOW_DISPOSABLE_USERS: "true" }],
+    ["seed data", { ORBIT_ALLOW_SEED_DATA: "true" }],
+    ["db reset", { ORBIT_ALLOW_DB_RESET: "true" }],
+    ["local migrations", { ORBIT_ALLOW_LOCAL_MIGRATIONS: "true" }],
+  ];
+  for (const [label, overrides] of cases) {
+    assert.equal(prodVerdict(overrides).approved, false, `${label} must be refused`);
+  }
+});
+
+test("a non-Orbit project is refused even when self-consistent", () => {
+  const other = "someotherprojectref00";
+  const v = prodVerdict({
+    SUPABASE_URL: `https://${other}.supabase.co`,
+    ORBIT_PRODUCTION_PROJECT_REFS: other,
+  });
+  assert.equal(v.approved, false);
+});
+
+test("Vercel Production cannot be overridden by ORBIT_ENVIRONMENT=preview", () => {
+  const v = sharedPreviewVerdict(
+    { ...PROD_VALID, ORBIT_ENVIRONMENT: "preview",
+      ORBIT_PREVIEW_DATABASE_MODE: SHARED_ORBIT_MODE, ORBIT_PREVIEW_PROJECT_REFS: PRODUCTION_PROJECT_REF },
+    { environment: "preview", isVercel: true, vercelEnv: "production" },
+  );
+  assert.equal(v.approved, false);
+  assert.match(v.reason, /Vercel reports "production"/);
+});
+
+test("Vercel Preview cannot be overridden by ORBIT_ENVIRONMENT=production", () => {
+  const v = prodVerdict({}, { environment: "production", isVercel: true, vercelEnv: "preview" });
+  assert.equal(v.approved, false);
+  assert.match(v.reason, /Vercel reports "preview"/);
+});
+
+test("local and test never reach the Production shared target", () => {
+  for (const environment of ["local", "test"]) {
+    const info = resolve({ ...PROD_VALID, ORBIT_ENVIRONMENT: environment, VERCEL: "", VERCEL_ENV: "" });
+    assert.ok(caught(() => assertStartupSafe(info)) instanceof EnvironmentSafetyError,
+      `${environment} must not start against the shared Production target`);
+  }
+});
+
+test("a requested-but-refused Production mode fails startup with the reason", () => {
+  const info = resolve({ ...PROD_VALID, ORBIT_PRODUCTION_PROJECT_REFS: "" });
+  const error = caught(() => assertStartupSafe(info));
+  assert.ok(error instanceof EnvironmentSafetyError);
+  assert.equal(error.code, "production_shared_not_approved");
+  assert.match(error.message, /ORBIT_PRODUCTION_PROJECT_REFS/);
+});
+
+test("development affordances stay off in an approved shared Production", () => {
+  const info = resolve(PROD_VALID);
+  for (const key of ["allowsDisposableUsers", "allowsSeedData", "allowsLocalMigrations",
+                     "allowsDevRoutes", "allowsLocalLanguageProvider"]) {
+    assert.equal(info[key], false, `${key} must stay off`);
+  }
+  assert.equal(info.requiresPersistentStorage, true);
+});
