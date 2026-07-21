@@ -1,0 +1,52 @@
+{
+  "$comment": [
+    "A RECORD of hosted-database verification that was actually performed, so",
+    "deploy:check can reflect proven reality without contacting the hosted",
+    "project itself (it never does, by design).",
+    "",
+    "This is a claim with a date and a method, not a live check. deploy:check",
+    "says so when it reads this file. If the hosted schema changes, this record",
+    "becomes wrong and must be re-verified — that is the cost of recording a",
+    "verification rather than repeating it.",
+    "",
+    "Never put keys, row contents, or user data in this file."
+  ],
+  "projectRef": "mtdrazdastcgiweauwoj",
+  "projectName": "Orbit Axis (hosted)",
+  "migrationsApplied": [
+    {
+      "file": "20260714103000_active_chart_history.sql",
+      "appliedAt": "2026-07-21",
+      "method": "Supabase management API apply_migration",
+      "verifiedBy": "schema query: last_active_at column and activate_birth_profile function present",
+      "destructiveStatements": "none",
+      "rehearsed": "twice against a scratch database built to the hosted schema"
+    },
+    {
+      "file": "20260717120000_ask_orbit_conversations.sql",
+      "appliedAt": "2026-07-21",
+      "method": "Supabase management API apply_migration",
+      "verifiedBy": "schema query: ask_conversations and ask_messages present, RLS enabled, 8 policies",
+      "destructiveStatements": "none",
+      "rehearsed": "twice against a scratch database built to the hosted schema"
+    }
+  ],
+  "rlsVerification": {
+    "verifiedAt": "2026-07-21",
+    "method": "scripts/rls-check.js against the hosted project with two live disposable users",
+    "checksPassed": 18,
+    "checksTotal": 18,
+    "coverage": [
+      "cross-user read, update, delete, and activate all denied",
+      "ownership cannot be forged on insert",
+      "cross-user Ask Orbit conversation access denied",
+      "anonymous callers receive no rows and cannot write",
+      "a tampered token is refused"
+    ],
+    "cleanup": "disposable users deleted; hosted row counts returned to pre-test values"
+  },
+  "dataIntegrity": {
+    "verifiedAt": "2026-07-21",
+    "note": "Counts recorded before and after every hosted operation; existing accounts and their data unchanged."
+  }
+}

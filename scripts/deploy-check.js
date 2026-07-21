@@ -24,6 +24,7 @@ import { spawnSync } from "node:child_process";
 import { REPO_ROOT } from "../lib/local-llm/config.js";
 import { resolveEnvironment, describeTarget } from "../lib/env/environment.js";
 import { PRODUCTION_PROJECT_REF, APPROVED_PREVIEW_PROJECT_REFS, configuredPreviewRefs } from "../lib/env/known-targets.js";
+import { sharedPreviewVerdict, sharedPreviewWarnings } from "../lib/env/shared-preview.js";
 import { ephemerisCapability } from "../lib/astro/ephemeris.js";
 import { runtimeManifest, resolveRuntime } from "../lib/astro/runtime/resolve.js";
 import { modelBundle } from "../lib/deploy/bundle.js";
@@ -94,7 +95,28 @@ info("persistence", "Simulated Preview and Production both require durable Supab
 
 // ── 2. Preview Supabase project ─────────────────────────────────────────────
 const approvedPreview = [...APPROVED_PREVIEW_PROJECT_REFS, ...configuredPreviewRefs()];
-if (approvedPreview.length === 0) {
+
+// The owner-approved shared-database Preview. Evaluated with a simulated
+// Preview context, because this script runs locally: the question is whether
+// the CONFIGURATION would be approved on Vercel, not whether it is approved
+// here (it never is here — local is not preview).
+const sharedVerdict = sharedPreviewVerdict(
+  { ...process.env, ORBIT_ENVIRONMENT: "preview" },
+  { environment: "preview", isVercel: true, vercelEnv: "preview" },
+);
+
+if (sharedVerdict.approved) {
+  info("supabase", `Preview is approved to share the Orbit database (project ${sharedVerdict.projectRef}).`);
+  // Approved is not the same as safe. This must never become a quiet "ok".
+  for (const line of sharedPreviewWarnings()) warn("supabase", line);
+  warn("supabase", "A dedicated staging database is required before any outside tester is invited.",
+    "Sharing one project with Production is acceptable only for owner-controlled private Preview testing.");
+} else if (sharedVerdict.requested) {
+  blocker("supabase", `Shared-database Preview mode was requested but refused: ${sharedVerdict.reason}.`,
+    "Set ORBIT_ENVIRONMENT=preview, ORBIT_PREVIEW_DATABASE_MODE=shared-orbit, "
+    + "ORBIT_PREVIEW_PROJECT_REFS=<the Orbit project reference>, and a SUPABASE_URL whose "
+    + "project reference matches. All four must agree.");
+} else if (approvedPreview.length === 0) {
   blocker("supabase", "No approved Preview Supabase project exists.",
     "Create a separate, disposable Supabase project for Preview, then add its project reference to "
     + "ORBIT_PREVIEW_PROJECT_REFS (or to APPROVED_PREVIEW_PROJECT_REFS in lib/env/known-targets.js). "
@@ -112,15 +134,39 @@ const migrations = existsSync(migrationsDir)
   ? readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()
   : [];
 info("supabase", `${migrations.length} local migration file(s) found.`);
+// This script never contacts the hosted project. Instead it reads a RECORD of
+// verification that was actually performed — a claim with a date and a method,
+// which is weaker than a live check and is reported as such. If the hosted
+// schema drifts, the record becomes wrong, which is the cost of recording a
+// verification rather than repeating it every run.
+const verificationPath = join(REPO_ROOT, "docs", "deployment", "hosted-verification.json");
+let hostedRecord = null;
+if (existsSync(verificationPath)) {
+  try { hostedRecord = JSON.parse(readFileSync(verificationPath, "utf8")); }
+  catch { hostedRecord = null; }
+}
+const recordedMigrations = new Set((hostedRecord?.migrationsApplied || []).map((m) => m.file));
+
 const askMigration = migrations.find((m) => m.includes("ask_orbit"));
-if (askMigration) {
+if (askMigration && !recordedMigrations.has(askMigration)) {
   blocker("supabase", `The Ask Orbit migration (${askMigration}) is not known to be applied to hosted Supabase.`,
     "Ask Orbit conversation history depends on the ask_conversations and ask_messages tables. "
     + "Until the owner applies this migration to the hosted project, Ask Orbit answers will generate "
     + "but will not save. Review docs/deployment/hosted-migration-checklist.md and apply it with explicit approval.");
+} else if (askMigration) {
+  const record = hostedRecord.migrationsApplied.find((m) => m.file === askMigration);
+  info("supabase", `${askMigration} recorded as applied on ${record.appliedAt} (${record.verifiedBy}).`);
 }
-warn("supabase", "Hosted Supabase schema, RLS policies, indexes, and grants are UNVERIFIED.",
-  "This check never contacts the hosted project. Verify them from the Supabase dashboard before Production.");
+
+const rls = hostedRecord?.rlsVerification;
+if (rls && rls.checksPassed === rls.checksTotal && rls.checksTotal > 0) {
+  info("supabase", `Hosted RLS verified ${rls.verifiedAt}: ${rls.checksPassed}/${rls.checksTotal} checks passed with two live users.`);
+  warn("supabase", "Hosted schema and RLS status comes from a RECORDED verification, not a live check.",
+    `Recorded ${rls.verifiedAt}. Re-verify after any hosted schema change — this file can become stale without anything failing.`);
+} else {
+  warn("supabase", "Hosted Supabase schema, RLS policies, indexes, and grants are UNVERIFIED.",
+    "This check never contacts the hosted project. Verify them from the Supabase dashboard before Production.");
+}
 
 // ── 4. Environment variable names (names only — never values) ───────────────
 const REQUIRED_ON_VERCEL = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "ORBIT_ENVIRONMENT"];
