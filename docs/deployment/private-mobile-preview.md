@@ -8,7 +8,7 @@
 ## The URL
 
 ```
-https://orbit-axis-o7xkhymu3-lorehouse-team.vercel.app
+https://orbit-axis-5f863l8f4-lorehouse-team.vercel.app
 ```
 
 Branch: `feat/orbit-axis-private-mobile-preview`
@@ -88,7 +88,7 @@ containing any of your birth details.
 ## If the URL stops working
 
 Pushing another commit to the branch creates a **new** Preview URL. The one
-above points at commit `3c3f5c8`. A newer deployment will have a different
+above points at commit `d48818e`. A newer deployment will have a different
 address; the branch's latest Preview is always listed in the Vercel dashboard
 under `lorehouse-team/orbit-axis`.
 
@@ -100,7 +100,7 @@ email confirmation links will not return to the app.
 Supabase dashboard → **Authentication → URL Configuration → Redirect URLs**, add:
 
 ```
-https://orbit-axis-o7xkhymu3-lorehouse-team.vercel.app/**
+https://orbit-axis-5f863l8f4-lorehouse-team.vercel.app/**
 ```
 
 This was not done for you: it is a dashboard setting on the live Auth

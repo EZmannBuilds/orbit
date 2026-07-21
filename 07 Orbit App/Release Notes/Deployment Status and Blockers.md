@@ -187,3 +187,22 @@ a real deployment could surface it.
 - Preview and Production share one database; a dedicated staging project is
   required before any outside tester
 - Production deployment not attempted
+
+## Update 5.1.1 — Preview sign-in repaired, 2026-07-21
+
+Sign-in was broken on the deployed Preview and is now fixed at the routing
+level. `cleanUrls: true`, added in Update 5.1 for the legal pages, generated a
+308 redirect matching any path ending in `index` — which is exactly where
+`vercel.json` rewrites every `/api` request. See [[Mobile Preview Auth Repair]].
+
+**Awaiting owner confirmation.** The fix is verified in the route table, in
+tests that fail on the original defect, and against the local server. It is NOT
+verified signed in on the deployed Preview, because that needs the owner's
+Vercel session.
+
+Preview: `https://orbit-axis-5f863l8f4-lorehouse-team.vercel.app`, commit
+`d48818e`, branch `feat/orbit-axis-mobile-auth-repair`.
+
+**Lesson recorded:** every prior deployment verification tested the built
+function. None tested the router in front of it. A function that works when
+invoked directly says nothing about whether requests reach it.
