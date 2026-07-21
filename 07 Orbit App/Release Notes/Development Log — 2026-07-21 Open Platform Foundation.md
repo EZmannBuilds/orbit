@@ -253,7 +253,90 @@ actions.
 Tests: 550 pass (534 before), 0 fail. Nothing deployed, published, merged, or
 pushed.
 
-## Recommended Session 5 — Release Compliance and Version-One Scope
+## Session 5 — account deletion and version-one scope
+
+Starting commit ea36c64, ending commit c9e295b. See
+[[Architecture Notes — Account Deletion]] and [[Version-One Scope]].
+
+### Deletion turned out to be small, for a good reason
+
+The schema was queried rather than guessed, and every user-owned table already
+cascades from `auth.users`. Deleting the identity removes everything in one
+database transaction. A query confirmed no table has a user column without that
+cascade, and that the project has no storage buckets at all.
+
+So there is no hand-written list of deletes. Such a list is wrong the first time
+a table is added and nobody updates it — and wrong there means abandoned
+personal data nobody knows about.
+
+It still verifies afterwards, across sixteen tables, and refuses to report
+success if anything survived. A table that cannot be queried counts as a
+survivor rather than as clean.
+
+### Decisions worth keeping
+
+- **Revoke sessions before deleting the identity.** Afterwards there is nobody
+  left to revoke them for.
+- **A 404 on delete is success.** A previous attempt got there; the caller asked
+  for the account not to exist, and it does not.
+- **A failed revocation does not abort.** Deleting the identity invalidates
+  tokens anyway, and aborting would strand someone already told their account is
+  going away.
+- **`oa_birth` is cleared from localStorage.** Birth date, time, and coordinates
+  live there, and no server-side deletion can reach them. Sign-out deliberately
+  does not clear it — the person is coming back.
+
+### The bug in the feature gate
+
+`resolveEnvironment` takes an options object, not a bare environment. Passing
+the environment directly silently fell back to `process.env` and answered
+"local" for everything — a production gate that was quietly open. A failing test
+caught it. The gate now defers to the application's own resolver instead of
+re-deriving the answer.
+
+### Version-one navigation
+
+Now Home · Me · Ask Orbit · More. Tarot, Learn, and News are gated off, with
+their implementations preserved. Gating the rail alone would have left them
+reachable by hash, palette, and number-key shortcut, so all four use the same
+filtered list, and disabled panels are removed from the document rather than
+hidden.
+
+**Known limitation:** the panel markup still ships inside `index.html` and is
+removed at runtime — unreachable by navigation, but visible in page source.
+Build-time stripping would need a bundler Orbit deliberately does not have.
+
+### Verified against the real project
+
+A disposable account with a chart, a reading, and preferences was deleted
+through the actual interface. Identity, profile, birth profile, and fortunes all
+gone; re-login fails; refresh stays signed out; local birth data cleared. Both
+real accounts and all their data counted before and after: unchanged.
+
+Cancel, Escape, focus return to the opener, reopen-clears-state, and every wrong
+confirmation were each checked in the browser. 375/768/1280, no overflow, no
+console errors.
+
+Tests: 594 pass (550 before), 0 fail. Nothing deployed, published, merged, or
+pushed.
+
+## Recommended Session 6 — Legal Pages and Open-Source Release Readiness
+
+1. Privacy Policy
+2. Terms of Use
+3. Support page
+4. Source page
+5. Account-deletion information page
+6. Astrology and AI disclaimers
+7. Public repository links
+8. Final secret and privacy scan
+9. Version-one release checklist
+10. The open-source publication decision
+11. App Store readiness update
+
+## Superseded — the Session 5 plan as written
+
+### Original recommendations
 
 1. Permanent account deletion
 2. Tarot, Learn, and News production feature flags

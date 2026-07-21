@@ -83,6 +83,12 @@ A Now / Next / Later view. This is a living document; edit freely.
       proven with two live users (18/18). See
       [[Architecture Notes — Authentication]] and
       [[Architecture Notes — Supabase Data Ownership]].
+- [x] **Permanent account deletion** (Update 5.0, Session 5) — in-app,
+      irreversible, typed confirmation, verified across sixteen tables.
+      See [[Architecture Notes — Account Deletion]].
+- [x] **Version-one scope set** — Tarot, Learn, and News gated off with
+      their implementations preserved. Navigation is Home, Me, Ask Orbit,
+      More. See [[Version-One Scope]].
 - [ ] Orbit Chat expansion (chart-grounded astrology/metaphysics).
 - [x] Live Supabase migration/advisor verification for accounts + saved charts.
       See [[Accounts and Saved Charts Update]].
