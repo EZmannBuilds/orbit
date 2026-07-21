@@ -157,3 +157,33 @@ saves conversation history instead of generating answers that vanish.
 
 **Not a blocker:** the branch is ahead of origin. Nothing has been pushed by
 design.
+
+## Update 4.0.5 — private mobile Preview deployed, 2026-07-21
+
+**A protected Vercel Preview now exists.** Branch
+`feat/orbit-axis-private-mobile-preview`, commit `b2e710b`, target preview,
+Vercel Authentication enforced on every path. Production untouched.
+See [[Private Mobile Preview]].
+
+**Cleared:**
+
+- No approved Preview Supabase configuration → the owner-approved shared-Orbit
+  mode now exists, with four values that must agree
+- Ask Orbit migration status unknown → recorded verification, applied 2026-07-21
+- Branch not pushed → pushed
+
+**Fixed on the way:** the build required every declared Swiss Ephemeris runtime,
+so Vercel's Linux builder failed on the deliberately-excluded macOS binary. Only
+a real deployment could surface it.
+
+**Still open:**
+
+- Supabase redirect allow-list does not yet include the Preview URL, so password
+  reset and email confirmation links will not return to the app. Owner action.
+- The deployed Preview has not been exercised signed in — that needs the owner's
+  Vercel session, and minting a bypass token would have made the private Preview
+  reachable by anyone holding it.
+- Swiss Ephemeris licensing unresolved for public launch
+- Preview and Production share one database; a dedicated staging project is
+  required before any outside tester
+- Production deployment not attempted
