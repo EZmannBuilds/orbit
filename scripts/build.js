@@ -59,7 +59,14 @@ if (indexPath) {
   for (const ref of new Set(localRefs)) {
     const clean = ref.split("?")[0].split("#")[0];
     const full = join(REPO_ROOT, "public", clean);
-    if (!existsSync(full) || !statSync(full).isFile()) {
+    // vercel.json sets cleanUrls, so /privacy is served by public/privacy.html
+    // and the local static server resolves it the same way. A reference without
+    // an extension is satisfied by the .html file behind it — otherwise this
+    // check would reject the public URLs it is meant to protect.
+    const resolved = (existsSync(full) && statSync(full).isFile())
+      ? full
+      : (existsSync(`${full}.html`) && statSync(`${full}.html`).isFile() ? `${full}.html` : null);
+    if (!resolved) {
       problems.push(`public/index.html references ${clean}, which does not exist in public/.`);
     } else {
       assetCount += 1;

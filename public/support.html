@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Support — Orbit Axis</title>
+  <meta name="description" content="Help with signing in, charts, readings, and your Orbit Axis account." />
+  <link rel="stylesheet" href="/styles/tokens.css" />
+  <link rel="stylesheet" href="/styles/base.css" />
+  <link rel="stylesheet" href="/styles/legal.css" />
+</head>
+<body>
+  <main class="legal">
+    <a class="legal__back" href="/">← Back to Orbit Axis</a>
+
+    <h1 class="legal__title">Support</h1>
+    <p class="legal__dates">Last updated 21 July 2026</p>
+
+    <p class="legal__lede">
+      Most Orbit Axis problems have short answers. Start here — and if none of this helps,
+      get in touch at <a data-legal="supportEmail" href="#">not yet published</a>.
+    </p>
+
+    <nav class="legal__toc" data-toc aria-label="On this page">
+      <h2>On this page</h2>
+      <ol></ol>
+    </nav>
+
+    <h2 id="signing-in">Signing in</h2>
+    <p><strong>"Email or password did not match."</strong></p>
+    <p>
+      This message is the same whether the password was wrong or no account exists for
+      that address. That is deliberate — a different message would let anyone test which
+      email addresses have Orbit Axis accounts. Check the address for typos, then try a
+      password reset.
+    </p>
+
+    <h2 id="password-reset">Resetting your password</h2>
+    <ol>
+      <li>On the sign-in screen, type your email address in the Email box.</li>
+      <li>Choose <strong>Forgot your password?</strong></li>
+      <li>You will always see the same confirmation, whether or not an account exists — again, so the page cannot be used to discover who has one.</li>
+      <li>Open the link in the email and choose a new password.</li>
+      <li>You will be returned to sign-in. This is intended: a reset link should not also hand over a signed-in session.</li>
+    </ol>
+    <p>
+      Reset links are single-use and expire. If yours says it has expired or already been
+      used, request a new one. If the email has not arrived after a few minutes, check
+      your spam folder.
+    </p>
+
+    <h2 id="verification">Email verification</h2>
+    <p>
+      If your Orbit Axis account requires email confirmation, you will see a message
+      saying so after signing up. Open the link in that email, then sign in. Until it is
+      confirmed, signing in will not work.
+    </p>
+
+    <h2 id="charts">Creating a chart</h2>
+    <p>
+      Orbit needs a birth date, a birth time if you know it, and a birthplace
+      <strong>chosen from the suggestion list</strong>. Typing a city name without picking
+      a suggestion will not work — Orbit needs the coordinates behind the name to
+      calculate anything.
+    </p>
+
+    <h3>If you do not know your birth time</h3>
+    <p>
+      Choose <strong>Unknown birth time</strong>. Orbit will calculate planetary positions
+      from a midday default and will <em>withhold</em> your houses, Rising sign, and
+      Midheaven rather than guessing them. Your Moon may also be slightly approximate.
+      Orbit tells you this on the chart instead of hiding it.
+    </p>
+    <p>
+      A birth certificate is the most reliable source. A remembered time is usually fine
+      for everything except a precise Rising sign.
+    </p>
+
+    <h2 id="saved-charts">Saved charts</h2>
+    <ul>
+      <li>Your first chart is automatically named <strong>My Chart</strong> and set active.</li>
+      <li>Add more from the <strong>+</strong> next to the chart selector on Home, or <strong>Add Chart</strong> on Me.</li>
+      <li>The active chart decides which chart your daily reading is for.</li>
+      <li>Charts are stored on your account, so they follow you to any device you sign in from.</li>
+    </ul>
+
+    <h2 id="ask-orbit">Ask Orbit, and what it cannot do</h2>
+    <p>
+      Ask Orbit answers from your calculated chart and the current sky. It is good at
+      "what does my Saturn placement mean" and "what is happening in the sky today".
+    </p>
+    <div class="legal__note legal__note--serious">
+      <p>
+        <strong>It is not a doctor, therapist, lawyer, financial adviser, or emergency
+        service.</strong> If you are in crisis or in danger, contact your local emergency
+        services or a crisis line rather than an astrology app.
+      </p>
+    </div>
+    <p>
+      Readings are for reflection and entertainment. They can be wrong, generic, or simply
+      not resonate — that is normal and is not a fault to report.
+    </p>
+
+    <h2 id="deleting">Deleting your account</h2>
+    <p>
+      <strong>More → Account → Delete account</strong>, then type <code>DELETE</code>.
+      It is permanent and immediate, and it cannot be undone or recovered — including by
+      support. See <a href="/account-deletion.html">how account deletion works</a>.
+    </p>
+
+    <h2 id="privacy-requests">Privacy requests</h2>
+    <p>
+      To ask what is stored about you, request a copy, or raise a concern, email
+      <a data-legal="supportEmail" href="#">not yet published</a>. What Orbit stores and
+      why is set out in the <a href="/privacy.html">Privacy Policy</a>.
+    </p>
+
+    <h2 id="security">Reporting a security problem</h2>
+    <p>
+      Security reports are welcome and taken seriously. Email
+      <a data-legal="supportEmail" href="#">not yet published</a> with what you found and
+      how to reproduce it.
+    </p>
+    <p>
+      Please do not test against other people's accounts or real user data, and please
+      give a reasonable chance to fix an issue before disclosing it publicly.
+    </p>
+
+    <h2 id="errors">Common errors</h2>
+    <div class="legal__scroll">
+      <table>
+        <thead><tr><th>What you see</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td>"Sign-in required" or you are returned to sign-in</td><td>Your session ended. Sign in again.</td></tr>
+          <tr><td>"Session expired. Please sign in again."</td><td>Your session could not be renewed. Sign in again; report it if it keeps happening quickly.</td></tr>
+          <tr><td>"Select the matching birthplace."</td><td>A place name was typed but not chosen from the list. Pick a suggestion.</td></tr>
+          <tr><td>"Too many requests."</td><td>A safety limit. Wait a minute and try again.</td></tr>
+          <tr><td>"This reset link has expired or has already been used."</td><td>Reset links work once. Request a new one.</td></tr>
+          <tr><td>Charts or readings will not load</td><td>Usually a temporary connection problem. Retry; if it persists, report it with the request id.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="request-id">Sending a useful error report</h2>
+    <p>
+      When Orbit shows an error it usually includes a <strong>reference</strong> — a short
+      random code identifying that one request. Including it lets the problem be traced
+      exactly.
+    </p>
+    <p>The reference identifies a request, not you. It is safe to share, and it contains none of your birth details.</p>
+    <p>A good report has: what you were doing, what you expected, what happened, and the reference if there was one.</p>
+
+    <nav class="legal__related" aria-label="Related pages">
+      <h2>Related</h2>
+      <ul>
+        <li><a href="/privacy.html">Privacy Policy</a></li>
+        <li><a href="/terms.html">Terms of Use</a></li>
+        <li><a href="/account-deletion.html">Account deletion</a></li>
+        <li><a href="/source.html">Source code</a></li>
+      </ul>
+    </nav>
+  </main>
+  <script type="module" src="/legal.js"></script>
+</body>
+</html>

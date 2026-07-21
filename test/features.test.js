@@ -189,8 +189,19 @@ test("the unfinished implementations are preserved, not deleted", () => {
   for (const id of FEATURE_IDS) {
     assert.ok(APP_JS.includes(`id: "${id}"`), `${id} must remain in the workspace registry`);
   }
+  // The markup now lives OUTSIDE public/, which is what keeps it out of the
+  // production artifact — everything under public/ is copied there verbatim.
+  // Preserved and unshipped are different properties, and both are required.
+  for (const id of FEATURE_IDS) {
+    const fragment = readFileSync(new URL(`../features/panels/${id}.html`, import.meta.url), "utf8");
+    assert.ok(fragment.includes(`id="panel-${id}"`), `the ${id} panel markup must be preserved`);
+  }
+});
+
+test("the unfinished markup is not inside public/, so it cannot ship", () => {
   const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
   for (const id of FEATURE_IDS) {
-    assert.ok(html.includes(`id="panel-${id}"`), `the ${id} panel markup must be preserved`);
+    assert.ok(!html.includes(`id="panel-${id}"`),
+      `panel-${id} must not be in index.html — public/ is copied verbatim into the artifact`);
   }
 });

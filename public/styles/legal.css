@@ -1,0 +1,120 @@
+/* Orbit Axis :: shared layout for the public information pages.
+   Privacy, Terms of Use, Support, Source, and Account deletion all use this, so
+   the wording differs but the reading experience does not. */
+
+.legal {
+  max-width: 44rem;              /* ~75 characters — long legal text is unreadable at full width */
+  margin: 0 auto;
+  padding: var(--space-5, 2rem) var(--space-4, 1.25rem) var(--space-6, 3rem);
+  line-height: 1.65;
+}
+
+.legal__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: var(--space-4, 1.25rem);
+  font-size: 0.9rem;
+  color: var(--accent, #8b9cf5);
+  text-decoration: none;
+}
+.legal__back:hover { text-decoration: underline; }
+
+.legal__title { margin: 0 0 var(--space-1, 0.35rem); font-size: 1.9rem; line-height: 1.2; }
+
+.legal__dates {
+  margin: 0 0 var(--space-4, 1.25rem);
+  font-size: 0.82rem;
+  color: var(--text-muted, #9aa3b2);
+}
+
+.legal__lede {
+  margin: 0 0 var(--space-4, 1.25rem);
+  font-size: 1.02rem;
+  color: var(--text, #e6e9ef);
+}
+
+.legal h2 {
+  margin: var(--space-5, 2rem) 0 var(--space-2, 0.6rem);
+  font-size: 1.2rem;
+  scroll-margin-top: var(--space-4, 1.25rem);   /* anchor links land clear of the top edge */
+}
+.legal h3 { margin: var(--space-4, 1.25rem) 0 var(--space-1, 0.35rem); font-size: 1rem; }
+
+.legal p, .legal li { color: var(--text-soft, #c7cddb); }
+.legal ul, .legal ol { padding-left: 1.25rem; }
+.legal li { margin-bottom: 0.35rem; }
+
+.legal__toc {
+  margin: 0 0 var(--space-5, 2rem);
+  padding: var(--space-3, 1rem);
+  border: 1px solid var(--border, #262b38);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-2, #171b26);
+}
+.legal__toc h2 { margin: 0 0 var(--space-2, 0.6rem); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.legal__toc ol { margin: 0; }
+.legal__toc a { color: var(--accent, #8b9cf5); }
+
+/* A visible, non-alarming callout. Used for the astrology and AI disclaimers,
+   which people should read once rather than be frightened by. */
+.legal__note {
+  margin: var(--space-4, 1.25rem) 0;
+  padding: var(--space-3, 1rem);
+  border-left: 3px solid var(--accent, #8b9cf5);
+  border-radius: 0 var(--radius-md, 10px) var(--radius-md, 10px) 0;
+  background: var(--surface-2, #171b26);
+}
+.legal__note p:last-child { margin-bottom: 0; }
+
+/* Reserved for the small number of statements that genuinely matter for
+   safety — not for ordinary entertainment caveats. */
+.legal__note--serious { border-left-color: var(--danger-border, #7f2b34); }
+
+/* Shown when a required detail has not been configured yet. Says so plainly
+   instead of rendering a dead mailto link or an invented company name. */
+.legal__pending {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border: 1px dashed var(--border, #262b38);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.85rem;
+  color: var(--text-muted, #9aa3b2);
+}
+
+.legal__related {
+  margin-top: var(--space-6, 3rem);
+  padding-top: var(--space-4, 1.25rem);
+  border-top: 1px solid var(--border, #262b38);
+}
+.legal__related h2 { margin-top: 0; }
+.legal__related ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-3, 1rem); }
+.legal__related a { color: var(--accent, #8b9cf5); }
+
+.legal a:focus-visible,
+.legal__back:focus-visible {
+  outline: 2px solid var(--accent, #8b9cf5);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.legal table { width: 100%; border-collapse: collapse; margin: var(--space-3, 1rem) 0; font-size: 0.9rem; }
+.legal th, .legal td { padding: 0.5rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border, #262b38); vertical-align: top; }
+.legal th { color: var(--text, #e6e9ef); font-weight: 600; }
+
+/* Wide tables scroll inside their own container rather than making the whole
+   page scroll sideways on a phone. */
+.legal__scroll { overflow-x: auto; }
+
+@media (max-width: 480px) {
+  .legal { padding: var(--space-4, 1.25rem) var(--space-3, 1rem) var(--space-5, 2rem); }
+  .legal__title { font-size: 1.5rem; }
+}
+
+/* These pages are the ones people are most likely to print or save. */
+@media print {
+  .legal { max-width: none; padding: 0; color: #000; }
+  .legal__back, .legal__related { display: none; }
+  .legal__note { border-left-color: #666; }
+  .legal a::after { content: " (" attr(href) ")"; font-size: 0.8em; color: #444; }
+}

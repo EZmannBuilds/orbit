@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Source code — Orbit Axis</title>
+  <meta name="description" content="Orbit Axis is free software under the AGPL. Here is where to get its source." />
+  <link rel="stylesheet" href="/styles/tokens.css" />
+  <link rel="stylesheet" href="/styles/base.css" />
+  <link rel="stylesheet" href="/styles/legal.css" />
+</head>
+<body>
+  <main class="legal">
+    <a class="legal__back" href="/">← Back to Orbit Axis</a>
+
+    <h1 class="legal__title">Source code</h1>
+    <p class="legal__dates">Last updated 21 July 2026</p>
+
+    <p class="legal__lede">
+      Orbit Axis is free software. Because it is offered to you over a network, its licence
+      entitles you to the complete source code that produces what you are using.
+    </p>
+
+    <nav class="legal__toc" data-toc aria-label="On this page">
+      <h2>On this page</h2>
+      <ol></ol>
+    </nav>
+
+    <h2 id="licence">Licence</h2>
+    <p>
+      Both parts of Orbit Axis are licensed under the
+      <strong>GNU Affero General Public License, version 3 or later</strong>
+      (<code>AGPL-3.0-or-later</code>).
+    </p>
+    <p>
+      The AGPL is the copyleft licence written for exactly this situation: software you
+      reach over a network rather than install. It means you may use, study, modify, and
+      share Orbit Axis, and that anyone offering a modified version as a service must
+      offer its source too.
+    </p>
+
+    <h2 id="where">Where to get it</h2>
+    <div class="legal__scroll">
+      <table>
+        <thead><tr><th>Component</th><th>What it is</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Orbit Axis</td>
+            <td>The application — interface, API, readings, accounts</td>
+            <td><a data-legal="sourceApp" data-legal-pending="Repository publication pending" href="#">Repository publication pending</a></td>
+          </tr>
+          <tr>
+            <td>Orbit Axis Engine</td>
+            <td>The deterministic astrology calculation engine</td>
+            <td><a data-legal="sourceEngine" data-legal-pending="Repository publication pending" href="#">Repository publication pending</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="legal__note">
+      <p>
+        <strong>Publication is pending.</strong> Both repositories are complete and
+        licensed, but neither has been made public yet. Until they are, this page states
+        that plainly rather than showing a link that would not work. If you need the source
+        before then, ask at <a data-legal="supportEmail" href="#">not yet published</a> —
+        the licence entitles you to it, and publication timing does not change that.
+      </p>
+    </div>
+
+    <h2 id="versions">What is running right now</h2>
+    <div class="legal__scroll">
+      <table>
+        <thead><tr><th>Component</th><th>Version</th></tr></thead>
+        <tbody>
+          <tr><td>Application</td><td><span data-version="application">—</span></td></tr>
+          <tr><td>Calculation engine</td><td><span data-version="engine">—</span></td></tr>
+          <tr><td>API contract</td><td><span data-version="contract">—</span></td></tr>
+          <tr><td>Swiss Ephemeris</td><td><span data-version="ephemeris">—</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      These are read live from this deployment, so they describe the code you are actually
+      using rather than a number typed into a page. The same facts are available from
+      <code>/api/v1/version</code> and <code>/api/v1/source</code>.
+    </p>
+
+    <h2 id="engine">Why the engine is separate</h2>
+    <p>
+      The astrology calculations live in their own repository so they can be verified,
+      reused, and corrected independently of the app around them. It is deterministic: the
+      same birth details always produce the same chart, and no language model is involved
+      in any calculation.
+    </p>
+
+    <h2 id="swiss">Swiss Ephemeris</h2>
+    <p>
+      Orbit Axis uses <strong>Swiss Ephemeris</strong>, copyright
+      <strong>Astrodienst AG</strong>, for astronomical positions —
+      <a href="https://www.astro.com/swisseph/" rel="noopener">astro.com/swisseph</a>.
+    </p>
+    <p>
+      Swiss Ephemeris is dual-licensed: AGPL, or a paid professional licence from
+      Astrodienst. <strong>Orbit Axis uses the AGPL option</strong>, which is why Orbit
+      Axis is itself AGPL — the licence is inherited, not merely chosen.
+    </p>
+
+    <h2 id="third-party">Third-party notices</h2>
+    <p>Orbit Axis deliberately runs on very few dependencies:</p>
+    <ul>
+      <li><strong>Swiss Ephemeris</strong> — Astrodienst AG, AGPL option</li>
+      <li><strong>Luxon</strong> — date and time-zone handling, MIT</li>
+      <li><strong>tz-lookup</strong> — coordinates to time zone, MIT</li>
+      <li><strong>Supabase</strong>, <strong>Vercel</strong>, <strong>Geoapify</strong> — services rather than bundled code</li>
+    </ul>
+    <p>Full notices ship in <code>THIRD_PARTY_NOTICES.md</code> in the repository.</p>
+
+    <h2 id="security">Reporting a security issue</h2>
+    <p>
+      Email <a data-legal="supportEmail" href="#">not yet published</a> rather than opening
+      a public issue, and please allow a reasonable chance to fix it before disclosing.
+      Details are in <code>SECURITY.md</code>.
+    </p>
+
+    <h2 id="contributing">Contributing</h2>
+    <p>
+      Contributions are welcome once the repositories are public. <code>CONTRIBUTING.md</code>
+      covers how to build and test, and <code>CODE_OF_CONDUCT.md</code> covers conduct.
+      Contributions are accepted under the same AGPL terms.
+    </p>
+
+    <nav class="legal__related" aria-label="Related pages">
+      <h2>Related</h2>
+      <ul>
+        <li><a href="/privacy.html">Privacy Policy</a></li>
+        <li><a href="/terms.html">Terms of Use</a></li>
+        <li><a href="/support.html">Support</a></li>
+        <li><a href="/account-deletion.html">Account deletion</a></li>
+      </ul>
+    </nav>
+  </main>
+  <script type="module" src="/legal.js"></script>
+</body>
+</html>

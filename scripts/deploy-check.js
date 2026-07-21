@@ -356,7 +356,10 @@ if (!ignoreCheck.ok) {
 // The repository carries a mirror of the Orbit App notes. The canonical vault
 // lives outside the repository. Update 4.0.3 updated only the mirror, which is
 // how documentation quietly drifts, so the gap is now reported.
-const VAULT_PATH = process.env.ORBIT_VAULT_PATH || "/Users/mr.mann/Projects/Orbit vault";
+// No default path. A hardcoded fallback would be one contributor's directory
+// layout baked into a public repository, and it would silently "work" for
+// nobody else while looking configured.
+const VAULT_PATH = process.env.ORBIT_VAULT_PATH || "";
 const mirrorDir = join(REPO_ROOT, "07 Orbit App");
 if (!existsSync(mirrorDir)) {
   info("vault", "This checkout has no repository vault mirror.");

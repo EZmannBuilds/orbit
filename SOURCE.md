@@ -1,0 +1,70 @@
+# Obtaining the source
+
+Orbit Axis is licensed under the **GNU Affero General Public License, version 3
+or later**. Because it is offered over a network, AGPL section 13 entitles every
+user who interacts with it remotely to its complete corresponding source code.
+
+## How the running instance tells you
+
+Any deployed Orbit Axis reports its own licence and source availability:
+
+```
+GET /api/v1/source     licence, versions, repository status
+GET /api/v1/version    application, engine, contract, ephemeris versions
+/source                the same, as a page
+```
+
+Those read live from the deployment, so they describe the code actually running
+rather than a number written into a document.
+
+## Repositories
+
+| Component | Contents |
+| --- | --- |
+| Orbit Axis | Application: interface, API, readings, accounts |
+| Orbit Axis Engine | Deterministic astrology calculation engine |
+
+**Both are complete and licensed but not yet published.** Until they are, the
+source page says exactly that instead of showing a link that would not resolve.
+
+Publication does not change the obligation, only its convenience: if you are
+using an Orbit Axis instance now and want its source, ask the operator and they
+must provide it.
+
+Once published, the URLs come from validated configuration rather than a code
+change:
+
+```
+ORBIT_SOURCE_APP_URL      https URL on a known code host
+ORBIT_SOURCE_ENGINE_URL   https URL on a known code host
+```
+
+Anything else — http, an unknown host, a malformed URL — is rejected and the page
+falls back to "publication pending". An unvalidated URL here would be a
+destination Orbit vouches for.
+
+## Corresponding source
+
+The corresponding source for a deployed instance is the commit it was built
+from, together with:
+
+- the vendored Orbit Axis Engine at `vendor/orbit-axis-engine`
+- the Swiss Ephemeris binary and `.se1` data that engine executes
+- `vercel.json`, which determines how the function is packaged
+
+Configuration values — database URLs, API keys — are not part of the
+corresponding source and are never published.
+
+## Building it yourself
+
+```bash
+npm ci
+npm run build
+npm run test:local
+```
+
+No bundler, no transpiler, no build step that rewrites the code you read. What
+is in the repository is what runs, which is the property that makes the AGPL
+meaningful in practice rather than only formally.
+
+See `CONTRIBUTING.md` for the full development setup.

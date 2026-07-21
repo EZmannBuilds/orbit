@@ -219,9 +219,47 @@ async function loadFeatureFlags() {
   }
 }
 
-/** Workspaces this environment may show. Ungated ones always pass. */
+/**
+ * Fetch and inject the markup for any enabled feature.
+ *
+ * The panels were moved out of public/ so they cannot reach the production
+ * artifact. That makes them genuinely absent rather than removed-after-load,
+ * and it means an enabled feature has to ask for its markup before the router
+ * can render it.
+ */
+async function loadFeaturePanels() {
+  const workspace = document.getElementById("workspace");
+  if (!workspace) return;
+  for (const [id, on] of Object.entries(featureState)) {
+    if (!on || document.getElementById(`panel-${id}`)) continue;
+    try {
+      const res = await fetch(`/api/features/panel/${id}`);
+      if (!res.ok) continue;                       // production answers 404; that is correct
+      const markup = await res.text();
+      const holder = document.createElement("div");
+      holder.innerHTML = markup;
+      const panel = holder.querySelector(`#panel-${id}`);
+      if (panel) { panel.hidden = true; workspace.appendChild(panel); }
+    } catch {
+      // A feature that cannot load its own markup simply stays unavailable.
+    }
+  }
+}
+
+/**
+ * Workspaces this environment may show. Ungated ones always pass.
+ *
+ * A gated workspace needs BOTH its flag and its markup. The fragments are kept
+ * out of the deployed artifact entirely, so a deployment that switched a flag
+ * on would otherwise show a navigation item leading to an empty panel. Tying
+ * availability to the markup actually being present means the worst case is a
+ * feature that stays hidden, rather than one that appears and does nothing.
+ */
 function availableWorkspaces() {
-  return WORKSPACES.filter(ws => !ws.feature || featureState[ws.feature] === true);
+  return WORKSPACES.filter(ws => {
+    if (!ws.feature) return true;
+    return featureState[ws.feature] === true && Boolean(document.getElementById(`panel-${ws.id}`));
+  });
 }
 
 function workspaceAvailable(id) {
@@ -254,10 +292,10 @@ function renderRoute() {
   const id = currentWorkspace();
   const ws = WORKSPACES.find(w => w.id === id);
 
-  // A disabled feature's panel is removed from the document entirely. `hidden`
-  // alone would leave its markup in the page, reachable by anyone reading the
-  // DOM — and "we hid it with an attribute" is not the same as "it is not
-  // shipped". The element is gone; only the source that builds it remains.
+  // A disabled feature's panel is normally never in the document at all: the
+  // markup lives outside public/ and is only fetched when the flag is on. This
+  // stays as a safety net for a feature switched off during a session, so a
+  // panel injected earlier cannot linger.
   for (const gated of WORKSPACES.filter(w => w.feature && !featureState[w.feature])) {
     $(`#panel-${gated.id}`)?.remove();
     $(`#tab-${gated.id}`)?.remove();
@@ -1862,6 +1900,7 @@ async function boot() {
   // Flags first: the rail is built from them, and building it twice would make
   // hidden features flash on screen before disappearing.
   await loadFeatureFlags();
+  await loadFeaturePanels();
   buildRail();
   wireSettings();
   wireAuth();

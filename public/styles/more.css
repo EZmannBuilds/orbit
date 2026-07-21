@@ -207,3 +207,8 @@
 @media (prefers-reduced-motion: no-preference) {
   .danger-zone { transition: border-color 150ms ease; }
 }
+
+/* Links to the public information pages, from inside the app. */
+.legal-links { display: flex; flex-wrap: wrap; gap: 0.4rem 0.5rem; }
+.legal-links a { color: var(--accent, #8b9cf5); text-decoration: underline; text-underline-offset: 2px; }
+.legal-links a:focus-visible { outline: 2px solid var(--accent, #8b9cf5); outline-offset: 3px; border-radius: 3px; }

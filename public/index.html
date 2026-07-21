@@ -343,34 +343,9 @@
         </section>
 
         <!-- ── Tarot ────────────────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-tarot" role="tabpanel" aria-labelledby="tab-tarot" hidden>
-          <div class="o-section-head">
-            <div class="o-section-head__text">
-              <h1 class="u-title">Tarot</h1>
-              <p class="u-caption">A separate tarot space for daily cards, reflections, and readings.</p>
-            </div>
-          </div>
-
-          <div class="tarot-hero">
-            <div class="tarot-card-art" aria-hidden="true">
-              <span class="tarot-card-art__moon"></span>
-              <span class="tarot-card-art__line"></span>
-              <span class="tarot-card-art__star"></span>
-            </div>
-            <div class="tarot-hero__body">
-              <div class="u-eyebrow">Today's Card</div>
-              <h2>Tarot readings are coming soon</h2>
-              <p>The daily tarot system is not wired yet. When it is, the daily card will stay stable for the whole day instead of changing on refresh.</p>
-              <button class="o-btn o-btn--primary" type="button" data-chat-prompt="Ask about this tarot reading">Ask About This Reading</button>
-            </div>
-          </div>
-
-          <div class="tarot-modes">
-            <article class="tarot-mode" aria-disabled="true"><h3>Daily Reading</h3><p>Coming soon.</p></article>
-            <article class="tarot-mode" aria-disabled="true"><h3>One Card</h3><p>Coming soon.</p></article>
-            <article class="tarot-mode" aria-disabled="true"><h3>Three Card</h3><p>Coming soon.</p></article>
-          </div>
-        </section>
+        <!-- Tarot panel lives in features/panels/tarot.html and is
+             injected at runtime only when ORBIT_FEATURE_TAROT is enabled.
+             It is deliberately outside public/ so it cannot ship. -->
 
         <!-- ── Ask Orbit Axis ───────────────────────────────────────── -->
         <section class="workspace-panel" id="panel-ask" role="tabpanel" aria-labelledby="tab-ask" hidden>
@@ -378,6 +353,15 @@
             <div class="o-section-head__text">
               <h1 class="u-title">Ask Orbit</h1>
               <p class="u-caption">A guided astrology consultation. Answers are grounded in your active chart and the current sky, and every one shows its evidence.</p>
+              <!-- Short on purpose. A wall of warning text on every screen gets
+                   skipped; one clear sentence with a route to the full terms does
+                   not. The serious part — not a substitute for professional help —
+                   is the half worth reading twice. -->
+              <p class="reading-disclaimer">
+                For reflection and entertainment. Orbit Axis is not a substitute for
+                medical, mental-health, legal, or financial advice, and is not an
+                emergency service. <a href="/terms">Read more</a>.
+              </p>
             </div>
             <div class="o-section-head__actions">
               <button class="o-btn o-btn--ghost o-btn--sm" id="ask-history-btn" type="button" aria-haspopup="dialog">History</button>
@@ -454,44 +438,14 @@
         </section>
 
         <!-- ── Learn ────────────────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-learn" role="tabpanel" aria-labelledby="tab-learn" hidden>
-          <div class="o-section-head">
-            <div class="o-section-head__text">
-              <h1 class="u-title">Learn</h1>
-              <p class="u-caption">Evergreen astrology education will live here, separate from current news.</p>
-            </div>
-          </div>
-
-          <div class="learn-paths">
-            <article class="learn-path"><span>Beginner</span><h2>Astrology Basics</h2><p>Courses and progress tracking are coming soon.</p></article>
-            <article class="learn-path"><span>Intermediate</span><h2>Birth Charts</h2><p>Planets, houses, aspects, and chart reading will be organized here.</p></article>
-            <article class="learn-path"><span>Advanced</span><h2>Predictive Astrology</h2><p>Transits, retrogrades, compatibility, and timing will become structured lessons.</p></article>
-          </div>
-
-          <div class="learn-categories" aria-label="Planned course categories">
-            <span>Signs</span><span>Planets</span><span>Houses</span><span>Aspects</span><span>Elements</span><span>Modalities</span><span>Moon Phases</span><span>Compatibility</span>
-          </div>
-        </section>
+        <!-- Learn panel lives in features/panels/learn.html and is
+             injected at runtime only when ORBIT_FEATURE_LEARN is enabled.
+             It is deliberately outside public/ so it cannot ship. -->
 
         <!-- ── News ─────────────────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-news" role="tabpanel" aria-labelledby="tab-news" hidden>
-          <div class="o-section-head">
-            <div class="o-section-head__text">
-              <h1 class="u-title">News</h1>
-              <p class="u-caption">A future feed for verified Astrology, Tarot, Metaphysics, Astronomy, and Culture reporting.</p>
-            </div>
-          </div>
-
-          <div class="news-empty">
-            <div class="news-empty__art" aria-hidden="true"></div>
-            <h2>No verified news feed yet</h2>
-            <p>Orbit Axis will only show articles with a real publisher, source URL, publication date, retrieved timestamp, and verification status. Ollama will not invent headlines or sources.</p>
-            <div class="news-categories" aria-label="Planned news categories">
-              <span>Astrology</span><span>Tarot</span><span>Metaphysics</span><span>Astronomy</span><span>Culture</span>
-            </div>
-            <button class="o-btn o-btn--secondary" type="button" data-chat-prompt="Help me understand an astrology article">Ask about an article</button>
-          </div>
-        </section>
+        <!-- News panel lives in features/panels/news.html and is
+             injected at runtime only when ORBIT_FEATURE_NEWS is enabled.
+             It is deliberately outside public/ so it cannot ship. -->
 
         <!-- ── More ─────────────────────────────────────────────────── -->
         <section class="workspace-panel" id="panel-more" role="tabpanel" aria-labelledby="tab-more" hidden>
@@ -570,6 +524,14 @@
                   <div class="more-actions">
                     <button class="o-btn o-btn--secondary" type="button" id="account-signout">Sign out</button>
                   </div>
+
+                  <p class="more-note legal-links">
+                    <a href="/privacy">Privacy Policy</a> ·
+                    <a href="/terms">Terms of Use</a> ·
+                    <a href="/support">Support</a> ·
+                    <a href="/source">Source code</a> ·
+                    <a href="/account-deletion">About deletion</a>
+                  </p>
 
                   <!-- Destructive actions are separated from ordinary ones so
                        "Delete account" is never adjacent to something harmless
@@ -678,6 +640,12 @@
         <!-- Hidden while creating an account, where it makes no sense. -->
         <p class="auth-footnote" id="auth-forgot-wrap">
           <button type="button" class="linklike" id="auth-forgot">Forgot your password?</button>
+        </p>
+        <!-- Shown where an account is actually created, which is the moment the
+             terms are being agreed to. -->
+        <p class="auth-footnote auth-legal">
+          By continuing you agree to the <a href="/terms">Terms of Use</a>
+          and <a href="/privacy">Privacy Policy</a>.
         </p>
       </form>
     </div>

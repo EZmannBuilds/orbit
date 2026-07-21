@@ -303,3 +303,16 @@
   .ask-thinking span { animation: none; opacity: 0.6; }
   .ask-chip, .ask-why > summary::before { transition: none; }
 }
+
+/* One-line disclaimer where readings are produced. Deliberately quiet: this is
+   an entertainment feature, and frightening styling on ordinary use would be
+   both inaccurate and easy to learn to ignore. */
+.reading-disclaimer {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-muted, #9aa3b2);
+  max-width: 60ch;
+}
+.reading-disclaimer a { color: var(--accent, #8b9cf5); text-decoration: underline; text-underline-offset: 2px; }
+.reading-disclaimer a:focus-visible { outline: 2px solid var(--accent, #8b9cf5); outline-offset: 3px; border-radius: 3px; }

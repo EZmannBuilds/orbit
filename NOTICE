@@ -1,0 +1,59 @@
+Orbit Axis
+Copyright (C) 2026 EZmannBuilds
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program. If not, see <https://www.gnu.org/licenses/>.
+
+--------------------------------------------------------------------------------
+NETWORK USE
+--------------------------------------------------------------------------------
+
+Orbit Axis is offered to users over a network. Section 13 of the AGPL means that
+anyone who interacts with it remotely is entitled to receive its complete
+corresponding source code.
+
+The application satisfies this in two ways:
+
+  - GET /api/v1/source  — a machine-readable statement of licence, versions,
+                          and where the source can be obtained
+  - /source             — the same information as a page a person can read
+
+--------------------------------------------------------------------------------
+SWISS EPHEMERIS
+--------------------------------------------------------------------------------
+
+This software includes and executes the Swiss Ephemeris.
+
+    Swiss Ephemeris
+    Copyright (C) 1997-2021 Astrodienst AG, Switzerland
+    https://www.astro.com/swisseph/
+
+The Swiss Ephemeris is dual-licensed: under the GNU Affero General Public
+License, or under a paid professional licence from Astrodienst AG.
+
+Orbit Axis uses the AGPL option. That choice is the reason Orbit Axis is itself
+licensed under the AGPL — the obligation is inherited, not merely preferred.
+
+Anyone distributing Orbit Axis, or offering it as a network service, inherits the
+same obligation. Choosing the paid professional licence instead would require a
+separate agreement with Astrodienst AG.
+
+--------------------------------------------------------------------------------
+ORBIT AXIS ENGINE
+--------------------------------------------------------------------------------
+
+The deterministic astrology calculations live in a separate repository, the
+Orbit Axis Engine, also under AGPL-3.0-or-later. It is vendored into this
+repository so that builds are reproducible without depending on a package
+registry.
+
+See THIRD_PARTY_NOTICES.md for the remaining dependencies.

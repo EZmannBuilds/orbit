@@ -1,0 +1,25 @@
+<!-- Orbit Axis :: Learn panel — NOT part of version one.
+     Kept out of public/ on purpose. Everything under public/ is copied verbatim
+     into the production static output, so markup that lives there ships whether
+     or not the app renders it. Holding this fragment outside public/ means the
+     production artifact cannot contain it, rather than relying on the client to
+     remove it after the page has already been served.
+     Loaded at runtime only when ORBIT_FEATURE_LEARN enables it. -->
+<section class="workspace-panel" id="panel-learn" role="tabpanel" aria-labelledby="tab-learn" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">Learn</h1>
+              <p class="u-caption">Evergreen astrology education will live here, separate from current news.</p>
+            </div>
+          </div>
+
+          <div class="learn-paths">
+            <article class="learn-path"><span>Beginner</span><h2>Astrology Basics</h2><p>Courses and progress tracking are coming soon.</p></article>
+            <article class="learn-path"><span>Intermediate</span><h2>Birth Charts</h2><p>Planets, houses, aspects, and chart reading will be organized here.</p></article>
+            <article class="learn-path"><span>Advanced</span><h2>Predictive Astrology</h2><p>Transits, retrogrades, compatibility, and timing will become structured lessons.</p></article>
+          </div>
+
+          <div class="learn-categories" aria-label="Planned course categories">
+            <span>Signs</span><span>Planets</span><span>Houses</span><span>Aspects</span><span>Elements</span><span>Modalities</span><span>Moon Phases</span><span>Compatibility</span>
+          </div>
+        </section>

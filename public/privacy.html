@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Privacy Policy — Orbit Axis</title>
+  <meta name="description" content="What Orbit Axis collects, why, and how to remove it." />
+  <link rel="stylesheet" href="/styles/tokens.css" />
+  <link rel="stylesheet" href="/styles/base.css" />
+  <link rel="stylesheet" href="/styles/legal.css" />
+</head>
+<body>
+  <main class="legal">
+    <a class="legal__back" href="/">← Back to Orbit Axis</a>
+
+    <h1 class="legal__title">Privacy Policy</h1>
+    <p class="legal__dates">Effective 21 July 2026 · Last updated 21 July 2026</p>
+
+    <p class="legal__lede">
+      Orbit Axis calculates astrology charts from your birth details. Those details are
+      personal, and this page says exactly what is stored, why, who else can see it, and
+      how to remove all of it.
+    </p>
+
+    <nav class="legal__toc" data-toc aria-label="On this page">
+      <h2>On this page</h2>
+      <ol></ol>
+    </nav>
+
+    <h2 id="who">Who publishes Orbit Axis</h2>
+    <p>
+      Orbit Axis is published by <span data-legal="legalEntity">not yet published</span>.
+      For privacy questions, contact
+      <a data-legal="supportEmail" href="#">not yet published</a>.
+    </p>
+
+    <h2 id="what-you-give">What you provide</h2>
+    <ul>
+      <li><strong>Email address and password</strong> — to create and access your account. Passwords are handled by Supabase Auth and are never stored by Orbit in readable form.</li>
+      <li><strong>Birth date, birth time, and birthplace</strong> — the inputs a chart is calculated from.</li>
+      <li><strong>Coordinates and time zone</strong> — derived from the birthplace you select, so historical daylight-saving rules can be applied correctly.</li>
+      <li><strong>Chart names and saved charts</strong> — including charts you create for other people.</li>
+      <li><strong>Preferences</strong> — such as your detail level.</li>
+      <li><strong>Questions you ask Ask Orbit</strong>, and the conversations they belong to.</li>
+      <li><strong>Anything you send to support.</strong></li>
+    </ul>
+
+    <div class="legal__note">
+      <p>
+        If you create a chart for somebody else, you are providing their birth details.
+        Please only do that for people who would be comfortable with it.
+      </p>
+    </div>
+
+    <h2 id="what-orbit-makes">What Orbit Axis calculates from it</h2>
+    <ul>
+      <li>Natal chart placements, houses, angles, and aspects</li>
+      <li>Transits, synastry, and the current sky</li>
+      <li>Daily readings, the evidence behind them, and your reading history</li>
+      <li>Ask Orbit answers and the evidence they were built from</li>
+      <li>Which chart is active, and when you last selected it</li>
+    </ul>
+    <p>
+      These are stored so your charts and readings are the same on every device you sign
+      in from.
+    </p>
+
+    <h2 id="technical">Technical information</h2>
+    <p>Orbit keeps deliberately little:</p>
+    <ul>
+      <li><strong>Session information</strong> — an authentication cookie that keeps you signed in. It cannot be read by scripts in your browser.</li>
+      <li><strong>Request identifiers</strong> — a random per-request id used to trace an error you report. It is not linked to you.</li>
+      <li><strong>Error information</strong> — the error code and route. <strong>Request bodies are never logged</strong>, so your birth details do not appear in Orbit's logs.</li>
+      <li><strong>Standard server request data</strong> handled by the hosting provider.</li>
+    </ul>
+    <p>
+      <strong>There is no analytics, no advertising, no tracking pixel, and no third-party
+      profiling.</strong> Orbit does not sell or share your data, because there is nobody
+      to share it with.
+    </p>
+
+    <h2 id="processors">Services Orbit relies on</h2>
+    <div class="legal__scroll">
+      <table>
+        <thead><tr><th>Service</th><th>What it handles</th></tr></thead>
+        <tbody>
+          <tr><td>Supabase</td><td>Accounts, authentication, and the database holding your charts and readings. Also sends account emails such as password resets.</td></tr>
+          <tr><td>Vercel</td><td>Hosting and serving the application.</td></tr>
+          <tr><td>Geoapify</td><td>Birthplace lookup. Receives the place text you type, so it can return coordinates. It does not receive your identity or birth date.</td></tr>
+          <tr><td>Swiss Ephemeris (Astrodienst)</td><td>Astronomical calculation software. It runs inside Orbit and sends nothing anywhere.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Ask Orbit's optional local language model runs only on a developer's own machine
+      during development. <strong>It is not part of the public service, and no reading you
+      receive is sent to an external AI provider.</strong> If that ever changes, this page
+      will change with it before the feature ships.
+    </p>
+
+    <h2 id="why">Why each thing is used</h2>
+    <div class="legal__scroll">
+      <table>
+        <thead><tr><th>Purpose</th><th>What it uses</th></tr></thead>
+        <tbody>
+          <tr><td>Signing you in</td><td>Email, password, session</td></tr>
+          <tr><td>Calculating a chart</td><td>Birth date, time, place, coordinates, time zone</td></tr>
+          <tr><td>Keeping charts across devices</td><td>Saved charts, active chart</td></tr>
+          <tr><td>Daily readings and history</td><td>Active chart, calculated placements</td></tr>
+          <tr><td>Ask Orbit</td><td>Your question, active chart, conversation history</td></tr>
+          <tr><td>Security</td><td>Session information, request ids</td></tr>
+          <tr><td>Support and diagnosis</td><td>Error codes, request ids, what you tell us</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="who-can-see">Who can see your data</h2>
+    <p>
+      <strong>Only you.</strong> Every table holding user data enforces ownership in the
+      database itself, so one account cannot read another's charts, readings, or
+      conversations — that is checked automatically with two separate test accounts, not
+      merely intended.
+    </p>
+
+    <h2 id="retention">How long it is kept</h2>
+    <ul>
+      <li>Your data is kept while your account exists.</li>
+      <li><strong>Deleting your account removes it permanently.</strong> There is no soft delete, no grace period, and no recovery window.</li>
+      <li>Reference data — planetary event tables, tarot card definitions — is not yours and is unaffected.</li>
+    </ul>
+    <p>
+      Orbit's hosting and database providers may retain their own operational backups for
+      a short period under their standard practice. Orbit does not control those and
+      cannot delete from them on request, so this page does not claim otherwise.
+    </p>
+
+    <h2 id="deletion">Deleting your account</h2>
+    <p>
+      In the app: <strong>More → Account → Delete account</strong>, then type
+      <code>DELETE</code> to confirm. It removes your account, saved charts and birth
+      details, readings and history, Ask Orbit conversations, and preferences, and clears
+      the copy your browser had cached. See
+      <a href="/account-deletion.html">how account deletion works</a>.
+    </p>
+
+    <h2 id="rights">Your controls</h2>
+    <ul>
+      <li>See and edit your saved charts at any time</li>
+      <li>Delete individual charts</li>
+      <li>Change your detail level and preferences</li>
+      <li>Reset your password from the sign-in screen</li>
+      <li>Sign out on any device</li>
+      <li>Delete your entire account permanently</li>
+      <li>Ask a question, or request a copy of your data, at <a data-legal="supportEmail" href="#">not yet published</a></li>
+    </ul>
+    <p>Depending on where you live, you may have further rights under local data protection law. Contact support and Orbit will honour them.</p>
+
+    <h2 id="children">Age</h2>
+    <p>
+      Orbit Axis is intended for people aged
+      <span data-legal="minimumAge" data-legal-pending="(minimum age not yet set)">not yet published</span>
+      and over. It is not directed at children, and accounts are not knowingly created for
+      them. If you believe a child has created an account, contact support and it will be
+      removed.
+    </p>
+
+    <h2 id="changes">Changes to this policy</h2>
+    <p>
+      If what Orbit collects or how it is used changes, this page is updated and the "last
+      updated" date above changes with it. Material changes will be announced in the app
+      before they take effect.
+    </p>
+
+    <h2 id="contact">Contact</h2>
+    <p>
+      Privacy questions, data requests, and complaints:
+      <a data-legal="supportEmail" href="#">not yet published</a>.
+    </p>
+
+    <nav class="legal__related" aria-label="Related pages">
+      <h2>Related</h2>
+      <ul>
+        <li><a href="/terms.html">Terms of Use</a></li>
+        <li><a href="/support.html">Support</a></li>
+        <li><a href="/account-deletion.html">Account deletion</a></li>
+        <li><a href="/source.html">Source code</a></li>
+      </ul>
+    </nav>
+  </main>
+  <script type="module" src="/legal.js"></script>
+</body>
+</html>
