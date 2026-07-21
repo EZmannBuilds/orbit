@@ -82,11 +82,26 @@ if (indexPath) {
 // binary for the deployment target is not runnable on the build machine.
 const runtime = runtimeManifest();
 notes.push(`Swiss Ephemeris ${runtime.swissEphemerisVersion}; declared runtimes: ${Object.keys(runtime.runtimes).join(", ")}.`);
+// The runtime that will actually SHIP is the only one whose absence breaks a
+// deployment. On Vercel's Linux builders the macOS binary is deliberately not
+// uploaded (.vercelignore excludes it), so requiring every declared runtime to
+// be present made a correct exclusion look like a broken build — which is
+// exactly how this failed the first real Preview deploy. Local builds still
+// require the binary for the machine they are running on, because there its
+// absence really does mean astrology is broken.
+const DEPLOY_TARGET_RUNTIME = "linux-x64";
+const buildPlatformRuntime = `${process.platform}-${process.arch}`;
+
 for (const [key, entry] of Object.entries(runtime.runtimes)) {
   if (!entry.supported) continue;
   // Update 5.0: the runtime lives in the vendored Orbit Axis Engine, so paths
   // resolve from the engine root rather than the application's lib/astro.
   const path = join(ENGINE_ROOT, entry.executable);
+  const required = key === DEPLOY_TARGET_RUNTIME || key === buildPlatformRuntime;
+  if (!existsSync(path) && !required) {
+    notes.push(`${key} Swiss Ephemeris executable is not present on this build machine — expected when building for another platform.`);
+    continue;
+  }
   if (!existsSync(path)) {
     problems.push(`The ${key} Swiss Ephemeris executable (${entry.executable}) is missing in the vendored engine.`);
   } else if (sha256File(path) !== entry.sha256) {

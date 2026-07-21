@@ -212,3 +212,29 @@ test("the modelled bundle stays small enough to be worth reviewing", () => {
   const mb = bundle.uploadedBytes / 1048576;
   assert.ok(mb < 25, `the bundle models ${mb.toFixed(1)} MB, which is unexpectedly large`);
 });
+
+// ── Build-time runtime requirements (Update 4.0.5) ──────────────────────────
+// The first real Preview deploy failed here. The build required EVERY declared
+// Swiss Ephemeris runtime to be present, but .vercelignore deliberately keeps
+// the macOS binary off Vercel's Linux builders — so a correct exclusion looked
+// like a broken build. Only a real deployment surfaced it; the local build had
+// the macOS binary sitting right there.
+
+test("the build requires the runtime it will ship, not every declared runtime", async () => {
+  const source = readFileSync(new URL("../scripts/build.js", import.meta.url), "utf8");
+
+  assert.match(source, /DEPLOY_TARGET_RUNTIME\s*=\s*"linux-x64"/,
+    "the shipping runtime must be named explicitly");
+  assert.match(source, /buildPlatformRuntime/,
+    "the build machine's own runtime must also be required, or local breakage goes unnoticed");
+  assert.match(source, /key === DEPLOY_TARGET_RUNTIME \|\| key === buildPlatformRuntime/,
+    "exactly those two runtimes are required — anything else is optional");
+});
+
+test("the macOS binary is excluded from the Vercel upload on purpose", async () => {
+  // If this exclusion were ever removed, the build requirement above would stop
+  // mattering and a 3.6MB macOS binary would ship to a Linux function again.
+  const ignore = readFileSync(new URL("../.vercelignore", import.meta.url), "utf8");
+  assert.match(ignore, /vendor\/orbit-axis-engine\/bin\/darwin-arm64/,
+    "the darwin binary must stay out of the deployment upload");
+});
