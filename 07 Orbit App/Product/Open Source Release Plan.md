@@ -1,7 +1,7 @@
 ---
 id: c17d4a90-2b6e-4f35-8a71-6d09e3b5f4c2
 title: Open Source Release Plan
-type: product_decision
+type: product_definition
 status: active
 created_at: 2026-07-21T00:00:00-05:00
 updated_at: 2026-07-21T00:00:00-05:00

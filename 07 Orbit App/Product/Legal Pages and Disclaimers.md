@@ -1,7 +1,7 @@
 ---
 id: 5e91c274-6a38-4d1f-b703-8c42e9f0a165
 title: Legal Pages and Disclaimers
-type: product_decision
+type: product_definition
 status: active
 created_at: 2026-07-21T00:00:00-05:00
 updated_at: 2026-07-21T00:00:00-05:00

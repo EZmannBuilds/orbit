@@ -1,7 +1,7 @@
 ---
 id: 9a2d7e63-4f81-4b09-a5c7-3e60d8f1b724
 title: Version-One Scope
-type: product_decision
+type: product_definition
 status: active
 created_at: 2026-07-21T00:00:00-05:00
 updated_at: 2026-07-21T00:00:00-05:00

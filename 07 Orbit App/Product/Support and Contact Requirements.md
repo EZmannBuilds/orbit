@@ -1,7 +1,7 @@
 ---
 id: 8b52f9e1-3d47-4c60-a91e-7f04b2c8d536
 title: Support and Contact Requirements
-type: product_decision
+type: product_definition
 status: blocked
 created_at: 2026-07-21T00:00:00-05:00
 updated_at: 2026-07-21T00:00:00-05:00
