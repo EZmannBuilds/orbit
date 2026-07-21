@@ -15,6 +15,26 @@
     {
       "source": "/api/(.*)",
       "destination": "/api/index"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms.html"
+    },
+    {
+      "source": "/support",
+      "destination": "/support.html"
+    },
+    {
+      "source": "/source",
+      "destination": "/source.html"
+    },
+    {
+      "source": "/account-deletion",
+      "destination": "/account-deletion.html"
     }
   ],
   "headers": [
@@ -44,6 +64,5 @@
         }
       ]
     }
-  ],
-  "cleanUrls": true
+  ]
 }

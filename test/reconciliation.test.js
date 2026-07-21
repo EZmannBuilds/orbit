@@ -126,7 +126,11 @@ test("Ask Orbit distinguishes signed-out, no-chart, and chart-load-failure state
   assert.match(appJs, /res\.chart_status === "error"[\s\S]{0,80}showAskState\("loaderror"\)/, "chart_status=error maps to load error");
   assert.match(appJs, /!res\.active_chart[\s\S]{0,60}showAskState\("nochart"\)/, "only a genuine zero-chart result shows no-chart");
   // The shared request helper exposes the status the branching depends on.
-  assert.match(appJs, /error\.status = response\.status/, "request() exposes HTTP status to callers");
+  // Asserted on behaviour rather than on the exact right-hand expression: the
+  // variable was renamed during the Update 5.1.1 parsing repair while the
+  // behaviour was unchanged, and a test that fails on a rename without any
+  // behaviour changing is testing the wrong thing.
+  assert.match(appJs, /error\.status = (response|result)\.status/, "request() exposes HTTP status to callers");
 });
 
 test("reconciled base also carries the new Ask Orbit surface (no feature lost)", () => {

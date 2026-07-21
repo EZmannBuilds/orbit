@@ -37,18 +37,104 @@ const state = {
   places: { selections: {}, controllers: {} },
 };
 
+/**
+ * Read an API response without ever handing non-JSON to JSON.parse.
+ *
+ * THIS EXISTS BECAUSE OF A REAL FAILURE. On the deployed Preview, every /api
+ * request was redirected away by a routing rule and answered by Vercel's own
+ * "The page could not be found" page. The old wrapper called response.json()
+ * unconditionally, so the browser tried to parse that sentence as JSON and the
+ * user was shown the parser's complaint:
+ *
+ *   Chromium: Unexpected token 'T', "The page c"... is not valid JSON
+ *   WebKit:   The string did not match the expected pattern.
+ *
+ * Neither message tells anyone what went wrong, and both leak the shape of the
+ * infrastructure. A response that is not JSON is an infrastructure failure, and
+ * it should read like one.
+ *
+ * @returns {{ ok: boolean, status: number, data: object|null, kind: string }}
+ */
+async function readApiResponse(response) {
+  const type = String(response.headers.get("content-type") || "").toLowerCase();
+  const isJson = type.includes("application/json") || type.includes("+json");
+
+  // A redirect that survived to here means the request left the application —
+  // a login wall or a rewrite — and whatever came back is not Orbit's answer.
+  if (response.redirected && !isJson) {
+    return { ok: false, status: response.status, data: null, kind: "redirected" };
+  }
+
+  if (!isJson) {
+    // Read and DISCARD the body. It is HTML or prose from something that is not
+    // Orbit, and putting it in front of a user would show them a stack trace, a
+    // login page, or a hosting provider's 404 dressed as an Orbit error.
+    await response.text().catch(() => "");
+    return {
+      ok: false,
+      status: response.status,
+      data: null,
+      kind: response.status === 404 ? "missing-route" : (type ? "not-json" : "empty"),
+    };
+  }
+
+  const body = await response.text();
+  if (!body.trim()) return { ok: response.ok, status: response.status, data: null, kind: "empty" };
+  try {
+    return { ok: response.ok, status: response.status, data: JSON.parse(body), kind: "json" };
+  } catch {
+    // Claimed JSON, was not. Still not the user's problem to decode.
+    return { ok: false, status: response.status, data: null, kind: "malformed-json" };
+  }
+}
+
+/** What to tell a person when the response was not the application's. */
+function apiTransportMessage(kind, status) {
+  switch (kind) {
+    case "missing-route":
+      return "Orbit could not reach the sign-in service. Please refresh and try again.";
+    case "redirected":
+      return "Your session with the preview expired. Refresh the page and sign in again.";
+    case "empty":
+      return "Orbit did not receive a reply. Please check your connection and try again.";
+    default:
+      return `Orbit could not reach the service (status ${status}). Please refresh and try again.`;
+  }
+}
+
 async function request(path, { method = "GET", body = null } = {}) {
-  const response = await fetch(path, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    const error = new Error(data.error || data.validation?.errors?.join("; ") || `HTTP ${response.status}`);
+  let response;
+  try {
+    response = await fetch(path, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      // same-origin keeps the Orbit session cookie AND, on a protected Vercel
+      // Preview, the Vercel access cookie attached. A cross-origin call would
+      // lose both and be answered by a login page instead of the application.
+      credentials: "same-origin",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    const error = new Error("Orbit could not be reached. Check your connection and try again.");
+    error.status = 0;
+    error.kind = "network";
+    throw error;
+  }
+
+  const result = await readApiResponse(response);
+
+  if (result.kind !== "json") {
+    const error = new Error(apiTransportMessage(result.kind, result.status));
+    error.status = result.status;
+    error.kind = result.kind;   // diagnosable without exposing the body
+    throw error;
+  }
+
+  const data = result.data ?? {};
+  if (!result.ok) {
+    const error = new Error(data.error || data.validation?.errors?.join("; ") || `HTTP ${result.status}`);
     error.data = data;
-    error.status = response.status; // lets callers distinguish 401 from a real failure
+    error.status = result.status; // lets callers distinguish 401 from a real failure
     throw error;
   }
   return data;
@@ -134,8 +220,10 @@ function setupPlaceSearch(prefix) {
           credentials: "same-origin",
           signal: controller.signal,
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Location search failed");
+        const parsed = await readApiResponse(response);
+        if (parsed.kind !== "json") throw new Error(apiTransportMessage(parsed.kind, parsed.status));
+        const data = parsed.data ?? {};
+        if (!parsed.ok) throw new Error(data.error || "Location search failed");
         const items = data.results || [];
         results.innerHTML = items.length
           ? items.map((place, index) => `<button type="button" class="place-result" data-index="${index}" aria-label="Select ${esc(place.label)}">${esc(place.label)}</button>`).join("")
@@ -208,8 +296,9 @@ const featureState = { tarot: false, learn: false, news: false };
 async function loadFeatureFlags() {
   try {
     const res = await fetch("/api/features");
-    if (!res.ok) return;
-    const data = await res.json();
+    const parsed = await readApiResponse(res);
+    if (parsed.kind !== "json" || !parsed.ok) return;   // keep the safe defaults
+    const data = parsed.data ?? {};
     for (const key of Object.keys(featureState)) {
       featureState[key] = data?.features?.[key] === true;   // strictly true
     }
@@ -506,7 +595,9 @@ function wireTools() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
-      const data = await response.json();
+      const parsed = await readApiResponse(response);
+      if (parsed.kind !== "json") throw new Error(apiTransportMessage(parsed.kind, parsed.status));
+      const data = parsed.data ?? {};
       $("#query-result").innerHTML = `${esc(data.reply)}<br/><small class="u-meta">algorithm: ${esc(data.algorithm)}</small>`;
     } catch { $("#query-result").textContent = "Orbit could not answer that right now."; }
   });
@@ -887,9 +978,21 @@ function wireAccountDeletion() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirmation: REQUIRED }),
       });
-      const payload = await res.json().catch(() => null);
+      const parsed = await readApiResponse(res);
+      const payload = parsed.data;
 
-      if (!res.ok || !payload?.data?.deleted) {
+      if (parsed.kind !== "json") {
+        // Non-JSON from the deletion endpoint means the request never reached
+        // Orbit. Saying so beats a parser error on the one screen where a
+        // confusing message is least acceptable.
+        message.textContent = apiTransportMessage(parsed.kind, parsed.status);
+        deleting = false;
+        submit.disabled = input.value.trim() !== REQUIRED;
+        $("#delete-account-cancel").disabled = false;
+        return;
+      }
+
+      if (!parsed.ok || !payload?.data?.deleted) {
         // Never a fake success. The person is told what actually happened and,
         // where it is worth retrying, given the request id to quote.
         const error = payload?.error;
