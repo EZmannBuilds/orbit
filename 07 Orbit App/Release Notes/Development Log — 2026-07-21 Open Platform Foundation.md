@@ -175,7 +175,96 @@ exercised locally.
 
 Tests: 534 pass, 0 fail. Nothing deployed, published, merged, or pushed.
 
-## Recommended Session 4
+## Session 4 — authentication and database
+
+The app is connected to the original Orbit Axis Supabase project. No new project
+was created. See [[Architecture Notes — Authentication]] and
+[[Architecture Notes — Supabase Data Ownership]].
+
+Starting commit 29c5429, ending commit 80d4f2b.
+
+### The blocker under the blocker
+
+Session 3 could not test a single signed-in screen because the worktree had no
+Supabase settings. Supplying them exposed the next layer: Update 4.0.2's guard
+refuses to run local development against the production database — correctly,
+since Orbit runs on one project and local writes are real writes.
+
+The guard was kept, not removed. It now accepts an acknowledgement that names
+the project (`ORBIT_ACKNOWLEDGE_PRODUCTION_DB=<ref>`), warns at every startup,
+and still has no escape hatch for tests.
+
+### Migration reconciliation
+
+Two migrations were genuinely missing and were applied: `active_chart_history`
+and `ask_orbit_conversations`. Additive only. RLS tables 19 → 21, policies
+63 → 71, matching a rehearsal run twice against a scratch database built to the
+hosted schema. User data counted before and after: unchanged.
+
+Two things the reconciliation corrected:
+
+- **`saved_charts` was never missing.** No such table exists in any migration;
+  charts live in `birth_profiles`. My first read of a 404 as a gap was wrong,
+  and checking it before reporting it is the only reason it did not become a
+  false finding in this log.
+- **The ledger is not the truth.** Eight migrations were applied from the
+  dashboard with no local file, so `supabase migration list` reported grants as
+  pending that were actually present. The schema was queried directly instead.
+
+**Bug fixed before it could bite:** the Ask Orbit migration was not retry-safe.
+Its trigger and eight policies were unguarded, so a partial failure could not be
+retried — the worst possible property for a migration touching production.
+
+### Authentication completed
+
+Password reset did not exist in any form. Now: request, token verification (both
+link shapes), update, a reset page, and the affordance that makes it reachable.
+Neither sign-in nor reset can be used to discover who has an account — both
+return identical responses for registered and unregistered addresses.
+
+Also fixed: the sign-in submit button did not disable during a request, so a
+double click could fire two sign-ups and have the loser report that the account
+the winner had just created already existed.
+
+### Row Level Security, proven
+
+18/18 checks passed against the real project with two live users. No cross-user
+read, update, delete, activation, or conversation access; ownership cannot be
+forged on insert; anonymous callers get nothing. Disposable users deleted and
+the cleanup verified.
+
+Worth recording: the cross-user read test asserts an **empty result**, not a
+403. RLS makes another user's row invisible rather than forbidden. A test
+asserting 403 would fail against a perfectly secure database.
+
+### Verified in a browser
+
+Signed in, created a chart through the real form with live geocoding, watched it
+compute (Sun Gemini, Moon Pisces, Rising Libra), refreshed without losing the
+session, read history, signed out, signed back in, found everything intact.
+375/768/1280, no horizontal overflow, no console errors.
+
+### Known limitation
+
+Password reset needs one Supabase dashboard setting — the redirect URL
+allow-list — which this session was scoped not to change. Recorded under owner
+actions.
+
+Tests: 550 pass (534 before), 0 fail. Nothing deployed, published, merged, or
+pushed.
+
+## Recommended Session 5 — Release Compliance and Version-One Scope
+
+1. Permanent account deletion
+2. Tarot, Learn, and News production feature flags
+3. Privacy Policy, Terms of Use, Support, Source, account-deletion pages
+4. Production navigation cleanup
+5. Final pre-publication secret scan
+6. The open-source publication decision
+
+## Superseded — the Session 4 plan as written
+
+### Original recommendations
 
 1. Account deletion, implemented and tested against local Supabase only
 2. Version-one feature flags (Tarot, Learn, News hidden in production)

@@ -1,3 +1,21 @@
+---
+id: 5eb45291-3e2e-41f2-b87f-657fe4138911
+title: Deployment Status and Blockers
+type: release_note
+status: active
+created_at: 2026-07-20T00:00:00-05:00
+updated_at: 2026-07-20T00:00:00-05:00
+tags:
+  - orbit
+  - orbit-axis
+  - deployment
+  - vercel
+  - blockers
+  - status
+source: user
+supabase_sync: true
+---
+
 # Deployment Status and Blockers
 
 Single source of truth for "can Orbit be deployed yet?". Run
@@ -116,3 +134,26 @@ Local development is unaffected by any of the above.
 - [[Vercel Deployment Foundation]]
 - [[Swiss Ephemeris Integration]]
 - [[Orbit Axis Roadmap]]
+
+## Update 5.0 Session 4 — 2026-07-21
+
+**Resolved.** The hosted Ask Orbit migration blocker is cleared. `ask_conversations`
+and `ask_messages` exist with RLS enabled, and `active_chart_history` (the
+`activate_birth_profile` RPC and `last_active_at`) is applied. Ask Orbit now
+saves conversation history instead of generating answers that vanish.
+
+**Still open for Production:**
+
+- Swiss Ephemeris licensing remains unresolved and undocumented. Keeping the
+  repository private does not by itself make a publicly reachable service
+  compliant with either licence option.
+- Vercel Preview and Production must each define `SUPABASE_URL`,
+  `SUPABASE_ANON_KEY`, and `ORBIT_ENVIRONMENT` in the dashboard.
+- No separate Preview database exists, by choice. Preview and Production share
+  one project, so preview traffic reaches real data. See
+  [[Architecture Notes — Supabase Data Ownership]].
+- One Supabase dashboard setting is required before password reset works
+  end-to-end: the reset redirect URL must be allow-listed.
+
+**Not a blocker:** the branch is ahead of origin. Nothing has been pushed by
+design.

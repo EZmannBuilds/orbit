@@ -77,6 +77,12 @@ A Now / Next / Later view. This is a living document; edit freely.
       codes, request ids, allow-list CORS. Verified from the real built
       Vercel artifact on linux-x64. See [[Architecture Notes — Versioned API]]
       and [[Architecture Notes — API Security]].
+- [x] **Accounts and database connected** (Update 5.0, Session 4) — the app
+      uses the original Supabase project, the full email authentication
+      lifecycle works including password reset, and Row Level Security is
+      proven with two live users (18/18). See
+      [[Architecture Notes — Authentication]] and
+      [[Architecture Notes — Supabase Data Ownership]].
 - [ ] Orbit Chat expansion (chart-grounded astrology/metaphysics).
 - [x] Live Supabase migration/advisor verification for accounts + saved charts.
       See [[Accounts and Saved Charts Update]].
