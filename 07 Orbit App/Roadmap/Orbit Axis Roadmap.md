@@ -89,6 +89,14 @@ A Now / Next / Later view. This is a living document; edit freely.
 - [x] **Version-one scope set** — Tarot, Learn, and News gated off with
       their implementations preserved. Navigation is Home, Me, Ask Orbit,
       More. See [[Version-One Scope]].
+- [x] **Legal, support, and source pages** (Update 5.1) — privacy, terms,
+      support, source disclosure, and account-deletion information, with every
+      owner-specific fact configuration-backed rather than invented. See
+      [[Legal Pages and Disclaimers]].
+- [x] **Unfinished markup removed from the production artifact** — Tarot,
+      Learn, and News fragments moved outside public/ so they cannot ship.
+- [ ] **Four owner decisions** before public release — publisher, support
+      email, jurisdiction, minimum age. See [[Support and Contact Requirements]].
 - [ ] Orbit Chat expansion (chart-grounded astrology/metaphysics).
 - [x] Live Supabase migration/advisor verification for accounts + saved charts.
       See [[Accounts and Saved Charts Update]].

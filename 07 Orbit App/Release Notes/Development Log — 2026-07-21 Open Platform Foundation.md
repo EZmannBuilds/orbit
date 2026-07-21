@@ -370,3 +370,91 @@ pushed.
 - [[Swiss Ephemeris Integration]]
 - [[Deployment Status and Blockers]]
 - [[Orbit Axis Roadmap]]
+
+## Update 5.1 — Release compliance and open-source readiness
+
+Starting commit 8ed8378, ending commit cf3dec3. See
+[[Legal Pages and Disclaimers]], [[Support and Contact Requirements]], and
+[[Architecture Notes — Open Source Licensing]].
+
+### Five public pages
+
+/privacy, /terms, /support, /source, /account-deletion. Reachable without an
+account, linked from More → Account and from the sign-in card.
+
+The governing rule: **nothing is invented**. Publisher, support address,
+jurisdiction, and minimum age are owner decisions, so each is validated
+configuration and anything unset renders as a visible "not yet published" box.
+No mailto link is rendered until a real address exists.
+
+A plausible-looking support address is worse than a visible gap — a gap gets
+fixed, a convincing placeholder silently swallows the messages people send it.
+
+### The markup that was still shipping
+
+Session 5 removed Tarot, Learn, and News from navigation and routing, but the
+panel markup still shipped inside index.html and was deleted after the page had
+already been served. Everything under public/ is copied verbatim into the static
+output, so markup living there ships whether or not the app renders it.
+
+The fragments moved to features/panels/, **outside public/**, and are fetched at
+runtime only when a flag enables them. Production cannot contain them because
+they are not in the directory production is built from — absent by construction
+rather than removed after the fact. Verified against the real artifact.
+
+### Bugs found
+
+- **`parseInt("16.5")` yields 16.** A decimal minimum age would have been
+  silently truncated and published as a policy nobody wrote. Digits only now.
+- **The build's asset check did not know about clean URLs**, so it rejected
+  `/privacy` as a missing file. Fixed, then verified it still catches a
+  genuinely broken reference — a check that stops catching things is worse than
+  no check.
+- **Two owner-specific absolute paths would have shipped publicly**: a hardcoded
+  vault-path default in deploy-check.js and the same in .env.example. Both
+  already supported an override; the fallback was one contributor's directory
+  layout baked into a public repository.
+
+### Open-source readiness
+
+The application repository had **no licence files at all** while the engine had a
+complete set — a gap that would have surfaced at publication rather than before
+it. Added all seven, declared the licence in package.json, and set
+`private: true` so an accidental `npm publish` fails.
+
+Full history scanned in both repositories with every pattern validated against a
+known positive first. The engine repository is completely clean. The application
+repository's only matches are two copies of Supabase's published local-demo JWT,
+which is documentation rather than a credential. No `.env` has ever been
+committed to either.
+
+### Password reset
+
+Verified as far as it can be from here: non-enumerating, invalid and expired
+tokens fail safely, validation works, the page says so plainly when opened
+without a link. The Supabase redirect allow-list **cannot be read by the
+application**, so whether the callback URL is registered is unresolved and
+remains an owner action. `mailer_autoconfirm` is false, so email confirmation is
+required on sign-up.
+
+### Verified
+
+628 tests pass (594 before), 0 fail, 0 vulnerabilities. Real Vercel artifact
+inspected: no unfinished markup, no service-role key, no private paths, every
+public page present. Browser pass at 375/768/1280 — no overflow, clean heading
+hierarchy, tables scrolling inside their own containers, no console errors.
+
+Nothing deployed, published, merged, or pushed.
+
+## Recommended Update 5.2 — Public Repository Release and Deployment Preparation
+
+1. Owner review of the legal pages, and the four decisions
+2. Attorney review of the Terms of Use
+3. Publish Orbit Axis Engine
+4. Publish Orbit Axis
+5. Replace vendoring with a pinned public engine release
+6. Push the branch; establish develop, release/*, and protected main
+7. Configure Vercel preview and production controls
+8. Production deployment checklist
+9. Confirm readiness before native iOS packaging begins
+
