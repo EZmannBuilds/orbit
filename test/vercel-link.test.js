@@ -177,23 +177,23 @@ test("a checkout without the portable runtime is rejected", () => {
     assert.equal(r.ok, false);
     assert.ok(r.missing.includes("vercel.json"));
     assert.ok(r.missing.includes("scripts/deploy-check.js"));
-    assert.ok(r.missing.includes("lib/astro/bin/linux-x64/swetest"));
+    assert.ok(r.missing.includes("vendor/orbit-axis-engine/bin/linux-x64/swetest"));
   } finally { cleanup(root); }
 });
 
 test("a checkout missing only the Linux runtime is still rejected", () => {
   const root = fakeCheckout(null);
   try {
-    rmSync(join(root, "lib/astro/bin/linux-x64/swetest"));
+    rmSync(join(root, "vendor/orbit-axis-engine/bin/linux-x64/swetest"));
     const r = checkoutPortability(root);
     assert.equal(r.ok, false);
-    assert.deepEqual(r.missing, ["lib/astro/bin/linux-x64/swetest"]);
+    assert.deepEqual(r.missing, ["vendor/orbit-axis-engine/bin/linux-x64/swetest"]);
     assert.match(r.detail, /linux-x64/);
   } finally { cleanup(root); }
 });
 
 test("the portability markers include everything a correct build needs", () => {
-  for (const required of ["vercel.json", "api/index.js", "lib/astro/runtime/manifest.json", "lib/astro/bin/linux-x64/swetest", "scripts/deploy-check.js"]) {
+  for (const required of ["vercel.json", "api/index.js", "vendor/orbit-axis-engine/src/adapters/swiss-ephemeris/manifest.json", "vendor/orbit-axis-engine/bin/linux-x64/swetest", "scripts/deploy-check.js"]) {
     assert.ok(PORTABILITY_MARKERS.includes(required), `${required} should be a portability marker`);
   }
 });

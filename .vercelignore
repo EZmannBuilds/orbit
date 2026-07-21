@@ -42,7 +42,7 @@ test/
 # lib/astro/bin/linux-x64/ and lib/astro/ephe/ are NOT excluded — they are
 # force-included by "includeFiles" in vercel.json, because they are opened by
 # path at runtime and so are invisible to Vercel's import tracing.
-lib/astro/bin/darwin-arm64/
+vendor/orbit-axis-engine/bin/darwin-arm64/
 
 # ── Development tooling ──
 .claude/

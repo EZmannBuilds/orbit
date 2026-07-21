@@ -41,7 +41,7 @@ test("the deployment bundle is valid: nothing required missing, nothing forbidde
 
 test("the linux-x64 Swiss Ephemeris executable ships", () => {
   const entry = runtimeManifest().runtimes["linux-x64"];
-  const path = `lib/astro/${entry.executable}`;
+  const path = `vendor/orbit-axis-engine/${entry.executable}`;
   assert.ok(shipped.has(path), `${path} must be uploaded`);
   assert.ok(bundle.forceIncluded.includes(path),
     "it must be force-included by vercel.json — import tracing cannot see a file opened by path");
@@ -50,20 +50,20 @@ test("the linux-x64 Swiss Ephemeris executable ships", () => {
 test("every ephemeris data file ships", () => {
   const manifest = runtimeManifest();
   for (const name of Object.keys(manifest.dataFiles)) {
-    const path = `lib/astro/${manifest.dataDirectory}/${name}`;
+    const path = `vendor/orbit-axis-engine/${manifest.dataDirectory}/${name}`;
     assert.ok(shipped.has(path), `${path} must be uploaded`);
     assert.ok(bundle.forceIncluded.includes(path), `${path} must be force-included`);
   }
 });
 
 test("the runtime manifest ships", () => {
-  assert.ok(shipped.has("lib/astro/runtime/manifest.json"));
-  assert.ok(bundle.forceIncluded.includes("lib/astro/runtime/manifest.json"),
+  assert.ok(shipped.has("vendor/orbit-axis-engine/src/adapters/swiss-ephemeris/manifest.json"));
+  assert.ok(bundle.forceIncluded.includes("vendor/orbit-axis-engine/src/adapters/swiss-ephemeris/manifest.json"),
     "the manifest is read with readFileSync, so tracing would miss it");
 });
 
 test("the resolver and execution modules ship", () => {
-  for (const path of ["lib/astro/runtime/resolve.js", "lib/astro/runtime/exec.js", "lib/astro/ephemeris.js"]) {
+  for (const path of ["vendor/orbit-axis-engine/src/adapters/swiss-ephemeris/paths.js", "vendor/orbit-axis-engine/src/adapters/swiss-ephemeris/exec.js", "vendor/orbit-axis-engine/src/index.js", "lib/astro/ephemeris.js"]) {
     assert.ok(shipped.has(path), `${path} must be uploaded`);
   }
 });
@@ -114,7 +114,7 @@ test("tests and fixtures do not ship", () => {
 
 test("the macOS executable does not ship to a Linux function", () => {
   for (const path of shipped) {
-    assert.ok(!path.startsWith("lib/astro/bin/darwin-arm64/"),
+    assert.ok(!path.includes("bin/darwin-arm64/"),
       `${path} cannot run on Vercel and must not be uploaded`);
   }
 });
@@ -162,12 +162,12 @@ test("Orbit has no bundler, so no source map can leak server configuration", () 
 test("vercel.json force-includes exactly the subtrees the function needs", () => {
   const matcher = includeMatcher(config);
   assert.ok(matcher.patterns.length > 0, "vercel.json must declare includeFiles");
-  assert.ok(matcher.test("lib/astro/bin/linux-x64/swetest"), "the Linux executable must match includeFiles");
-  assert.ok(matcher.test("lib/astro/ephe/sepl_18.se1"), "ephemeris data must match includeFiles");
-  assert.ok(matcher.test("lib/astro/runtime/manifest.json"), "the runtime manifest must match includeFiles");
+  assert.ok(matcher.test("vendor/orbit-axis-engine/bin/linux-x64/swetest"), "the Linux executable must match includeFiles");
+  assert.ok(matcher.test("vendor/orbit-axis-engine/ephemeris/sepl_18.se1"), "ephemeris data must match includeFiles");
+  assert.ok(matcher.test("vendor/orbit-axis-engine/src/adapters/swiss-ephemeris/manifest.json"), "the runtime manifest must match includeFiles");
   // Update 4.0.4.2: a blanket lib/astro/** also force-included the macOS
   // executable, which then shipped inside the Linux function.
-  assert.equal(matcher.test("lib/astro/bin/darwin-arm64/swetest"), false,
+  assert.equal(matcher.test("vendor/orbit-axis-engine/bin/darwin-arm64/swetest"), false,
     "includeFiles must not force-include the macOS executable");
 });
 
@@ -191,7 +191,7 @@ test(".vercelignore excludes every private area", () => {
     "test/astro.test.js",
     ".env.local",
     ".env.production.example",
-    "lib/astro/bin/darwin-arm64/swetest",
+    "vendor/orbit-axis-engine/bin/darwin-arm64/swetest",
     "docs/deployment/vercel.md",
     ".claude/settings.json",
   ]) {

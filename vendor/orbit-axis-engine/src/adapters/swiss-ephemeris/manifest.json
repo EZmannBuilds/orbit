@@ -15,7 +15,7 @@
     "licence": "Dual-licensed: AGPL-3.0 or a paid Astrodienst commercial licence.",
     "licenceStatus": "UNRESOLVED. No licence has been selected, purchased, or documented for a publicly reachable Orbit deployment. See docs/deployment/swiss-ephemeris-licensing.md. Keeping this repository private does not by itself resolve the obligations of a public hosted service."
   },
-  "dataDirectory": "ephe",
+  "dataDirectory": "ephemeris",
   "dataFiles": {
     "seas_18.se1": "df4e9a08186f91e2c91f454ee2d404bf5ecbe61500b2324c28d26e6da2076dc6",
     "semo_18.se1": "1aca59fbd7f73d3882768a847890304261051c5ed965b952b4c9d7c5951833a4",

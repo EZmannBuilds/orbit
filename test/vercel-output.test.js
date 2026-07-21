@@ -34,7 +34,7 @@ const NEEDS_BUILD = "requires `npx vercel build` output; run it to exercise this
 test("vercel.json force-includes the runtime and ephemeris data", () => {
   const fn = readVercelConfig(REPO_ROOT).functions["api/index.js"];
   assert.ok(fn.includeFiles, "includeFiles is required — these files are opened by path, not imported");
-  for (const needle of ["ephe", "runtime", "bin/linux-x64"]) {
+  for (const needle of ["ephemeris", "src", "bin/linux-x64"]) {
     assert.ok(fn.includeFiles.includes(needle), `includeFiles should cover ${needle}`);
   }
 });
@@ -48,19 +48,19 @@ test("vercel.json excludes the macOS executable from the function", () => {
 
 test("includeFiles does not sweep in the macOS binary", () => {
   const fn = readVercelConfig(REPO_ROOT).functions["api/index.js"];
-  assert.doesNotMatch(fn.includeFiles, /^lib\/astro\/\*\*$/,
-    "a blanket lib/astro/** would force-include the macOS executable");
+  assert.doesNotMatch(fn.includeFiles, /^vendor\/orbit-axis-engine\/\*\*$/,
+    "a blanket vendor/** would force-include the macOS executable");
 });
 
 test("the required-file list covers the whole runtime, not just the executable", () => {
   // A function with the binary but no .se1 data would fail on first calculation,
   // and a function without manifest.json cannot even resolve a runtime.
   for (const required of [
-    "lib/astro/bin/linux-x64/swetest",
-    "lib/astro/runtime/manifest.json",
-    "lib/astro/ephe/seas_18.se1",
-    "lib/astro/ephe/semo_18.se1",
-    "lib/astro/ephe/sepl_18.se1",
+    "vendor/orbit-axis-engine/bin/linux-x64/swetest",
+    "vendor/orbit-axis-engine/src/adapters/swiss-ephemeris/manifest.json",
+    "vendor/orbit-axis-engine/ephemeris/seas_18.se1",
+    "vendor/orbit-axis-engine/ephemeris/semo_18.se1",
+    "vendor/orbit-axis-engine/ephemeris/sepl_18.se1",
   ]) {
     assert.ok(REQUIRED_IN_FUNCTION.includes(required), `${required} must be required in the function`);
   }
@@ -69,7 +69,7 @@ test("the required-file list covers the whole runtime, not just the executable",
 test("the forbidden-file list covers project metadata and the macOS binary", () => {
   const cases = [
     ".vercel/project.json",
-    "lib/astro/bin/darwin-arm64/swetest",
+    "vendor/orbit-axis-engine/bin/darwin-arm64/swetest",
     ".env.local",
     "07 Orbit App/Updates/Something.md",
     "supabase/config.toml",
@@ -99,7 +99,7 @@ test("the built function contains nothing forbidden", { skip: built ? false : NE
 
 test("the macOS executable is not in the built function", { skip: built ? false : NEEDS_BUILD }, () => {
   // The exact regression: it WAS present until excludeFiles was added.
-  const macBinary = join(REPO_ROOT, FUNCTION_DIR, "lib/astro/bin/darwin-arm64/swetest");
+  const macBinary = join(REPO_ROOT, FUNCTION_DIR, "vendor/orbit-axis-engine/bin/darwin-arm64/swetest");
   assert.equal(existsSync(macBinary), false,
     "a Mach-O executable cannot run on a Linux function and must not ship");
 });
@@ -107,7 +107,7 @@ test("the macOS executable is not in the built function", { skip: built ? false 
 test("the linux-x64 executable in the built function matches its recorded checksum",
   { skip: built ? false : NEEDS_BUILD }, async () => {
     const { createHash } = await import("node:crypto");
-    const path = join(REPO_ROOT, FUNCTION_DIR, "lib/astro/bin/linux-x64/swetest");
+    const path = join(REPO_ROOT, FUNCTION_DIR, "vendor/orbit-axis-engine/bin/linux-x64/swetest");
     assert.ok(existsSync(path), "the Linux executable must be physically present in the function");
     const digest = createHash("sha256").update(readFileSync(path)).digest("hex");
     assert.equal(digest, runtimeManifest().runtimes["linux-x64"].sha256,

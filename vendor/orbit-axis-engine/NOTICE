@@ -1,0 +1,71 @@
+Orbit Axis Engine
+Copyright (C) 2026 EZmannBuilds
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program. If not, see <https://www.gnu.org/licenses/>.
+
+--------------------------------------------------------------------------------
+SWISS EPHEMERIS
+--------------------------------------------------------------------------------
+
+This software includes and executes the Swiss Ephemeris.
+
+    Swiss Ephemeris
+    Copyright (C) 1997-2021 Astrodienst AG, Switzerland
+    https://www.astro.com/swisseph/
+
+Swiss Ephemeris is dual-licensed by Astrodienst AG. The user of the library
+must choose ONE of:
+
+  (a) the GNU Affero General Public License (AGPL), or
+  (b) the Swiss Ephemeris Professional License, purchased from Astrodienst.
+
+Orbit Axis Engine uses Swiss Ephemeris under option (a), the AGPL.
+
+Astrodienst's own licence text states that a developer choosing the AGPL "must
+fulfill the conditions of that license, which includes the obligation to place
+his or her whole software project under the AGPL or a compatible license."
+That is why this repository, and the Orbit Axis application that consumes it,
+are licensed AGPL-3.0-or-later rather than something more permissive.
+
+The AGPL additionally requires that users interacting with the software over a
+network be offered the corresponding source code. See SOURCE.md for how Orbit
+Axis satisfies that obligation.
+
+Astrodienst's licence also requires that their copyright notices are preserved,
+and prohibits using the authors' names for promotional purposes without their
+written permission. Both conditions are observed here.
+
+Bundled Swiss Ephemeris components:
+
+  - swetest command-line binary, version 2.10.03, built from official source at
+    https://github.com/aloistr/swisseph tag v2.10.03 (commit 175e1fc)
+      bin/darwin-arm64/swetest   macOS Apple Silicon (development)
+      bin/linux-x64/swetest      Linux x86-64, statically linked (deployment)
+
+  - Ephemeris data files (.se1), as distributed by Astrodienst:
+      ephemeris/seas_18.se1
+      ephemeris/semo_18.se1
+      ephemeris/sepl_18.se1
+
+SHA-256 checksums for every bundled artefact are recorded in
+src/adapters/swiss-ephemeris/manifest.json and are verified by
+`npm run runtime:check`.
+
+--------------------------------------------------------------------------------
+NOT ASTROLOGICAL OR PROFESSIONAL ADVICE
+--------------------------------------------------------------------------------
+
+This engine computes astronomical positions accurately. It does not, and cannot,
+predict events. Astrological interpretation is symbolic and is not a statement
+of fact. Nothing produced by this software is medical, legal, financial, or
+psychological advice.

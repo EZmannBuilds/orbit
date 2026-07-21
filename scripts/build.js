@@ -20,7 +20,7 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { REPO_ROOT } from "../lib/local-llm/config.js";
-import { runtimeManifest, checkEphemerisData, sha256File } from "../lib/astro/runtime/resolve.js";
+import { runtimeManifest, checkEphemerisData, sha256File, ENGINE_ROOT } from "../lib/astro/runtime/resolve.js";
 import { modelBundle } from "../lib/deploy/bundle.js";
 
 const problems = [];
@@ -77,9 +77,11 @@ const runtime = runtimeManifest();
 notes.push(`Swiss Ephemeris ${runtime.swissEphemerisVersion}; declared runtimes: ${Object.keys(runtime.runtimes).join(", ")}.`);
 for (const [key, entry] of Object.entries(runtime.runtimes)) {
   if (!entry.supported) continue;
-  const path = join(REPO_ROOT, "lib", "astro", entry.executable);
+  // Update 5.0: the runtime lives in the vendored Orbit Axis Engine, so paths
+  // resolve from the engine root rather than the application's lib/astro.
+  const path = join(ENGINE_ROOT, entry.executable);
   if (!existsSync(path)) {
-    problems.push(`The ${key} Swiss Ephemeris executable (lib/astro/${entry.executable}) is missing.`);
+    problems.push(`The ${key} Swiss Ephemeris executable (${entry.executable}) is missing in the vendored engine.`);
   } else if (sha256File(path) !== entry.sha256) {
     problems.push(`The ${key} Swiss Ephemeris executable does not match its recorded checksum.`);
   }
