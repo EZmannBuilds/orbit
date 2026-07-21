@@ -25,6 +25,9 @@ create index if not exists ask_conversations_owner_idx
 create index if not exists ask_conversations_owner_updated_idx
   on public.ask_conversations (owner_id, updated_at desc);
 
+-- Dropped first because Postgres has no `create trigger if not exists`. Without
+-- this, a retry after a partial failure aborts here instead of completing.
+drop trigger if exists ask_conversations_set_updated_at on public.ask_conversations;
 create trigger ask_conversations_set_updated_at
   before update on public.ask_conversations
   for each row execute function public.set_updated_at();
@@ -62,25 +65,36 @@ create index if not exists ask_messages_owner_idx
 create index if not exists ask_messages_conversation_idx
   on public.ask_messages (conversation_id, created_at asc);
 
+-- Every statement below is written to be re-runnable. A migration that cannot
+-- be retried turns a transient failure into a manual repair job.
+
 -- ── RLS ──────────────────────────────────────────────────────────────────────
 alter table public.ask_conversations enable row level security;
 alter table public.ask_messages enable row level security;
 
+drop policy if exists "ask_conversations_select_own" on public.ask_conversations;
 create policy "ask_conversations_select_own" on public.ask_conversations
   for select to authenticated using (owner_id = (select auth.uid()));
+drop policy if exists "ask_conversations_insert_own" on public.ask_conversations;
 create policy "ask_conversations_insert_own" on public.ask_conversations
   for insert to authenticated with check (owner_id = (select auth.uid()));
+drop policy if exists "ask_conversations_update_own" on public.ask_conversations;
 create policy "ask_conversations_update_own" on public.ask_conversations
   for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
+drop policy if exists "ask_conversations_delete_own" on public.ask_conversations;
 create policy "ask_conversations_delete_own" on public.ask_conversations
   for delete to authenticated using (owner_id = (select auth.uid()));
 
+drop policy if exists "ask_messages_select_own" on public.ask_messages;
 create policy "ask_messages_select_own" on public.ask_messages
   for select to authenticated using (owner_id = (select auth.uid()));
+drop policy if exists "ask_messages_insert_own" on public.ask_messages;
 create policy "ask_messages_insert_own" on public.ask_messages
   for insert to authenticated with check (owner_id = (select auth.uid()));
+drop policy if exists "ask_messages_update_own" on public.ask_messages;
 create policy "ask_messages_update_own" on public.ask_messages
   for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
+drop policy if exists "ask_messages_delete_own" on public.ask_messages;
 create policy "ask_messages_delete_own" on public.ask_messages
   for delete to authenticated using (owner_id = (select auth.uid()));
 

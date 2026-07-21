@@ -510,3 +510,41 @@
 
 :root[data-motion="reduced"] .o-modal__panel { animation: none; }
 @media (prefers-reduced-motion: reduce) { .o-modal__panel { animation: none; } }
+
+/* Auth footnote — the "Forgot your password?" affordance and the return link.
+   `linklike` is a real <button> styled as a link: it performs an action rather
+   than navigating, so a button is the honest element, and keyboard and screen
+   reader behaviour follow from that rather than needing to be re-added. */
+.auth-footnote {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted, #9aa3b2);
+}
+
+.auth-footnote a,
+.linklike {
+  color: var(--accent, #8b9cf5);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.linklike {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.linklike:hover:not(:disabled) { color: var(--accent-strong, #a9b6ff); }
+.linklike:disabled { opacity: 0.6; cursor: default; }
+
+/* Focus must stay visible: this control is reachable only by keyboard for some
+   users, and it is the sole route into password recovery. */
+.linklike:focus-visible,
+.auth-footnote a:focus-visible {
+  outline: 2px solid var(--accent, #8b9cf5);
+  outline-offset: 3px;
+  border-radius: 3px;
+}

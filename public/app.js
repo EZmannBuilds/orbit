@@ -620,6 +620,9 @@ function wireAuth() {
     $("#auth-submit").textContent = mode === "signup" ? "Create account" : "Sign in";
     $("#auth-password").autocomplete = mode === "signup" ? "new-password" : "current-password";
     $("#auth-message").textContent = "";
+    // Offering a password reset while someone is creating an account is noise.
+    const forgot = $("#auth-forgot-wrap");
+    if (forgot) forgot.hidden = mode === "signup";
   };
 
   modeButtons.forEach(btn => btn.addEventListener("click", () => setMode(btn.dataset.authMode)));
@@ -631,9 +634,19 @@ function wireAuth() {
     $("#auth-toggle-password").setAttribute("aria-label", showing ? "Show password" : "Hide password");
   });
 
+  // Guards a double-click, an impatient second Enter, and a slow network from
+  // sending the same credentials twice. Sign-up is the one that matters: two
+  // in-flight requests race, and the loser reports "an account already exists"
+  // for the account the winner just created.
+  let submitting = false;
+  const submitButton = $("#auth-submit");
+
   form.addEventListener("submit", async event => {
     event.preventDefault();
+    if (submitting) return;
     const message = $("#auth-message");
+    submitting = true;
+    if (submitButton) submitButton.disabled = true;
     message.textContent = mode === "signup" ? "Creating account…" : "Signing in…";
     try {
       const payload = {
@@ -646,6 +659,35 @@ function wireAuth() {
       if (data.signed_in) await applySignedIn(data.user);
     } catch (error) {
       message.textContent = error.message;
+    } finally {
+      // Always restored, including after applySignedIn throws — otherwise a
+      // failure mid-sign-in leaves the form permanently unusable.
+      submitting = false;
+      if (submitButton) submitButton.disabled = false;
+    }
+  });
+
+  // ── Forgot password ───────────────────────────────────────────────────────
+  // The response is identical whether or not the address has an account, so
+  // this cannot be used to discover who has one.
+  $("#auth-forgot")?.addEventListener("click", async () => {
+    const message = $("#auth-message");
+    const email = $("#auth-email").value.trim();
+    if (!email) {
+      message.textContent = "Enter your email address above, then choose “Forgot your password?”.";
+      $("#auth-email").focus();
+      return;
+    }
+    const button = $("#auth-forgot");
+    button.disabled = true;
+    message.textContent = "Sending a reset link…";
+    try {
+      const data = await post("/api/auth/password/request", { email });
+      message.textContent = data.message || "If an account exists for that email, a reset link is on its way.";
+    } catch (error) {
+      message.textContent = error.message;
+    } finally {
+      button.disabled = false;
     }
   });
 
