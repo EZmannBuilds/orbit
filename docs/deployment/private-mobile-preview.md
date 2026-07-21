@@ -8,7 +8,7 @@
 ## The URL
 
 ```
-https://orbit-axis-5f863l8f4-lorehouse-team.vercel.app
+https://orbit-axis-p2cnietqb-lorehouse-team.vercel.app
 ```
 
 Branch: `feat/orbit-axis-private-mobile-preview`
@@ -30,6 +30,30 @@ If you skip step 1 you will bounce to the Vercel login page every time. Once
 signed in, the session persists, so this is a one-time step per device.
 
 Nobody without access to your Vercel team can open this URL.
+
+## Ten-second check, before anything else
+
+Once you are past the Vercel login, open this on the phone:
+
+```
+/api/v1/health
+```
+
+(the full URL above with `/api/v1/health` on the end)
+
+**You should see JSON**, something like:
+
+```json
+{"data":{"status":"ok","database":{"configured":true,"reachable":true},
+         "authentication":{"configured":true,"reachable":true}}}
+```
+
+That one page answers everything at once: the function booted, the routing
+works, and Supabase is reachable.
+
+If instead you see **"Orbit is not configured for this environment yet"**, the
+deployment did not receive its settings — tell me and I will fix that
+specifically. If you see a Vercel error page, the routing is still wrong.
 
 ## Signing in to Orbit
 
@@ -88,7 +112,7 @@ containing any of your birth details.
 ## If the URL stops working
 
 Pushing another commit to the branch creates a **new** Preview URL. The one
-above points at commit `d48818e`. A newer deployment will have a different
+above points at commit `b780193`. A newer deployment will have a different
 address; the branch's latest Preview is always listed in the Vercel dashboard
 under `lorehouse-team/orbit-axis`.
 
@@ -100,7 +124,7 @@ email confirmation links will not return to the app.
 Supabase dashboard → **Authentication → URL Configuration → Redirect URLs**, add:
 
 ```
-https://orbit-axis-5f863l8f4-lorehouse-team.vercel.app/**
+https://orbit-axis-p2cnietqb-lorehouse-team.vercel.app/**
 ```
 
 This was not done for you: it is a dashboard setting on the live Auth

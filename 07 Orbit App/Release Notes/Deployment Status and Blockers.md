@@ -200,7 +200,7 @@ tests that fail on the original defect, and against the local server. It is NOT
 verified signed in on the deployed Preview, because that needs the owner's
 Vercel session.
 
-Preview: `https://orbit-axis-5f863l8f4-lorehouse-team.vercel.app`, commit
+Preview: `https://orbit-axis-p2cnietqb-lorehouse-team.vercel.app`, commit
 `d48818e`, branch `feat/orbit-axis-mobile-auth-repair`.
 
 **Lesson recorded:** every prior deployment verification tested the built
