@@ -3,7 +3,7 @@
 Single source of truth for "can Orbit be deployed yet?". Run
 `npm run deploy:check` in the repository for the live version.
 
-**Last updated: 2026-07-20, after Update 4.0.4.2.**
+**Last updated: 2026-07-21, during Update 5.0 (Session 2).**
 
 ## Status
 
@@ -21,7 +21,11 @@ Update 4.0.4.1 — Vercel Project Link Repair
 
 Update 4.0.4.2 — Vercel Build Verification
   Linked to orbit-axis. First real `vercel build` SUCCEEDED and was verified.
-  Only owner-controlled Supabase and licensing work remains.
+
+Update 5.0 — Open Platform Foundation (IN PROGRESS)
+  S1: calculation engine extracted to its own AGPL repo, parity proven.
+  S2: application now consumes the engine as a package; Vercel build re-verified.
+  Neither repository published. Versioned API still to come.
 ```
 
 | Question | Answer |
@@ -32,7 +36,8 @@ Update 4.0.4.2 — Vercel Build Verification
 | Vercel build verified? | **Yes.** `npx vercel build` succeeded against `orbit-axis`, output directory `public`, runtime `nodejs22.x`. The built function was run on Linux x64 and performed a real calculation. |
 | Private Preview healthy? | **No.** No Preview Deployment has ever been created. Must not be called healthy until one is tested. |
 | Anything deployed or migrated? | **No.** Nothing pushed, merged, deployed, or migrated remotely. Hosted Supabase never contacted. |
-| Repository public? | **No.** It remains private. No public engine repository was created. |
+| Repository public? | **No.** Both repositories remain private/unpublished by choice. |
+| Calculations extracted to a public-ready engine? | **Yes.** See [[Orbit Axis Engine Architecture]]. Parity proven on both platforms. |
 
 ## Code-level blockers
 
@@ -76,7 +81,8 @@ hosted service complies with either licence.** Update 4.0.4 resolved a
 
 | Evidence | Where it ran |
 | --- | --- |
-| 510 tests, 0 failures | macOS, local Supabase |
+| 487 tests, 0 failures (engine-backed) | macOS, local Supabase |
+| Engine: 21 tests, 0 failures | macOS **and** linux/amd64 |
 | 449 tests, 437 passed / 12 skipped, 0 failures | Linux x64 container, no Supabase |
 | Runtime check, core calculation smoke | macOS **and** Linux x64 container |
 | Mac ↔ Linux parity, 440 values, max longitude drift 0.0° | both |
