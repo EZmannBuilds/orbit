@@ -96,6 +96,14 @@ export {
   TRANSIT_VERSION,
 } from "./domain/transits.js";
 
+export {
+  computeSynastryAspects,
+  summariseSynastry,
+  SYNASTRY_ASPECTS,
+  SYNASTRY_BODIES,
+  SYNASTRY_VERSION,
+} from "./domain/synastry.js";
+
 /**
  * A single call that reports whether this machine can calculate at all.
  * Host applications should run it at startup and refuse to serve astrology
