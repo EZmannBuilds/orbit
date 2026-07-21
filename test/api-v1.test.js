@@ -484,3 +484,45 @@ test("an unknown error code degrades to INTERNAL_ERROR rather than leaking", () 
   assert.equal(e.code, "INTERNAL_ERROR");
   assert.equal(e.status, 500);
 });
+
+// ── Backward compatibility ──────────────────────────────────────────────────
+// v1 is ADDITIVE. Nothing was renamed, moved, or removed to make room for it,
+// because the web app is a live client of the existing routes and a versioned
+// API is worth nothing if shipping it breaks the app it was extracted from.
+//
+// The two layers answer different questions. Legacy routes are authenticated
+// and stateful — they read saved charts, sessions, and settings. v1 routes are
+// public and stateless. Neither is a rename of the other, so a redirect would
+// be wrong, and both are kept.
+
+test("v1 does not shadow any existing application route", async () => {
+  // Every path the browser actually calls must still reach legacy routing.
+  const inUse = [
+    "/api/health", "/api/charts", "/api/chart/now", "/api/sky/current",
+    "/api/moon/current", "/api/fortune/today", "/api/ask", "/api/symbols",
+    "/api/auth/session", "/api/settings/detail", "/api/local-llm/status",
+  ];
+  for (const route of inUse) {
+    assert.equal(
+      await handleApiV1(mockReq({ url: route }), route), null,
+      `${route} must fall through to the existing handler, not be claimed by v1`,
+    );
+  }
+});
+
+test("legacy and v1 calculations come from one engine, not two implementations", async () => {
+  // The legacy path imports the engine through lib/astro/natal.js, a re-export
+  // shim. If that ever became a real second implementation the two layers could
+  // return different charts for the same birth data — the exact class of bug
+  // that made extracting the engine worthwhile.
+  const legacy = await import("../lib/astro/natal.js");
+  const engine = await import("@ezmannbuilds/orbit-axis-engine");
+  assert.equal(legacy.computeNatalChart, engine.computeNatalChart,
+    "lib/astro/natal.js must re-export the engine function, not redefine it");
+});
+
+test("v1 owns only the /api/v1 namespace", () => {
+  for (const route of ROUTE_TABLE) {
+    assert.ok(route.path.startsWith("/api/v1/"), `${route.path} escapes the v1 namespace`);
+  }
+});

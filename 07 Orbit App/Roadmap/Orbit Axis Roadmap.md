@@ -1,242 +1,377 @@
-# Orbit Axis Roadmap
+---
+id: d653851d-f78a-4780-87ab-22ff9148a481
+title: Orbit Axis Roadmap
+type: project
+status: active
+created_at: 2026-07-11T16:04:24-05:00
+updated_at: 2026-07-20T00:00:00-05:00
+tags:
+  - orbit
+  - roadmap
+source: user
+supabase_sync: true
+supabase_id:
+---
 
-Current implemented foundation:
+# Orbit Axis — Roadmap
 
-- deterministic daily fortune
-- current sky and Moon phase display
-- My Chart preview calculations
-- Simple / Advanced presentation modes (Balanced removed in Update Two)
-- Fortune History route under More
-- Local Intelligence chat and diagnostics
-- streamed Ask Orbit Axis with stop/retry, compact active-chart context, and a deterministic fast path + offline fallback
-- returning-user chart restoration (no repeat onboarding) with saved-chart management from Home
-- primary six-section app shell with central Ask action
+A Now / Next / Later view. This is a living document; edit freely.
 
-## Completed
+## Now
 
-- **Update 3.3 — Me chart management.** Saved-chart management on the Me page:
-  add, edit, activate, delete-with-confirmation, and the shared accessible chart
-  modal. See [[Me Page and Chart Management]].
-- **Update 3.3.1 — Me Planet Grid Redesign.** "The Keys to Your Chart"
-  (Rising/Sun/Moon) plus a Mercury–Pluto planet grid; all planets visible in
-  Simple mode; detail modals; responsive at ~375/768/1280px. See
-  [[Me Planet Grid Redesign]].
-- **Update 3.3.2 — Orbit Branch Reconciliation.** Reconciled the returning-user
-  and Me-planet-grid feature lines onto one clean base and cut the
-  `feat/orbit-axis-ask-orbit-foundation` integration branch. The history was
-  already linear (018efe1 contained e753165), so no merge conflicts occurred.
-  See [[Orbit Branch Reconciliation]].
-- **Update 4.0 — Ask Orbit Foundation.** A dedicated Ask Orbit experience: a
-  guided astrology consultation where a user asks personal questions and gets an
-  answer grounded in their active natal chart, birth-time reliability, current
-  sky, relevant placements, houses (when reliable), natal aspects, and current
-  transits — with a "Why Orbit Said This" evidence panel, Simple/Advanced
-  wording, and an initial conversation history. See [[Ask Orbit Foundation]].
-- **Update 4.0.1 — Ask Orbit Live Integration Hardening.** Closed the gaps the
-  4.0 report left open: the conversation migration was applied to a local
-  database, the whole signed-in flow was verified against a real session and real
-  Postgres (including a server restart), RLS cross-user isolation was proven, and
-  the Ollama adapter ran live against `qwen3:14b`. Two real defects surfaced and
-  were fixed — the provider was being asked for JSON so Ask Orbit never received
-  prose, and model output containing markup was sanitized instead of rejected.
-  Storage state is now reported honestly instead of implying permanence. See
-  [[Ask Orbit Live Integration Hardening]].
-- **Update 4.0.2 — Environment Safety and Database Target Guard.** One resolver
-  now decides the environment (`local` / `test` / `preview` / `production`) and
-  classifies the configured database, and every dangerous path asserts against it
-  before acting: server startup, migrations, seeds, disposable users, the test
-  suite, and vault pushes. Plain-language errors name the safe command and never
-  print a key. New `dev:local`, `env:check`, `test:local`, and
-  `supabase:migrate:local` commands make the safe path the easy one. See
-  [[Environment Safety and Database Target Guard]].
+- [x] Consolidate the duplicate Orbit folder; establish canonical app + vault.
+      See [[orbit-folder-consolidation]].
+- [x] Stand up the Supabase schema with Row Level Security.
+      See [[supabase-initial-setup]].
+- [x] Wire Orbit Axis accounts and saved chart persistence to Supabase Auth.
+      See [[Accounts and Saved Charts Update]].
+- [ ] Populate the Tarot reference data (`tarot_cards`) — public read-only.
 
-### Why 4.0.2 was inserted between 4.0.1 and 4.1
+## Now
 
-Real integration testing in Update 4.0.1 revealed that an ordinary `npm start`
-could target the hosted production database, because `.env.local` points there
-and the app loads it automatically. Safety depended on a developer remembering
-per-process overrides.
+- [x] **Deterministic chart engine** — Swiss Ephemeris 2.10.03 folded into the
+      canonical app (`lib/astro`). Tested. See [[Chart Calculation Engine]].
+- [x] **Saved charts** — auto "My Chart", active-chart switching, safe delete,
+      unknown-time handling, full management UI, Supabase Auth, RLS. Tested.
+      See [[Saved Charts]].
+- [x] **My Chart panel** — Big Three, element/modality, Tonight's Moon. Verified
+      in-browser. See [[My Chart Tab]].
+      See [[Personal Astrology Experience Update]].
 
-That is worth pausing feature work for:
+## Now (Orbit Axis daily experience — shipped this update)
 
-- Future automated agent work must be structurally unable to write to production
-  by accident, not merely unlikely to.
-- Database safety is a prerequisite for moving *faster* on features — it makes
-  experiments cheap and reversible.
-- Guards remove reliance on anyone remembering a manual override.
+- [x] **Rename to Orbit Axis** (user-facing; internals stay `orbit`). Tested.
+      See [[Orbit Axis Naming]].
+- [x] **Today workspace** + beginner-first UI. Verified in-browser.
+      See [[Orbit Axis Interface Direction]].
+- [x] **Deterministic Daily Fortune** (seeded, grounded, Ollama-optional).
+      Tested. See [[Daily Fortune]] · [[Fortune Seed Architecture]].
+- [x] **Astrology Detail Levels** (Simple default). Tested.
+      See [[Astrology Detail Levels]].
+- [x] **Fortune History** (latest 30, filters, soft empty state). Tested.
+      See [[Fortune History]].
+- [x] **Soft space theme + motion** with reduced-motion support.
+      See [[Orbit Axis Daily Experience]].
 
-The completed Ask Orbit updates keep their numbering; this is an inserted safety
-update, not a renumbering.
+## Now (Navigation redesign)
 
-- **Update 4.0.3 — Vercel Deployment Readiness.** Separated the request handler
-  (`lib/server/create-app.js`) from the local listener (`server.js`) and added a
-  Vercel function entry point (`api/index.js`), so local and deployed Orbit run
-  the same code. The 4.0.2 resolver was extended — not replaced — to recognise
-  Vercel, with a derived `isDeployed` flag that disables every development
-  affordance regardless of environment name. Ollama is unreachable from a
-  deployment by construction (the provider factory returns an inert, no-network
-  stub), and the in-memory Ask store is refused where durable storage is
-  required, so a failed save is reported honestly instead of silently lost.
-  Session cookies are `Secure` behind Vercel's proxy. New read-only
-  `npm run deploy:check` grades blockers. **Nothing was deployed, pushed, or
-  migrated remotely.** See [[Vercel Deployment Readiness]].
-
-### Deployment readiness is not deployment approval
-
-Update 4.0.3 makes the repository technically ready to connect to Vercel. It
-does **not** mean production deployment is approved, hosted migrations are
-applied, a Preview Supabase project exists, Swiss Ephemeris licensing is
-resolved, legal review is complete, monetization or analytics are active, a
-custom domain is configured, or Orbit Intelligence hosting has been chosen.
-
-Open blockers, reported honestly by `npm run deploy:check`:
-
-- the deployment branch is not pushed to GitHub
-- no approved Preview Supabase project exists
-- the hosted Ask Orbit migration is unapplied, so Ask answers generate but do
-  not save
-- the bundled Swiss Ephemeris binary is macOS/arm64 and cannot run on Vercel's
-  Linux x86-64 functions, which blocks *every* astrology feature
-- Swiss Ephemeris licensing remains unresolved and undocumented
-
-The deployment work also creates the production foundation that
-[[Orbit Axis Intelligence Current Plan]] will need, while implementing none of
-Orbit Researcher, Orbit Knowledge ingestion, Orbit Studio, or Orbit Sky.
+- [x] **Permanent primary navigation** — Home, Me, Tarot, Ask Orbit Axis, Learn,
+      News, More. See [[Primary Navigation]].
+- [x] **Central Ask Orbit Axis workspace** — raised mobile action, active chart
+      label, suggested prompts, and chat controls. See [[Central Chatbot Experience]].
+- [x] **History relocation** — Fortune History moved under More instead of
+      primary navigation. See [[Navigation Redesign]].
+- [x] **Learn/News separation** — Learn is evergreen education; News is verified
+      current reporting only. See [[News and Learn Separation]].
+- [x] **Honest shells** — Tarot, Learn, and News avoid fabricated content until
+      the backing systems exist.
 
 ## Next
 
-- **Update 4.1 — Orbit Core Interface and Transit Synthesis Foundation.** Turn
-  individual transits into coherent, timed themes behind a documented,
-  versioned calculation interface. Do not begin until the private Vercel
-  Preview is healthy. Smallest valuable scope:
-  - a documented, versioned Orbit Core calculation interface
-  - structured natal-chart and transit output
-  - applying, exact, and separating transit states
-  - transit-strength scoring
-  - grouping multiple transits by natal target
-  - combined transit themes
-  - Supabase-compatible calculation records
-  - Orbit Chat access to verified active-chart data
-  - tests preventing invented dates, degrees, timing, placements, or aspects
+- [~] Synastry / Compare: **deterministic facts shipped** (Update 5.0,
+      Session 3) as `computeSynastryAspects` in the engine and
+      `POST /api/v1/charts/synastry`. Deliberately returns no compatibility
+      score. The Qwen `qwen3:14b` reading layer on top is still to do.
+- [x] **Versioned `/api/v1` API** — health, version, source, natal, transits,
+      synastry, reading evidence. Stable envelope, machine-readable error
+      codes, request ids, allow-list CORS. Verified from the real built
+      Vercel artifact on linux-x64. See [[Architecture Notes — Versioned API]]
+      and [[Architecture Notes — API Security]].
+- [ ] Orbit Chat expansion (chart-grounded astrology/metaphysics).
+- [x] Live Supabase migration/advisor verification for accounts + saved charts.
+      See [[Accounts and Saved Charts Update]].
+- [ ] Fortune notifications (Full/New Moon, retrograde) — prepared, not enabled.
+- [ ] Tarot daily card and reading engine with stable same-day card behavior.
+- [ ] Learn course content, chapters, lessons, and progress tracking.
+- [ ] Verified News ingestion with publisher, URL, date, retrieval timestamp, and
+      verification status.
 
-  Explicitly out of scope for 4.1: Orbit Researcher, Orbit Studio, autonomous
-  knowledge growth, social posting, and Orbit Sky.
+## Later
 
-## Planned
+- [ ] Transit engine writing `transit_events` on a schedule.
+- [ ] Pattern insights over journal + transits (`pattern_insights`).
+- [ ] Optional two-way sync once one-way push is proven safe.
 
-- **Update 4.2 — Reading Memory and Feedback.** Continuity across readings,
-  per-answer relevance/usefulness feedback, and optional private life-event
-  notes that improve relevance without fabricating astrological evidence.
-- **Update 4.3 — Orbit Knowledge Foundation.** The structured knowledge base
-  Orbit reasons over, with provenance for every claim. (Astrology–tarot
-  synthesis folds in here once tarot reference data and the daily-card system
-  exist.)
-- **Update 4.4 — Local Researcher Prototype.** A local-only research loop over
-  Orbit Knowledge. No autonomous publishing.
-- **Update 4.5 — Orbit Skills and Evaluation Framework.** Named, versioned
-  skills with measurable evaluations, so capability changes are provable rather
-  than asserted.
-- **Update 4.6 — Orbit Studio Content Pipeline.** Reviewed content production.
-  Human approval remains required.
-- **Update 5.0 — Launch Measurement Foundation.** Product analytics and privacy
-  consent only. No billing.
-- **Update 5.1 — Orbit Plus and Stripe Test Billing.** Test-mode billing and
-  entitlements, kept separate from production billing readiness.
-- **Update 5.2 — Controlled Beta Readiness.** Beta operations, feedback intake,
-  and security review.
+## Related
 
-## Future
+- [[Orbit Axis Product Definition]]
+- [[Supabase Architecture]]
 
-Directional, not scheduled. Nothing here is committed work.
+## Now (Birthplace search and profile names)
 
-- expanded mythology and religious knowledge
-- hosted production inference
-- advanced research automation
-- automated low-risk publishing
-- interactive 3D Orbit Sky
-- AR sky overlays
-- immersive or VR Orbit Sky
+- [x] **Birthplace search** — server-side Geoapify autocomplete, signed selected
+      places, and hidden technical fields. See [[Birthplace Search]].
+- [x] **Timezone and historical offsets** — local tz-lookup and Luxon
+      resolution before Swiss Ephemeris chart calculation. See
+      [[Geocoding and Timezone Architecture]].
+- [x] **Profile names** — first/last names for the primary profile and saved
+      charts while preserving nicknames as display labels. See [[Saved Charts]].
+- [ ] **Pre-launch key rotation** — rotate Geoapify and Supabase secrets before
+      a larger public launch. See [[Geoapify Key and Location Privacy]].
 
-### Why measurement and monetization were split
+## Now (Home and Current Sky redesign)
 
-An earlier combined "Launch Measurement and Monetization" proposal bundled
-analytics, privacy consent, billing, entitlements, experiments, licensing,
-feedback, security auditing, and beta operations into one update. Those are
-separate systems with different testing and legal requirements, so they are now
-phased:
+- [x] **Global search bar removed** from the top nav; command palette and
+      rail "Command" launcher kept. See [[Home Page Experience]].
+- [x] **Home saved-chart selector** — "Viewing" dropdown wired to the
+      existing activate endpoint. See [[Saved Charts]].
+- [x] **Today's Fortune card carousel** — six topics, arrows/keyboard/swipe,
+      wrap navigation, reduced-motion aware. Tested. See
+      [[Fortune Card Carousel]].
+- [x] **Current Sky replaces Tonight's Moon** — unified panel, procedural SVG
+      Moon driven by real phase data, personal transit summary. Tested. See
+      [[Current Sky]] · [[Moon Phase Renderer]].
+- [x] **Current timezone, separate from birth timezone** — device detection,
+      optional geolocation, drives the daily-fortune local date. Tested. See
+      [[Current Timezone Context]] · [[Current Location Privacy]].
 
-- Orbit's core personalized experience should be persistent and verified before
-  billing is introduced — which is what Update 4.0.1 established.
-- Measurement must exist before monetization experiments, otherwise pricing and
-  packaging decisions have no evidence behind them.
-- Stripe **test** billing (5.1) is deliberately separate from production billing
-  readiness; passing test mode is not launch approval.
-- Swiss Ephemeris licensing remains an open launch gate. It must not be
-  described as resolved without written proof of the applicable licence.
+See [[Home and Current Sky Update]] for the full report.
 
-No standalone monetization planning document exists in this repository or the
-Obsidian vault, so there was nothing to mark as superseded; this section is the
-record. If such a document surfaces later, mark it superseded by the phased
-5.0 → 5.1 → 5.2 sequence rather than deleting it.
+## Now (Faster chat and simplified detail modes — Update Two)
 
-## Business research and strategy
+- [x] **Balanced detail mode removed** — only Simple (default) and Advanced
+      remain; existing Balanced values migrate to Simple. See
+      [[Astrology Detail Levels]].
+- [x] **Streamed Ask Orbit Axis** — Server-Sent Events, immediate feedback,
+      Stop, and Retry. See [[Ask Orbit Axis]] · [[Streaming Responses]] ·
+      [[Ollama Streaming]].
+- [x] **Compact, active-chart-scoped context** with a documented budget and
+      in-memory caches. See [[Chat Context Builder]] · [[Chat Context Cache]] ·
+      [[Chat Context Privacy]].
+- [x] **Calculation reuse** — no natal recompute on ordinary follow-ups.
+- [x] **Warmup + keep-alive** and a **deterministic fallback** when Ollama is
+      offline. See [[Ollama Warmup and Keep Alive]].
 
-Startup-potential and market research belongs here, as background that informs
-prioritisation — it does not replace the product-development update sequence
-above. No prior Orbit Axis startup-potential research document was found in this
-repository or the vault at the time of Update 4.0.1; this section is the place
-for it when it is written.
+See [[Faster Chat and Detail Modes Update]] for the full report.
 
-## Architectural direction (Update 4.0 onward)
+## Now (Returning user chart flow — Update Three)
 
-Ask Orbit separates *what is true* (calculated by the deterministic astrology
-engine) from *how it is worded* (an optional language-generation provider):
+- [x] **Returning users are never re-onboarded** — a signed-in user with a saved
+      chart is never asked to set it up again on login, refresh, or return to
+      Home. See [[Chart Onboarding Rules]].
+- [x] **Startup gate** — auth and saved charts resolve before anything is
+      decided, so the setup form never flashes. See
+      [[Returning User Startup Flow]].
+- [x] **Active-chart restoration and healing** — one activation system; a
+      missing or stale active chart auto-selects and persists a sensible one. See
+      [[Active Chart Restoration]].
+- [x] **Recoverable errors** — a failed chart request offers a retry instead of
+      claiming the user has no chart.
+- [x] **Saved-chart management** — Home "+" action, shared accessible chart
+      modal, rename/edit, and a confirmed delete. See [[Saved Chart Management]].
 
-```text
-User question
-    ↓
-Question classification
-    ↓
-Relevant chart and transit retrieval
-    ↓
-Astrology rules and interpretation evidence
-    ↓
-Structured answer plan
-    ↓
-Language-generation provider
-    ↓
-Answer plus "Why Orbit Said This"
-```
+See [[Returning User Chart Flow]] for the full report.
 
-Clarifications that constrain this direction:
+## Next (Orbit Prediction Engine — folded into Orbit Axis Intelligence)
 
-- The astrology engine determines the evidence and the interpretation basis.
-- The language model only explains the structured result in natural language.
-- The model must not independently invent chart facts (placements, aspects,
-  retrogrades, houses, transits, or timing).
-- A neural network is **not** required for Update 4.0 — a deterministic
-  formatter produces a complete answer, and the local Ollama adapter is an
-  optional presentation layer.
-- Ask Orbit begins as a focused astrology advisor, not an unrestricted general
-  chatbot.
-- Medical, legal, financial, and guaranteed-event predictions are out of scope;
-  Orbit presents symbolic reflection, never guaranteed fate.
+> **Superseded as a standalone track (2026-07-20).** This work is not
+> abandoned — it is re-homed inside the modular
+> [[Orbit Axis Intelligence Current Plan]]: calculation depth → Orbit Core,
+> structured reference data → Orbit Knowledge, versioned rules → Orbit Skills.
+> The items below remain valid inputs to those systems.
 
-Remaining product work:
+Evolve the deterministic Daily Fortune into a native, personalized astrology
+inference system. **Nothing in this section is implemented.** The decision and
+architecture live in [[Orbit Prediction Engine]]; the full ordering and the
+60/25/15 effort split live in [[Prediction Engine Priorities]].
 
-- saved-chart manager UI
-- stable daily tarot card system
-- one-card, three-card, and custom tarot readings
-- structured Learn courses, chapters, lessons, and progress
-- verified News ingestion and source validation
-- synastry and compatibility for saved charts
-- richer chat grounding against active chart, current sky, selected comparisons, tarot symbolism, and verified article text
-- settings for timezone, zodiac system, house system, privacy, account, data export, and sign out
+- [ ] Audit and normalize existing astrology and tarot data.
+- [ ] Add source, tradition, versioning, and reliability metadata.
+      See [[Astrology Data Model]] · [[Tarot Data Model]].
+- [ ] Advanced timing and aspect-strength calculations.
+- [ ] Interpretation priority and synthesis rules.
+      See [[Astrology Synthesis Rules]].
+- [ ] Complete reading evidence and engine versions.
+      See [[Reading Evidence and Reproducibility]].
+- [ ] Feedback and optional life-event journaling.
+      See [[Personalization and Feedback]].
+- [ ] Astrology-and-tarot synthesis.
+- [ ] Ollama as the natural-language presentation layer — last, and optional.
+      See [[Prediction Engine Pipeline]].
 
-Responsive expectations:
+Storage ownership: [[Prediction Engine Data Ownership]]. Conceptual entities
+(no migrations): [[Prediction Engine Data Concepts]]. Constraints:
+[[Prediction Engine Safety and Privacy]].
 
-- 375px: persistent bottom navigation, raised Ask button, single-column content, safe-area padding
-- 768px: bottom navigation remains clear, cards widen without crowding
-- 1280px: left rail with visible labels and readable content width
+## Later (gated)
 
-Reduced motion should remove looping orbit and glow animations while preserving functionality.
+- [ ] Personalization models — **gated** on enough consented feedback existing.
+- [ ] Additional divination systems — **gated** on the core engine being
+      reliable. Numerology, I Ching, and Human Design are explicitly *not*
+      prioritized during the prediction-engine phase.
+- [ ] Optional semantic index over a curated astrology research library — not
+      required for the first engine version, and never a replacement for
+      structured calculation. See [[Prediction Engine Data Ownership]].
+
+## Deployment track (updated 2026-07-20, Update 4.0.4)
+
+Authoritative live status: [[Deployment Status and Blockers]]. This section only
+sequences the work; do not duplicate the blocker list here.
+
+- [x] **Update 4.0.3 — Vercel Deployment Foundation.** Reusable request handler,
+      local and Vercel entry points, Vercel environment classification, Ollama
+      disabled on deployments, durable-storage rules, `deploy:check`.
+      Implementation complete locally; Preview blocked.
+      See [[Vercel Deployment Foundation]].
+- [x] **Update 4.0.4 — Orbit Core Portability.** One runtime interface behind
+      which the Swiss Ephemeris executable is resolved per platform; a static
+      `linux-x64` build added and verified in a Linux container; calculation
+      parity with macOS exact (max longitude drift 0.0° across 440 values);
+      Vercel packaging fixed so the engine actually ships; `deploy:check` and
+      `env:check` repaired. See [[Orbit Core Portability]] and
+      [[Orbit Core Runtime Portability]].
+- [x] **Update 4.0.4.1 — Vercel Project Link Repair.** Removed an accidental
+      link to the unrelated `the-lorehouse` Vercel project, cleaned its
+      downloaded Preview environment out of the Orbit tree, removed a
+      Vercel-injected OIDC token from `.env.local`, pinned Node to `22.x`, and
+      added link/checkout guards so `deploy:check` blocks a repeat. Branch
+      pushed; repository still private. See [[Vercel Project Link Repair]].
+- [x] **Update 4.0.4.2 — Vercel Build Verification.** Linked to `orbit-axis`;
+      first real `npx vercel build` succeeded with output directory `public` and
+      runtime `nodejs22.x`. Fixed three defects the real build exposed, including
+      a macOS executable being packaged into the Linux function. Built artifact
+      run on Linux x64 with a real calculation. See [[Vercel Build Verification]].
+- [ ] **Owner-only Preview enablement.** Branch push is done. Remaining:
+      the `orbit-axis` project now exists and is linked. Remaining: create a
+      disposable Preview Supabase project, set Preview variables, apply the
+      hosted Ask Orbit migration, verify Preview RLS, configure auth redirects.
+      None of these can be done from the repository.
+- [ ] **Swiss Ephemeris licensing decision.** Unresolved, and a hard gate for
+      any publicly reachable deployment. Repository privacy does not resolve it.
+      See [[Swiss Ephemeris Integration]].
+- [ ] **First private Preview Deployment**, then verify before calling it
+      healthy.
+
+## Open platform track (Update 5.0, in progress)
+
+Live detail: [[Development Log — 2026-07-21 Open Platform Foundation]].
+
+- [x] **Session 1 — engine extraction.** Deterministic calculations moved to a
+      separate AGPL-3.0 repository with parity proven on macOS and Linux.
+      See [[Orbit Axis Engine Architecture]].
+- [x] **Session 2 — engine integration.** The application consumes the engine as
+      a package; duplicated calculation code deleted; Vercel build re-verified
+      end-to-end on Linux.
+- [ ] **Session 3 — versioned API**, account deletion, version-one feature
+      flags, and legal/source pages.
+- [ ] **Publication.** Both repositories are built and clean; publishing is
+      deliberately pending owner review because it is permanent and AGPL makes
+      the whole application source public.
+
+## Orbit Axis Intelligence track (added 2026-07-20)
+
+The modular AI platform plan. Authoritative detail, system responsibilities,
+and confirmed/open decisions live in [[Orbit Axis Intelligence Current Plan]] —
+this section only sequences the work. Planned, not started.
+
+### Required first
+
+- [ ] Orbit Core calculation interface (wrap the existing
+      [[Chart Calculation Engine]] behind a replaceable interface) —
+      **recommended next technical task (Update 4.1).** Update 4.0.4 already
+      established the *runtime* half of this boundary
+      ([[Orbit Core Runtime Portability]]); 4.1 adds the versioned calculation
+      interface and transit synthesis on top. Start only once Preview is
+      healthy.
+- [ ] Immediate chart generation (chart shown before any AI interpretation)
+- [ ] Supabase chart storage (calculation versions + saved results)
+- [ ] Orbit Chat access to active chart data (permission-aware, no re-telling)
+- [ ] Initial approved astrology knowledge base
+- [ ] Knowledge citations and source tracking
+- [ ] Local Researcher database (SQLite prototype)
+- [ ] Research review queue
+- [ ] Database routing rules (local vs Supabase, deterministic)
+- [ ] Knowledge Merge workflow (reviewed, reversible, audited)
+- [ ] Skill definitions and evaluations
+- [ ] Security boundaries (Chat permissions, untrusted web input, RLS)
+- [ ] Calculation verification
+- [ ] Logging and error handling
+
+### Useful soon
+
+- [ ] Scheduled trend research (controlled jobs, approved sources)
+- [ ] Local PostgreSQL + pgvector
+- [ ] Mythology knowledge expansion
+- [ ] Religious and cultural knowledge structure
+- [ ] Orbit Studio's six initial content formats (draft + review only)
+- [ ] Website publishing workflow
+- [ ] Instagram draft workflow
+- [ ] Learn lessons
+- [ ] Personalized push notifications
+- [ ] Chat suggestions
+- [ ] Paid feature entitlements
+- [ ] Hosted model strategy
+
+### Future expansion
+
+- [ ] Advanced astrological techniques
+- [ ] Large-scale mythology and religious knowledge graph
+- [ ] Automated low-risk content scheduling
+- [ ] Social analytics
+- [ ] Multiple research workers
+- [ ] Model routing and fine-tuning
+- [ ] Public Orbit Axis social persona
+- [ ] Interactive 3D sky mapping (Orbit Sky)
+- [ ] AR sky overlays (Orbit Sky)
+- [ ] VR or immersive Orbit Sky experiences
+
+### Not necessary for the first version
+
+Training a foundation model from scratch · unrestricted autonomous agents ·
+automatic production knowledge replacement · fully automated social posting ·
+automatic replies to sensitive public conversations · AR or VR development ·
+complex multi-database synchronization without explicit rules · a separate
+graph database unless usage proves it necessary.
+
+## App Store release track (added 2026-07-19)
+
+A separate track from the feature roadmap above. Audited in
+[[App Store Release Readiness]]; blockers in [[Known Issues — App Store Blockers]].
+
+**Current verdict: not ready for native iOS work.** Orbit Axis is a web app with
+no mobile packaging of any kind. These phases have hard dependencies — each
+depends on the one before it.
+
+### Phase R0 — Decisions (owner; blocks everything)
+- [ ] Swiss Ephemeris licence: buy Professional (~CHF 750) or replace the engine
+- [ ] Where charts are calculated (server-side recommended)
+- [ ] Packaging strategy (Capacitor recommended)
+- [ ] Free v1 (no StoreKit) · no Google sign-in in v1
+- [ ] Apple Developer Program enrolment
+      See [[Decision Log]].
+
+### Phase R1 — Reachable backend
+- [ ] Deploy the Node server (HTTPS, domain); push the 17 local commits
+- [ ] Apply the Ask Orbit migration to the hosted database (owner-approved)
+- [ ] Ask Orbit uses the deterministic presenter; never calls localhost
+      See [[Architecture Notes — iOS Constraints]].
+
+### Phase R2 — Legal and account obligations
+- [ ] Privacy policy + Terms of Use published and linked
+- [ ] Account deletion, end to end, verified in the database
+- [ ] Disclaimers; sweep absolute/prediction language
+      See [[Privacy and Data Inventory]].
+
+### Phase R3 — Native shell
+- [ ] Xcode 26 / iOS 26 SDK (already mandatory since 2026-04-28)
+- [ ] Bundle ID, icon, launch screen, safe areas, dark mode
+- [ ] Privacy manifest; remove dev routes from production builds
+
+### Phase R4 — Offline, accessibility, TestFlight
+- [ ] Honest offline set with timestamps and retry
+- [ ] VoiceOver + Dynamic Type passes
+- [ ] Simulator → device → TestFlight
+      See [[Testing Plan — iOS Release]].
+
+### Phase R5 — Submission
+- [ ] App Store Connect metadata, screenshots of the real product
+- [ ] Reviewer demo account + notes (no Ollama, no local server)
+- [ ] Differentiation story for Guideline 4.3(b) fortune telling
+
+**Recommended v1 scope:** Home, Me, Ask Orbit, History, Settings.
+Cut Tarot, Learn, and News — they are shells today and read as placeholder
+content under Guideline 2.1(a).
+
+Release readiness is separate from: public production approval, hosted
+migrations, Swiss Ephemeris licensing, custom domains, monetisation, analytics,
+and legal review.

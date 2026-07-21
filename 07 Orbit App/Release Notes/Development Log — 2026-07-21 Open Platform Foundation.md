@@ -1,3 +1,20 @@
+---
+id: 65d7c88a-c6ae-4985-b81a-ae83e501f015
+title: Development Log — 2026-07-21 Open Platform Foundation
+type: project
+status: active
+created_at: 2026-07-21T00:00:00-05:00
+updated_at: 2026-07-21T00:00:00-05:00
+tags:
+  - orbit
+  - orbit-axis
+  - development-log
+  - update-5-0
+  - open-source
+source: user
+supabase_sync: true
+---
+
 # Development Log — 2026-07-21 Open Platform Foundation
 
 Update 5.0 is being delivered in sequenced sessions rather than one pass. It is
@@ -107,7 +124,67 @@ application source becomes public, including Ask Orbit's prompt engineering and
 interpretation logic. That is the necessary consequence of the free Swiss
 Ephemeris path, and it is worth being certain about before it cannot be undone.
 
-## Recommended Session 3
+## Session 3 — the versioned API
+
+Delivered: `/api/v1` with seven routes — health, version, source, natal,
+transits, synastry, and reading evidence. See
+[[Architecture Notes — Versioned API]] and
+[[Architecture Notes — API Security]].
+
+Synastry was new capability rather than an extraction: the interface had a
+placeholder with no calculation behind it. It deliberately returns no
+compatibility score — the engine reports which aspects exist and how tight they
+are, and whether each is traditionally read as easy or challenging. Whether two
+people suit each other is interpretation, and no ephemeris can know it.
+
+The API is additive. Nothing was renamed or removed, the web app still calls the
+routes it always called, and a test asserts by function identity that both
+layers compute through the same engine rather than two implementations.
+
+### Two bugs worth recording
+
+**The rate limiters were module-scope and un-injectable.** This surfaced as
+twelve failing tests that passed individually — the suite was exhausting a
+shared 30/minute budget. The tempting fix was raising the limit. The right fix
+was making the limiters injectable, which also made them swappable for a
+distributed implementation later. A test that is order-dependent is usually
+telling you something true about the design.
+
+**The stable-shape question.** One test failed because the engine returns
+`angles: { ascendant: null, midheaven: null }` rather than `angles: null` when
+the birth time is unknown. The test was wrong, not the engine: a client should
+never have to null-check a container before reading a field.
+
+### Verified against the real artifact, again
+
+All seven routes executed from the built Vercel artifact in a `linux/amd64`
+container — natal returning 10 planets and 12 houses, synastry 29 aspects,
+evidence deterministic with `aiAssisted: false`, and zero connections attempted
+to localhost Ollama or Supabase.
+
+This is now the third time executing the real artifact has been the step that
+mattered. A model of the deployment is not the deployment.
+
+### Not done in Session 3
+
+Account deletion, version-one feature flags, and the legal and source pages were
+listed as candidates and were not taken up; the API was scoped as the whole
+session. The browser pass reached the authentication gate and stopped there —
+this worktree has no database configured, so the signed-in surfaces could not be
+exercised locally.
+
+Tests: 534 pass, 0 fail. Nothing deployed, published, merged, or pushed.
+
+## Recommended Session 4
+
+1. Account deletion, implemented and tested against local Supabase only
+2. Version-one feature flags (Tarot, Learn, News hidden in production)
+3. Privacy, Terms, Support, Source, and account-deletion pages
+4. A decision on publication
+
+## Superseded — the Session 3 plan as written
+
+### Original recommendations
 
 1. Versioned `/api/v1/*` API — health, version, source, and calculation routes
    with a stable envelope, validation, and request IDs
