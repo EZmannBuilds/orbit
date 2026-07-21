@@ -26,7 +26,7 @@ Related: [[Architecture Notes — Supabase Data Ownership]],
 
 ## What was deployed
 
-- Branch `feat/orbit-axis-private-mobile-preview`, commit `b2e710b`
+- Branch `feat/orbit-axis-private-mobile-preview`, commit `3c3f5c8`
 - Vercel project `lorehouse-team/orbit-axis`, target **preview**
 - Protected by Vercel Authentication — anonymous visitors are redirected to
   Vercel login on every path, including API routes
