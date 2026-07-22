@@ -24,7 +24,7 @@ import { spawnSync } from "node:child_process";
 import { REPO_ROOT } from "../lib/local-llm/config.js";
 import { resolveEnvironment, describeTarget } from "../lib/env/environment.js";
 import { PRODUCTION_PROJECT_REF, APPROVED_PREVIEW_PROJECT_REFS, configuredPreviewRefs } from "../lib/env/known-targets.js";
-import { sharedPreviewVerdict, sharedPreviewWarnings } from "../lib/env/shared-preview.js";
+import { sharedPreviewVerdict, sharedProductionVerdict, sharedPreviewWarnings } from "../lib/env/shared-preview.js";
 import { ephemerisCapability } from "../lib/astro/ephemeris.js";
 import { runtimeManifest, resolveRuntime } from "../lib/astro/runtime/resolve.js";
 import { modelBundle } from "../lib/deploy/bundle.js";
@@ -104,6 +104,45 @@ const sharedVerdict = sharedPreviewVerdict(
   { ...process.env, ORBIT_ENVIRONMENT: "preview" },
   { environment: "preview", isVercel: true, vercelEnv: "preview" },
 );
+
+// Production has its own approval, read separately. A Preview being approved
+// says nothing about Production, and reporting them together would hide exactly
+// the confusion the split exists to prevent.
+const productionVerdict = sharedProductionVerdict(
+  { ...process.env, ORBIT_ENVIRONMENT: "production" },
+  { environment: "production", isVercel: true, vercelEnv: "production" },
+);
+
+if (productionVerdict.approved) {
+  info("supabase", `PRODUCTION is approved to share the Orbit database (project ${productionVerdict.projectRef}).`);
+  warn("supabase", "The stable domain writes to the SAME database as Preview and local development.",
+    "Anything created, edited, or deleted on https://orbit-axis-omega.vercel.app is real production data. "
+    + "Do not test account deletion casually — it is permanent and there is no separate copy.");
+  warn("supabase", "A dedicated staging database is required before any outside beta tester is invited.",
+    "One project for every environment is acceptable while the owner is the only user, and stops being "
+    + "acceptable the moment somebody else has an account.");
+} else if (productionVerdict.requested && /service-role|database password/.test(productionVerdict.reason || "")
+           && !process.env.VERCEL) {
+  // Running locally, where .env.local legitimately holds a service-role key for
+  // admin scripts. That key is NOT in the Vercel production environment, so this
+  // is a property of the machine running the check rather than of the
+  // deployment — and reporting it as a blocker would send someone hunting for a
+  // problem that does not exist in production.
+  info("supabase", "Production shared-database approval cannot be evaluated from this machine: "
+    + "the local .env.local carries a service-role key, which production correctly refuses. "
+    + "Verify production with https://orbit-axis-omega.vercel.app/api/v1/health instead.");
+} else if (productionVerdict.requested) {
+  blocker("supabase", `Production shared-database mode was requested but refused: ${productionVerdict.reason}.`,
+    "Set ORBIT_ENVIRONMENT=production, ORBIT_PRODUCTION_DATABASE_MODE=shared-orbit, and "
+    + "ORBIT_PRODUCTION_PROJECT_REFS=<the Orbit project reference> in the Vercel PRODUCTION environment.");
+} else {
+  info("supabase", "No production shared-database approval configured (production would refuse the Orbit project).");
+}
+
+// Preview approval variables must not be relied on by Production.
+if (process.env.ORBIT_PREVIEW_DATABASE_MODE && !process.env.ORBIT_PRODUCTION_DATABASE_MODE) {
+  info("supabase", "Preview approval is present without production approval — that is the intended separation.");
+}
 
 if (sharedVerdict.approved) {
   info("supabase", `Preview is approved to share the Orbit database (project ${sharedVerdict.projectRef}).`);

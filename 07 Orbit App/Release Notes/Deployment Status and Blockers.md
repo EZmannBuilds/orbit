@@ -206,3 +206,19 @@ Preview: `https://orbit-axis-p2cnietqb-lorehouse-team.vercel.app`, commit
 **Lesson recorded:** every prior deployment verification tested the built
 function. None tested the router in front of it. A function that works when
 invoked directly says nothing about whether requests reach it.
+
+## Update 5.1.2 — Orbit Axis is live, 2026-07-21
+
+**https://orbit-axis-omega.vercel.app** — Production, health `ok`, Supabase
+configured and reachable, sign-in verified end to end. See
+[[Stable Production Domain]].
+
+Two causes behind the "not configured" message: Production shared-database
+approval did not exist in the guard, and every Vercel variable previously added
+by CLI had a stored value of length zero. Both fixed; variables are now written
+through the API so the effect can be verified rather than assumed.
+
+**Still open:** Supabase Site URL remains `http://localhost:3000`, so email
+confirmation and password-reset links point at localhost. Password sign-in is
+unaffected. Swiss Ephemeris licensing unresolved. One Supabase project still
+serves local, Preview, and Production.
