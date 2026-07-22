@@ -359,3 +359,33 @@ test("the Obsidian mirror is not tracked for publication", () => {
   const vaultFiles = tracked.filter((f) => /^07 Orbit App\//.test(f) || /\.obsidian\//.test(f));
   assert.deepEqual(vaultFiles, [], "the Obsidian mirror must stay out of the public repository");
 });
+
+// ── Source-disclosure variable names (Update 5.2.1) ─────────────────────────
+
+test("the source endpoint and the legal config accept the same variable names", async () => {
+  // These two modules were written against different names for the same value.
+  // Publishing set one pair, so the legal page updated while /api/v1/source —
+  // the endpoint AGPL compliance actually rests on — still said
+  // "pending-publication" against two live public repositories.
+  const { source } = await import("../lib/api/v1/handlers/platform.js");
+  const { legalConfig } = await import("../lib/legal/config.js");
+
+  const pairs = [
+    { ORBIT_SOURCE_APP_URL: "https://github.com/o/a", ORBIT_SOURCE_ENGINE_URL: "https://github.com/o/e" },
+    { ORBIT_SOURCE_URL: "https://github.com/o/a", ORBIT_ENGINE_SOURCE_URL: "https://github.com/o/e" },
+  ];
+
+  for (const env of pairs) {
+    const names = Object.keys(env).join(" + ");
+    const s = source(env);
+    assert.equal(s.application.repositoryUrl, "https://github.com/o/a", `source() ignored ${names}`);
+    assert.equal(s.engine.repositoryUrl, "https://github.com/o/e", `source() ignored engine in ${names}`);
+    assert.equal(s.application.repositoryStatus, "published");
+    assert.equal(s.engine.repositoryStatus, "published");
+  }
+
+  // And the legal config must agree on at least the canonical pair.
+  const legal = legalConfig(pairs[0]);
+  assert.equal(legal.sourceUrls.application, "https://github.com/o/a");
+  assert.equal(legal.sourceUrls.engine, "https://github.com/o/e");
+});
