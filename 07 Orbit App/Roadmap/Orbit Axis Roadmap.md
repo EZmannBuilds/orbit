@@ -97,6 +97,14 @@ A Now / Next / Later view. This is a living document; edit freely.
       Learn, and News fragments moved outside public/ so they cannot ship.
 - [ ] **Four owner decisions** before public release — publisher, support
       email, jurisdiction, minimum age. See [[Support and Contact Requirements]].
+- [x] **Today's Fortune redesigned** (Update 5.2) — carousel replaced with
+      cards, title above the cards, plain-language copy with no planet names,
+      Technical Sky below. See [[Home Experience]].
+- [x] **One complete experience** — the Simple/Advanced switch is gone; a
+      stored Simple preference no longer hides content.
+- [ ] **Update 5.2b** — Transits page and Symbol Atlas, reached from Home.
+- [ ] **Update 5.2c** — Me placement cards (planet, sign, then house) and the
+      Settings rebuild.
 - [ ] Orbit Chat expansion (chart-grounded astrology/metaphysics).
 - [x] Live Supabase migration/advisor verification for accounts + saved charts.
       See [[Accounts and Saved Charts Update]].
