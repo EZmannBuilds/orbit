@@ -477,6 +477,10 @@
 .tr-empty { padding: var(--space-4, 1.25rem); text-align: center; color: var(--color-muted); }
 .tr-empty p { margin: 0 0 0.6rem; }
 
+/* The back actions on both secondary pages are primary navigation on a phone:
+   they need the same 44px target as the filters beside them. */
+#panel-transits [data-goto], #panel-symbol-atlas [data-goto] { min-height: 44px; }
+
 /* ── Symbol Atlas ─────────────────────────────────────────────────────────── */
 .atlas-controls { margin-bottom: var(--space-4, 1.25rem); }
 .atlas-search-label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; }

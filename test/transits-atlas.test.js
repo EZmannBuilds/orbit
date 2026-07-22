@@ -337,3 +337,11 @@ test("a refresh on a secondary route re-renders once its data arrives", () => {
   assert.match(afterRestore.slice(0, 120), /refreshSecondaryRoute\(\)/,
     "the session path must re-render, since auth decides the empty state");
 });
+
+test("the back actions meet the 44px touch target", () => {
+  // Missed in 5.2b: the filters and sky actions got 44px, the back buttons did
+  // not, and they rendered at 38px on the public site.
+  const css = readFileSync(join(ROOT, "public", "styles", "features.css"), "utf8");
+  assert.match(css, /#panel-transits \[data-goto\], #panel-symbol-atlas \[data-goto\] \{[^}]*min-height:\s*44px/,
+    "both back actions need an explicit 44px minimum");
+});
