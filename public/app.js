@@ -281,9 +281,312 @@ const WORKSPACES = [
   { id: "history", label: "History", crumb: "Past readings", icon: "history", primary: false },
   { id: "settings", label: "Settings", crumb: "Preferences", icon: "settings", primary: false },
   { id: "dashboard", label: "Overview", crumb: "Overview", icon: "dashboard", primary: false },
-  { id: "transits", label: "Transits", crumb: "The moving sky", icon: "transits", primary: false },
+  // Secondary destinations reached from Home's Technical Sky, deliberately NOT
+  // primary navigation: adding a fifth and sixth tab would dilute Home, Me, Ask
+  // Orbit, and More for two pages people visit occasionally.
+  { id: "transits", label: "Transits", crumb: "Your moving sky", icon: "transits", primary: false },
+  { id: "symbol-atlas", label: "Symbol Atlas", crumb: "What the symbols mean", icon: "research", primary: false },
   { id: "research", label: "Research", crumb: "Atlas & queries", icon: "research", primary: false },
 ];
+
+/* ── Personal Transits (Update 5.2b) ───────────────────────────────────────
+   The moving sky measured against the active saved chart.
+
+   All geometry comes from the engine via the fortune's transit factors — the
+   browser never computes an aspect. Viewing this page performs no write, so
+   opening Transits cannot create a reading-history record. */
+
+/**
+ * Ordering, stated once so the UI and the tests agree:
+ *
+ *   1. applying before separating   — something building beats something fading
+ *   2. tighter orb first            — a 0.4° contact is more pointed than 5°
+ *   3. personal bodies before slow  — Moon..Mars land in a day, Pluto does not
+ *   4. transiting then natal name   — a stable, deterministic tie-break
+ *
+ * The last rule matters: without it two equal transits could swap places
+ * between renders, and a list that reorders itself is a list nobody trusts.
+ */
+const PERSONAL_BODIES = ["Moon", "Mercury", "Venus", "Sun", "Mars"];
+
+function transitRank(t) {
+  const personal = PERSONAL_BODIES.indexOf(t.transiting);
+  return {
+    applying: t.applying ? 0 : 1,
+    orb: Number.isFinite(t.orb) ? t.orb : 99,
+    speed: personal === -1 ? PERSONAL_BODIES.length : personal,
+    name: `${t.transiting}|${t.natal}|${t.aspect}`,
+  };
+}
+
+function sortTransits(list) {
+  return [...list].sort((a, b) => {
+    const x = transitRank(a), y = transitRank(b);
+    return x.applying - y.applying
+      || x.orb - y.orb
+      || x.speed - y.speed
+      || x.name.localeCompare(y.name);
+  });
+}
+
+const TRANSIT_FILTERS = ["all", "applying", "separating", "personal", "long-term"];
+
+function filterTransits(list, filter) {
+  // An unknown filter shows everything rather than an empty page: a stale link
+  // should degrade to the full list, not look like "you have no transits".
+  switch (filter) {
+    case "applying": return list.filter((t) => t.applying);
+    case "separating": return list.filter((t) => !t.applying);
+    case "personal": return list.filter((t) => PERSONAL_BODIES.includes(t.transiting));
+    case "long-term": return list.filter((t) => !PERSONAL_BODIES.includes(t.transiting));
+    default: return list;
+  }
+}
+
+const transitState = { filter: "all" };
+
+function transitsFromFortune() {
+  // factors[] already carries engine-computed transits with plain and technical
+  // phrasing. Reusing them avoids a second calculation and guarantees the page
+  // agrees with the fortune it sits behind.
+  return (AXIS.lastFortune?.factors || [])
+    .filter((f) => f.type === "transit" && f.transit)
+    .map((f) => ({ ...f.transit, plain: f.simple, technical: f.advanced }));
+}
+
+/**
+ * Re-render whichever secondary destination is on screen.
+ *
+ * renderRoute() runs during boot, before restoreSession() and before the daily
+ * fortune arrives. A refresh landing directly on #transits therefore rendered
+ * the signed-out state and never corrected itself, telling a signed-in user to
+ * sign in. Anything that fills in that data calls this afterwards.
+ */
+function refreshSecondaryRoute() {
+  const id = currentWorkspace();
+  if (id === "transits") renderTransits();
+  if (id === "symbol-atlas") loadSymbolAtlas();
+}
+
+function renderTransits() {
+  const body = $("#transits-body");
+  if (!body) return;
+
+  if (!state.auth.user) {
+    body.innerHTML = `<div class="tr-empty"><p>Sign in to see transits for your chart.</p></div>`;
+    return;
+  }
+  if (!state.activeChartId) {
+    body.innerHTML = `
+      <div class="tr-empty">
+        <p>Create or select a chart to view personal transits.</p>
+        <button type="button" class="o-btn o-btn--primary" data-goto="me">Manage charts</button>
+      </div>`;
+    return;
+  }
+
+  const all = sortTransits(transitsFromFortune());
+  const shown = filterTransits(all, transitState.filter);
+
+  const timeKnown = state.activeProfile?.time_accuracy && state.activeProfile.time_accuracy !== "unknown";
+  const houseNote = timeKnown ? "" : `
+    <p class="tr-note">Your birth time is not recorded, so house and angle contacts are not shown.
+       Planet-to-planet transits below are unaffected — they do not depend on the time of day.</p>`;
+
+  if (!all.length) {
+    body.innerHTML = `
+      ${houseNote}
+      <div class="tr-empty">
+        <p>No transits are close enough to list right now.</p>
+        <p class="u-caption">The sky is still moving — nothing is currently within the orb Orbit reports on.</p>
+      </div>`;
+    return;
+  }
+
+  const cards = shown.map((t) => {
+    const state_ = t.applying ? "Applying" : "Separating";
+    const orb = Number.isFinite(t.orb) ? `${t.orb.toFixed(1)}° orb` : "";
+    return `
+      <article class="tr-card">
+        <h3 class="tr-card__title">${esc(t.plain || `${t.transiting} ${t.aspect} ${t.natal}`)}</h3>
+        <p class="tr-card__meta">
+          <span class="tr-badge tr-badge--${t.applying ? "applying" : "separating"}">
+            <span aria-hidden="true">${t.applying ? "→" : "←"}</span> ${state_}
+          </span>
+          ${orb ? `<span class="tr-orb">${esc(orb)}</span>` : ""}
+        </p>
+        <details class="tr-card__details">
+          <summary>Technical detail</summary>
+          <p class="tr-card__technical">${esc(t.technical || "")}</p>
+          <p class="u-caption">
+            <a href="#symbol-atlas">What do these symbols mean?</a>
+          </p>
+        </details>
+      </article>`;
+  }).join("");
+
+  body.innerHTML = `
+    ${houseNote}
+    <div class="tr-filters" role="group" aria-label="Filter transits">
+      ${TRANSIT_FILTERS.map((f) => `
+        <button type="button" class="o-tab tr-filter" data-filter="${f}"
+                aria-pressed="${String(f === transitState.filter)}">
+          ${f === "all" ? "All" : f === "long-term" ? "Long-term" : f[0].toUpperCase() + f.slice(1)}
+        </button>`).join("")}
+    </div>
+    <p class="u-caption" role="status" aria-live="polite">${shown.length} of ${all.length} shown · strongest first</p>
+    <div class="tr-grid">${cards || `<div class="tr-empty"><p>No transits match that filter.</p></div>`}</div>`;
+}
+
+function wireTransits() {
+  const panel = $("#panel-transits");
+  if (!panel || panel._wiredTransits) return;
+  panel._wiredTransits = true;
+  panel.addEventListener("click", (event) => {
+    const btn = event.target.closest(".tr-filter");
+    if (!btn) return;
+    transitState.filter = TRANSIT_FILTERS.includes(btn.dataset.filter) ? btn.dataset.filter : "all";
+    renderTransits();
+  });
+}
+
+/* ── Symbol Atlas (Update 5.2b) ────────────────────────────────────────────
+   A reference for symbols already on screen elsewhere in Orbit — not a course.
+
+   Every glyph is paired with a visible text name. A glyph alone is meaningless
+   to anyone who has not already learned it, which is precisely the audience
+   this page exists for, and a font that fails to load would otherwise leave a
+   grid of empty boxes.
+
+   Search runs entirely in the browser over data already fetched. No request
+   leaves the page as somebody types. */
+
+const SYMBOL_KINDS = Object.freeze({
+  zodiac_sign: "Sign",
+  planet: "Planet",
+  angle: "Angle",
+  aspect: "Aspect",
+  house: "Houses",
+  moon: "Moon phase",
+  other: "Notation",
+});
+
+/** Where in Orbit each kind of symbol actually appears. */
+const SYMBOL_SEEN_IN = Object.freeze({
+  zodiac_sign: "Technical Sky, your chart placements, and transits",
+  planet: "Technical Sky positions, placements, and transits",
+  angle: "The Keys to Your Chart, when your birth time is known",
+  aspect: "Transits and chart aspect details",
+  house: "Chart placements, when your birth time is known",
+  moon: "Technical Sky",
+  other: "Technical Sky and transit details",
+});
+
+const atlasState = { all: [], kind: "", query: "" };
+
+async function loadSymbolAtlas() {
+  const results = $("#sa-results");
+  if (!results) return;
+  if (atlasState.all.length) return renderSymbolAtlas();
+
+  results.innerHTML = `<p class="u-caption" role="status">Loading symbols…</p>`;
+  try {
+    const data = await get("/api/symbols");
+    atlasState.all = Array.isArray(data.symbols) ? data.symbols : [];
+    renderSymbolAtlas();
+  } catch (error) {
+    results.innerHTML = `
+      <div class="sa-error" role="alert">
+        <p>${esc(error.message || "The symbol list could not be loaded.")}</p>
+        <button type="button" class="o-btn o-btn--secondary" id="sa-retry">Try again</button>
+      </div>`;
+  }
+}
+
+/** Case-insensitive, whitespace-trimmed, across name, keywords, kind and meaning. */
+function filterSymbols({ all, kind, query }) {
+  const q = String(query || "").trim().toLowerCase();
+  return all.filter((symbol) => {
+    // An unknown kind matches nothing rather than throwing — a stale link or a
+    // typed URL should show an empty state, not break the page.
+    if (kind && symbol.kind !== kind) return false;
+    if (!q) return true;
+    const haystack = [
+      symbol.name, symbol.slug, symbol.kind, symbol.glyph,
+      SYMBOL_KINDS[symbol.kind] || "",
+      (symbol.keywords || []).join(" "),
+      symbol.interpretation || "",
+    ].join(" ").toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
+function renderSymbolAtlas() {
+  const results = $("#sa-results");
+  const count = $("#sa-count");
+  if (!results) return;
+
+  const matches = filterSymbols(atlasState);
+
+  if (count) {
+    count.textContent = matches.length
+      ? `${matches.length} symbol${matches.length === 1 ? "" : "s"}`
+      : "No symbols match that search.";
+  }
+
+  if (!matches.length) {
+    results.innerHTML = `
+      <div class="sa-empty">
+        <p>Nothing matched${atlasState.query.trim() ? ` “${esc(atlasState.query.trim())}”` : ""}.</p>
+        <button type="button" class="o-btn o-btn--secondary" id="sa-clear">Clear search</button>
+      </div>`;
+    return;
+  }
+
+  results.innerHTML = matches.map((symbol) => `
+    <article class="sa-card" id="symbol-${esc(symbol.slug)}">
+      <div class="sa-card__head">
+        <span class="sa-card__glyph" aria-hidden="true">${esc(symbol.glyph)}</span>
+        <div class="sa-card__ident">
+          <h2 class="sa-card__name">${esc(symbol.name)}</h2>
+          <p class="sa-card__kind">${esc(SYMBOL_KINDS[symbol.kind] || symbol.kind)}</p>
+        </div>
+      </div>
+      <p class="sa-card__meaning">${esc(symbol.interpretation)}</p>
+      <p class="sa-card__seen"><span class="sa-card__seen-label">Seen in Orbit Axis:</span> ${esc(SYMBOL_SEEN_IN[symbol.kind] || "Throughout the application")}</p>
+    </article>`).join("");
+}
+
+function wireSymbolAtlas() {
+  const panel = $("#panel-symbol-atlas");
+  if (!panel || panel._wired) return;
+  panel._wired = true;
+
+  $("#sa-search")?.addEventListener("input", (event) => {
+    atlasState.query = event.target.value;
+    renderSymbolAtlas();
+  });
+
+  $("#sa-filters")?.addEventListener("click", (event) => {
+    const tab = event.target.closest("[data-kind]");
+    if (!tab) return;
+    atlasState.kind = tab.dataset.kind || "";
+    for (const b of $$("#sa-filters [data-kind]")) {
+      b.setAttribute("aria-selected", String(b === tab));
+    }
+    renderSymbolAtlas();
+  });
+
+  panel.addEventListener("click", (event) => {
+    if (event.target.closest("#sa-retry")) return loadSymbolAtlas();
+    if (event.target.closest("#sa-clear")) {
+      atlasState.query = "";
+      const input = $("#sa-search");
+      if (input) { input.value = ""; input.focus(); }
+      renderSymbolAtlas();
+    }
+  });
+}
 
 /* ── Feature flags ─────────────────────────────────────────────────────────
    Tarot, Learn, and News are built but unfinished, and are not part of version
@@ -379,6 +682,10 @@ function navigate(id) {
 
 function renderRoute() {
   const id = currentWorkspace();
+  // Secondary destinations load their own data on arrival, so a direct link or
+  // a refresh lands on a populated page rather than an empty one.
+  if (id === "symbol-atlas") { wireSymbolAtlas(); loadSymbolAtlas(); }
+  if (id === "transits") { wireTransits(); renderTransits(); }
   const ws = WORKSPACES.find(w => w.id === id);
 
   // A disabled feature's panel is normally never in the document at all: the
@@ -431,19 +738,6 @@ function renderSky(chart) {
     tile(daySymbol.glyph, "Symbol of the Day", daySymbol.name,
       `<span class="o-badge">${esc(daySymbol.kind.replace("_", " "))}</span>`,
       `<span class="u-meta">${esc(daySymbol.interpretation)}</span>`),
-  ].join("");
-}
-
-/* ── Transit tiles (Transits workspace) ────────────────────────────────── */
-function renderTransitTiles(chart) {
-  const { sun, moon, mercury } = chart;
-  const tile = (eyebrow, value, sub) => `
-    <div class="o-tile"><span class="u-eyebrow">${esc(eyebrow)}</span>
-      <div class="o-tile__value">${esc(value)}</div><div class="o-tile__sub">${sub}</div></div>`;
-  $("#transit-tiles").innerHTML = [
-    tile("Sun", `${sun.glyph} ${sun.name}`, `${sun.progress_pct}% through season`),
-    tile("Moon", `${moon.glyph} ${moon.phase}`, `${moon.illumination_pct}% illuminated`),
-    tile("Mercury", mercury.retrograde ? "℞ Retrograde" : "Direct", esc(mercury.message)),
   ].join("");
 }
 
@@ -1978,7 +2272,6 @@ async function refreshData(notify = false) {
   state.events = eventsData.events;
 
   renderSky(chart);
-  renderTransitTiles(chart);
   renderEvents(state.events);
   if (!state.ready) { renderWheel(); wireTools(); state.ready = true; } else { renderWheel(); }
   renderAtlas();
@@ -2027,6 +2320,7 @@ async function boot() {
 
   try {
     await restoreSession();
+    refreshSecondaryRoute();
   } finally {
     // Belt and braces: whatever happens above, the startup gate comes down so
     // the interface is never permanently blocked.
@@ -2817,6 +3111,7 @@ async function axisLoadToday() {
     AXIS.lastFortune = r.fortune;
     axisShowReadingFor(r.chart?.nickname || "My Chart");
     axisRenderFortune(r.fortune);
+    refreshSecondaryRoute();
     return;
   } catch { /* signed out, no active chart, or a transient fortune failure */ }
 
@@ -2840,6 +3135,7 @@ async function axisLoadToday() {
     AXIS.lastFortune = r.fortune;
     axisShowReadingFor(birth.nickname || "My Chart");
     axisRenderFortune(r.fortune);
+    refreshSecondaryRoute();
   } catch (e) {
     $("#today-fortune").innerHTML = `<div class="fortune-card"><h2>Today’s Fortune</h2><p class="fortune-card__sub">${esc(e.message)}</p></div>`;
   }
@@ -3006,6 +3302,12 @@ function axisRenderSky(sky) {
         <div class="sky-facts">${chips}</div>
         <div class="sky-theme">${theme}</div>
         ${personal}
+        <!-- Update 5.2b: the two secondary destinations, reached from the
+             section whose content they explain. Text labels, not icons. -->
+        <div class="sky-actions">
+          <a class="o-btn o-btn--secondary sky-action" href="#transits">View Transits</a>
+          <a class="o-btn o-btn--secondary sky-action" href="#symbol-atlas">Open Symbol Atlas</a>
+        </div>
         <div class="current-sky__location">
           <span class="u-caption" id="current-sky-location-status">Using your device timezone. Sharing your location can refine this to where you are right now.</span>
           <button type="button" class="o-btn o-btn--ghost o-btn--sm" id="current-sky-use-location">Use my current location</button>

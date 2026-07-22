@@ -411,3 +411,110 @@
   .placement-grid--keys { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .placement-grid--planets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* ── Home actions into Transits and Symbol Atlas (Update 5.2b) ─────────────
+   Secondary to Today's Fortune by placement rather than by being small: they
+   sit inside Technical Sky, below its summary. Text labels, never icons —
+   an unexplained glyph is the thing the Symbol Atlas exists to fix. */
+.sky-actions {
+  display: grid;
+  gap: var(--space-2, 0.6rem);
+  margin: var(--space-3, 1rem) 0 0;
+  grid-template-columns: 1fr;          /* 375px: stacked, full width */
+}
+.sky-action {
+  min-height: 44px;                    /* comfortable touch target */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+@media (min-width: 560px) { .sky-actions { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1100px) { .sky-actions { grid-template-columns: max-content max-content; } }
+
+/* ── Transits ─────────────────────────────────────────────────────────────── */
+.tr-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: var(--space-3, 1rem); }
+.tr-filter { min-height: 44px; }
+/* Selected state is a border and weight change, not colour alone. */
+.tr-filter[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.tr-grid { display: grid; gap: var(--space-3, 1rem); grid-template-columns: 1fr; }
+@media (min-width: 800px) { .tr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.tr-card {
+  padding: var(--space-3, 1rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--color-surface-elevated);
+}
+.tr-card__title { margin: 0 0 0.5rem; font-size: 1rem; line-height: 1.4; max-width: 46ch; }
+.tr-card__meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0 0 0.6rem; }
+
+/* Applying/separating carries an arrow AND a word, so the state never depends
+   on colour alone. */
+.tr-badge {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid var(--color-border);
+}
+.tr-badge--applying { border-color: var(--color-accent); color: var(--color-accent); }
+.tr-badge--separating { color: var(--color-muted); }
+.tr-orb { font-size: 0.75rem; color: var(--color-muted); }
+.tr-card__technical { margin: 0.4rem 0; font-size: 0.85rem; color: var(--color-muted); }
+.tr-note {
+  margin: 0 0 var(--space-3, 1rem);
+  padding: var(--space-2, 0.6rem) var(--space-3, 1rem);
+  border-left: 3px solid var(--color-accent);
+  font-size: 0.85rem;
+  color: var(--color-secondary);
+}
+.tr-empty { padding: var(--space-4, 1.25rem); text-align: center; color: var(--color-muted); }
+.tr-empty p { margin: 0 0 0.6rem; }
+
+/* ── Symbol Atlas ─────────────────────────────────────────────────────────── */
+.atlas-controls { margin-bottom: var(--space-4, 1.25rem); }
+.atlas-search-label { display: block; margin-bottom: 0.3rem; font-size: 0.85rem; }
+#sa-search { width: 100%; min-height: 44px; }
+.atlas-kinds { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: var(--space-2, 0.6rem) 0; }
+.atlas-kinds .o-tab { min-height: 44px; }
+.atlas-kinds .o-tab[aria-selected="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.sa-results { display: grid; gap: var(--space-3, 1rem); grid-template-columns: 1fr; }
+@media (min-width: 700px) { .sa-results { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1200px) { .sa-results { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.sa-card {
+  padding: var(--space-3, 1rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--color-surface-elevated);
+}
+.sa-card__head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem; }
+/* Large enough to read, and always beside its name — never alone. */
+.sa-card__glyph {
+  font-size: 1.9rem;
+  line-height: 1;
+  min-width: 2.2rem;
+  text-align: center;
+  color: var(--color-accent);
+}
+.sa-card__name { margin: 0; font-size: 1rem; }
+.sa-card__kind { margin: 0; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); }
+.sa-card__meaning { margin: 0 0 0.6rem; line-height: 1.55; color: var(--color-secondary); }
+.sa-card__seen { margin: 0; font-size: 0.8rem; color: var(--color-muted); }
+.sa-card__seen-label { color: var(--color-secondary); }
+.sa-empty, .sa-error { padding: var(--space-4, 1.25rem); text-align: center; color: var(--color-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tr-card, .sa-card { transition: none; }
+}

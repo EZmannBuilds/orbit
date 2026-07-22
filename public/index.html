@@ -15,9 +15,6 @@
   <link rel="stylesheet" href="/styles/orbit-axis.css" />
   <link rel="stylesheet" href="/styles/chat.css" />
   <link rel="stylesheet" href="/styles/ask.css" />
-  <link rel="stylesheet" href="/styles/tarot.css" />
-  <link rel="stylesheet" href="/styles/learn.css" />
-  <link rel="stylesheet" href="/styles/news.css" />
   <link rel="stylesheet" href="/styles/more.css" />
   <link rel="stylesheet" href="/styles/auth.css" />
   <link rel="stylesheet" href="/styles/fortune.css" />
@@ -224,19 +221,59 @@
           <div class="o-section-head">
             <div class="o-section-head__text">
               <h1 class="u-title">Transits</h1>
-              <p class="u-caption">The moving sky — current placements and the events approaching next.</p>
+              <p class="u-caption">The moving sky, measured against <strong id="transits-chart-name">your chart</strong>.</p>
             </div>
             <div class="o-section-head__actions">
+              <button class="o-btn o-btn--secondary" data-goto="home">Back to Home</button>
               <button class="o-btn o-btn--secondary" id="transits-refresh">Refresh</button>
             </div>
           </div>
 
-          <div class="grid-tiles" id="transit-tiles"></div>
+          <!-- Update 5.2b: personal transits against the active chart. The
+               generic sky-events tiles that were here showed the same facts as
+               Technical Sky, which is duplication rather than depth. -->
+          <div id="transits-body"></div>
 
           <div class="o-card">
             <div class="o-card-head"><h3 class="u-card-title">Upcoming Sky Events</h3><span class="u-meta" id="events-count"></span></div>
             <div class="o-timeline" id="events-timeline"></div>
           </div>
+        </section>
+
+        <!-- ── Symbol Atlas ─────────────────────────────────────────────
+             Its own destination as of Update 5.2b. It explains symbols that
+             are already on screen elsewhere, so it is reached from Technical
+             Sky rather than living inside Research. -->
+        <section class="workspace-panel" id="panel-symbol-atlas" role="tabpanel" aria-labelledby="tab-symbol-atlas" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title">Symbol Atlas</h1>
+              <p class="u-caption">Every symbol Orbit Axis uses, in plain language. A reference, not a course.</p>
+            </div>
+            <div class="o-section-head__actions">
+              <button class="o-btn o-btn--secondary" data-goto="home">Back to Home</button>
+            </div>
+          </div>
+
+          <div class="atlas-controls">
+            <label class="atlas-search-label" for="sa-search">Search symbols</label>
+            <input class="o-input" id="sa-search" type="search" autocomplete="off"
+                   placeholder="Try “Mercury”, “square”, or “rising”"
+                   aria-describedby="sa-count" />
+            <div class="o-tabs atlas-kinds" id="sa-filters" role="tablist" aria-label="Symbol categories">
+              <button class="o-tab" role="tab" type="button" data-kind="" aria-selected="true">All</button>
+              <button class="o-tab" role="tab" type="button" data-kind="zodiac_sign" aria-selected="false">Signs</button>
+              <button class="o-tab" role="tab" type="button" data-kind="planet" aria-selected="false">Planets</button>
+              <button class="o-tab" role="tab" type="button" data-kind="angle" aria-selected="false">Angles</button>
+              <button class="o-tab" role="tab" type="button" data-kind="aspect" aria-selected="false">Aspects</button>
+              <button class="o-tab" role="tab" type="button" data-kind="house" aria-selected="false">Houses</button>
+              <button class="o-tab" role="tab" type="button" data-kind="moon" aria-selected="false">Moon</button>
+              <button class="o-tab" role="tab" type="button" data-kind="other" aria-selected="false">Other</button>
+            </div>
+            <p class="u-caption" id="sa-count" role="status" aria-live="polite"></p>
+          </div>
+
+          <div class="sa-results" id="sa-results"></div>
         </section>
 
         <!-- ── Research ─────────────────────────────────────────────── -->
