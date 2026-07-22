@@ -914,7 +914,6 @@ function clearPrivateState({ purgeLocalData = false } = {}) {
   // until something happened to overwrite it.
   AXIS.lastFortune = null;
   AXIS.lastSky = null;
-  AXIS.carousel = { key: null, index: 0, topics: [] };
   AXIS.loadedOnce = false;
 
   renderAccount();
@@ -2494,7 +2493,7 @@ function renderMeOverview(profile, chart, name) {
   $("#me-active-badge")?.removeAttribute("hidden");
   const timeInfo = timeAccuracyInfo(profile.time_accuracy || chart.time_accuracy);
   const rising = chart.big_three.rising?.unavailable ? "Needs birth time" : chart.big_three.rising?.sign;
-  const mode = AXIS.detail;
+  const mode = "Advanced";   // Update 5.2: one complete experience
   const cautions = [];
   if ((profile.time_accuracy || chart.time_accuracy) === "approximate") cautions.push(TIME_ACCURACY_COPY.approximate.note);
   if ((profile.time_accuracy || chart.time_accuracy) === "unknown" || chart.big_three.rising?.unavailable) cautions.push(TIME_ACCURACY_COPY.unknown.note);
@@ -2620,7 +2619,7 @@ async function loadMoonTonight() {
 }
 
 // ══ Orbit Axis daily experience ═════════════════════════════════════════════
-// Today workspace, Fortune carousel, Current Sky (with the procedural Moon),
+// Today workspace, Today's Fortune cards, Current Sky (with the procedural Moon),
 // History, and the Simple/Advanced detail level. Deterministic fortune comes
 // from the server; nothing here calculates astrology. Works in local dev via
 // the stateless preview; upgrades to persisted fortunes when signed in.
@@ -2628,14 +2627,21 @@ const AXIS = {
   detail: "Simple",
   lastFortune: null,
   lastSky: null,
-  carousel: { key: null, index: 0, topics: [] },
   currentTimezoneOverride: null, // session-only, set by "Use my current location"
   // Set once Today has been loaded, so startup doesn't fetch the fortune twice
   // (session restore already loads it for a signed-in returning user).
   loadedOnce: false,
 };
 // Update Two removed "Balanced". Only two levels remain; Simple is the default.
-const DETAILS = ["Simple", "Advanced"];
+// Update 5.2: there is one experience, and it is the complete one.
+//
+// "Simple" hid houses, degrees, retrograde marks, and transit detail behind a
+// switch most people never found — so the app looked shallower than it is, and
+// the people most likely to leave it on Simple were exactly the ones who needed
+// the plain-language explanations that now sit BESIDE the technical facts.
+//
+// Advanced no longer means "more confusing". It means complete, with help text.
+const DETAILS = ["Advanced"];
 
 // Coerce any value (including a legacy "Balanced" left in localStorage, a stale
 // cached API response, or an unknown string) to a supported level. Advanced is
@@ -2645,8 +2651,14 @@ function normalizeDetail(value) {
 }
 // Which per-factor phrasing key a level reads. Balanced no longer exists, so any
 // non-Advanced level (including stale "Balanced") maps to the plain wording.
+// Kept as a function so the (many) call sites need no edit, and so a stored
+// "Simple" preference from before Update 5.2 resolves to the full experience
+// rather than hiding content. The saved value is not deleted — see
+// axisLoadDetail — because destroying a user preference to remove a feature is
+// worse than ignoring it.
 function detailKeyFor(level) {
-  return level === "Advanced" ? "advanced" : "simple";
+  void level;              // deliberately ignored: there is only one level now
+  return "advanced";
 }
 
 // The user's *current* (browsing) timezone — always distinct from a saved
@@ -2698,23 +2710,22 @@ function axisGetBirth() {
 function axisSetBirth(b) { localStorage.setItem("oa_birth", JSON.stringify(b)); }
 
 async function axisLoadDetail() {
-  // Legacy state safety: an old browser may still hold "Balanced" (or anything
-  // else) in localStorage — normalize before use and rewrite it so the stale
-  // value never lingers or reaches the UI.
-  const stored = localStorage.getItem("oa_detail");
-  if (stored) AXIS.detail = normalizeDetail(stored);
-  try {
-    const r = await get("/api/settings/detail");
-    if (r.persisted) AXIS.detail = normalizeDetail(r.astrology_detail_level);
-  } catch { /* default/local is fine */ }
+  // Update 5.2: the stored preference is READ but no longer obeyed. Anyone who
+  // saved "Simple" before this update gets the complete experience without
+  // having to find a setting and change it.
+  //
+  // The stored value is left alone rather than rewritten or deleted. It costs
+  // nothing to keep, and silently overwriting a preference somebody set is a
+  // worse habit than ignoring one that no longer applies. The Supabase column
+  // is likewise retained and simply unused — see the deprecation note in the
+  // vault.
+  AXIS.detail = "Advanced";
   axisApplyDetail(false);
 }
 function axisApplyDetail(rerender = true) {
-  localStorage.setItem("oa_detail", AXIS.detail);
-  document.documentElement.setAttribute("data-detail", AXIS.detail);
-  for (const btn of $$(".axis-detail button")) {
-    btn.setAttribute("aria-pressed", String(btn.dataset.level === AXIS.detail));
-  }
+  // The attribute stays: some CSS still keys off it, and pinning it to Advanced
+  // is what makes those rules always apply.
+  document.documentElement.setAttribute("data-detail", "Advanced");
   if (rerender) {
     if (AXIS.lastFortune) axisRenderFortune(AXIS.lastFortune);
     if (AXIS.lastSky) axisRenderSky(AXIS.lastSky);
@@ -2756,35 +2767,11 @@ function axisWireChartPicker() {
 // Event delegation on the (stable) mount points below — their innerHTML is
 // replaced on every render, but the elements themselves persist, so wiring
 // once here keeps working across re-renders without rebinding listeners.
-function axisWireFortuneCarousel() {
-  const root = $("#today-fortune");
-  if (!root || root._axisWired) return;
-  root._axisWired = true;
-  root.addEventListener("click", (event) => {
-    if (event.target.closest("#fortune-prev")) return axisMoveCarousel(-1);
-    if (event.target.closest("#fortune-next")) return axisMoveCarousel(1);
-    const dot = event.target.closest(".fortune-carousel__dot");
-    if (dot) axisSetCarouselIndex(Number(dot.dataset.index));
-  });
-  root.addEventListener("keydown", (event) => {
-    if (!event.target.closest("#fortune-viewport")) return;
-    if (event.key === "ArrowRight") { event.preventDefault(); axisMoveCarousel(1); }
-    else if (event.key === "ArrowLeft") { event.preventDefault(); axisMoveCarousel(-1); }
-    else if (event.key === "Home") { event.preventDefault(); axisSetCarouselIndex(0); }
-    else if (event.key === "End") { event.preventDefault(); axisSetCarouselIndex(AXIS.carousel.topics.length - 1); }
-  });
-  let touchX = null;
-  root.addEventListener("touchstart", (event) => {
-    touchX = event.target.closest("#fortune-viewport") ? event.touches[0].clientX : null;
-  }, { passive: true });
-  root.addEventListener("touchend", (event) => {
-    if (touchX == null) return;
-    const dx = event.changedTouches[0].clientX - touchX;
-    touchX = null;
-    if (Math.abs(dx) < 40) return; // swipe threshold
-    axisMoveCarousel(dx < 0 ? 1 : -1);
-  }, { passive: true });
-}
+//
+// The fortune needs no wiring any more. Update 5.2 replaced the carousel with
+// cards, so there are no arrows, dots, arrow-key handlers, or swipe thresholds
+// left to bind — the whole interaction is scrolling, which the browser already
+// does.
 
 function axisWireSkyControls() {
   const root = $("#today-sky");
@@ -2808,7 +2795,6 @@ function axisInit() {
   window.addEventListener("hashchange", () => { if (currentWorkspace() === "history") axisLoadHistory($("#history-scope")?.value || "active"); });
 
   axisWireChartPicker();
-  axisWireFortuneCarousel();
   axisWireSkyControls();
   axisSyncCurrentTimezone();
   axisLoadDetail();
@@ -2829,7 +2815,6 @@ async function axisLoadToday() {
   try {
     const r = await get("/api/fortune/today");
     AXIS.lastFortune = r.fortune;
-    if (r.detail_level) { AXIS.detail = normalizeDetail(r.detail_level); axisApplyDetail(false); }
     axisShowReadingFor(r.chart?.nickname || "My Chart");
     axisRenderFortune(r.fortune);
     return;
@@ -2866,103 +2851,98 @@ function axisShowReadingFor(name) {
   setActiveChartName(name);
 }
 
-// ── Today's Fortune: one navigable card per topic ─────────────────────────
-// Wrap-around navigation (last → first, first → last): nothing in the
-// existing UX favors a bounded/disabled-arrow model, and wrapping keeps
-// keyboard/swipe input simple (no dead-end states to special-case).
-function axisCarouselTopics(F) {
+/* ── Today's Fortune: cards, not slides ────────────────────────────────────
+   The carousel is gone. It hid four of five readings behind a swipe nobody
+   discovers, and on a phone the only affordance was a row of dots. Everything
+   the fortune has to say is now visible by scrolling, which is the one
+   interaction every user already knows.
+
+   The split that makes this work already existed in the engine: `mood`,
+   `love_reading`, `luck_reading`, and `watch_out` are plain-language readings,
+   while `factors[].advanced` carries the technical phrasing. So the fortune
+   says what the day may feel like, and Technical Sky below it says why —
+   without the fortune ever naming a planet. */
+
+/** The reading cards, in the order they are read. */
+function axisFortuneCards(F) {
   return [
-    { label: "Mood", body: () => `<p class="fortune-topic__body">${esc(F.mood)}</p>` },
-    { label: "Love", body: () => `<p class="fortune-topic__body">${esc(F.love_reading)}</p>` },
-    { label: "Luck", body: () => `<p class="fortune-topic__body">${esc(F.luck_reading)}</p>` },
-    { label: "Watch Out", body: () => `<p class="fortune-topic__body">${esc(F.watch_out)}</p>` },
-    { label: "Lucky Number", body: () => `
-      <div class="lucky-number">
-        <span class="lucky-number__value">${esc(F.lucky_number)}</span>
-        <span class="lucky-number__label">Lucky Number</span>
-      </div>` },
-    { label: "Lucky Color", body: () => `
-      <div class="lucky-color">
-        <span class="lucky-color__swatch" style="background:${esc(F.lucky_color.value)}" aria-hidden="true"></span>
-        <span class="lucky-color__text">
-          <span class="lucky-color__name">${esc(F.lucky_color.name)}</span>
-          <span class="lucky-color__hex">${esc(F.lucky_color.value)}</span>
-          <span class="lucky-color__label">Lucky Color</span>
-        </span>
-      </div>` },
-  ];
+    {
+      id: "mood",
+      label: "Overall",
+      lede: "What today may feel like",
+      body: F.mood,
+      primary: true,
+    },
+    { id: "love", label: "Connection", lede: "Relationships and communication", body: F.love_reading },
+    { id: "luck", label: "Momentum", lede: "Where things may open up", body: F.luck_reading },
+    { id: "watch", label: "Watch for", lede: "What may create friction", body: F.watch_out, caution: true },
+  ].filter((card) => typeof card.body === "string" && card.body.trim().length > 0);
 }
 
-function axisMoveCarousel(delta) {
-  const total = AXIS.carousel.topics.length;
-  if (!total) return;
-  axisSetCarouselIndex((AXIS.carousel.index + delta + total) % total);
-}
-
-function axisSetCarouselIndex(index) {
-  const total = AXIS.carousel.topics.length;
-  if (!total) return;
-  AXIS.carousel.index = Math.max(0, Math.min(index, total - 1));
-  axisPaintCarouselCard();
-}
-
-function axisPaintCarouselCard() {
-  const { topics, index } = AXIS.carousel;
-  const topic = topics[index];
-  if (!topic) return;
-  const card = $("#fortune-card-body");
-  const status = $("#fortune-position");
-  const dots = $("#fortune-dots");
-  if (card) {
-    card.innerHTML = topic.body();
-    card.setAttribute("aria-label", `${topic.label}, slide ${index + 1} of ${topics.length}`);
-    card.classList.remove("is-entering");
-    void card.offsetWidth; // reflow so the entrance animation restarts on every card change
-    card.classList.add("is-entering");
-  }
-  if (status) status.textContent = `${topic.label} — ${index + 1} of ${topics.length}`;
-  if (dots) dots.querySelectorAll(".fortune-carousel__dot").forEach((dot, i) => dot.setAttribute("aria-selected", String(i === index)));
+/**
+ * A short closing direction, assembled from the readings themselves.
+ *
+ * Deliberately derived rather than generated: it restates what the deterministic
+ * engine already produced. Inventing a new sentence here would be the one place
+ * in Orbit where reading text was not traceable to engine evidence.
+ */
+function axisFortuneClosing(F) {
+  const bits = [];
+  if (F.lucky_number != null) bits.push(`Lucky number ${F.lucky_number}`);
+  if (F.lucky_color?.name) bits.push(F.lucky_color.name);
+  return bits.join(" · ");
 }
 
 function axisRenderFortune(F) {
-  // Reset to the first card only when the underlying fortune actually
-  // changes (different chart or different local date) — not on harmless
-  // rerenders like a detail-level toggle, which calls this with the same F.
-  const key = `${F.chart_id || "local"}|${F.fortune_date || ""}`;
-  if (AXIS.carousel.key !== key) {
-    AXIS.carousel.key = key;
-    AXIS.carousel.index = 0;
-  }
-  AXIS.carousel.topics = axisCarouselTopics(F);
-  AXIS.carousel.index = Math.min(AXIS.carousel.index, AXIS.carousel.topics.length - 1);
+  const cards = axisFortuneCards(F);
+  const closing = axisFortuneClosing(F);
+  const dateLabel = axisFortuneDate(F);
 
-  const detailKey = detailKeyFor(AXIS.detail);
-  const why = (F.factors || []).map(f => `<li>${esc(f[detailKey] ?? f.simple)}</li>`).join("");
+  // The title sits ABOVE the cards, so the day has a name before it has detail.
+  const heading = `
+    <header class="fortune-head">
+      <p class="fortune-head__eyebrow">Today’s Fortune</p>
+      <p class="fortune-head__date">${esc(dateLabel)}</p>
+      <h2 class="fortune-head__title">${esc(F.mood_headline || axisFortuneTitle(F))}</h2>
+      <p class="fortune-head__note">Symbolic reflection, never prediction.</p>
+    </header>`;
+
+  const grid = cards.map((card) => `
+    <article class="fortune-card2${card.primary ? " fortune-card2--primary" : ""}${card.caution ? " fortune-card2--caution" : ""}">
+      <h3 class="fortune-card2__label">${esc(card.label)}</h3>
+      <p class="fortune-card2__lede">${esc(card.lede)}</p>
+      <p class="fortune-card2__body">${esc(card.body)}</p>
+    </article>`).join("");
 
   $("#today-fortune").innerHTML = `
-    <div class="fortune-card">
-      <h2>Today’s Fortune</h2>
-      <div class="fortune-card__sub">${esc(F.fortune_date || "")} · symbolic reflection, never prediction</div>
-      <div class="fortune-carousel" role="region" aria-roledescription="carousel" aria-label="Today's Fortune topics">
-        <div class="fortune-carousel__nav">
-          <button type="button" class="fortune-carousel__arrow" id="fortune-prev" aria-label="Previous fortune topic">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-          </button>
-          <div class="fortune-carousel__status" id="fortune-position" aria-live="polite" aria-atomic="true"></div>
-          <button type="button" class="fortune-carousel__arrow" id="fortune-next" aria-label="Next fortune topic">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-        </div>
-        <div class="fortune-carousel__viewport" id="fortune-viewport" tabindex="0" aria-label="Swipe or use the left and right arrow keys to browse fortune topics. Home and End jump to the first and last topic.">
-          <div class="fortune-carousel__card" id="fortune-card-body"></div>
-        </div>
-        <div class="fortune-carousel__dots" id="fortune-dots" role="tablist" aria-label="Jump to a fortune topic">
-          ${AXIS.carousel.topics.map((t, i) => `<button type="button" class="fortune-carousel__dot" role="tab" aria-selected="false" aria-label="${esc(t.label)}" data-index="${i}"></button>`).join("")}
-        </div>
-      </div>
-      <details class="why-reading"><summary>Why this reading?</summary><ul class="why-list">${why}</ul></details>
-    </div>`;
-  axisPaintCarouselCard();
+    <section class="fortune" aria-labelledby="fortune-title">
+      ${heading.replace('class="fortune-head__title"', 'class="fortune-head__title" id="fortune-title"')}
+      <div class="fortune-grid">${grid}</div>
+      ${closing ? `<p class="fortune-closing">${esc(closing)}</p>` : ""}
+    </section>`;
+}
+
+/** A human date, falling back to the raw value rather than showing nothing. */
+function axisFortuneDate(F) {
+  const raw = F.fortune_date || "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const [y, m, d] = raw.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d))
+    .toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+/**
+ * A short title for the day, taken from the opening clause of the overall
+ * reading. Derived, never invented — and never technical, because `mood` is
+ * already plain language.
+ */
+function axisFortuneTitle(F) {
+  const text = String(F.mood || "").trim();
+  if (!text) return "Today";
+  const firstSentence = text.split(/(?<=[.!?])\s/)[0] || text;
+  const clause = firstSentence.split(/[,;—]/)[0].trim().replace(/\.$/, "");
+  const title = clause.length >= 8 && clause.length <= 72 ? clause : firstSentence.replace(/\.$/, "");
+  return title.length > 80 ? `${title.slice(0, 77)}…` : title;
 }
 
 // ── Current Sky: one unified panel (Moon + Sun + season + local time) ──────
@@ -2974,8 +2954,10 @@ function axisRenderSky(sky) {
     : "";
 
   const chips = [
-    `<span class="sky-chip"><span class="dot"></span>${esc(sky.zodiac_season)} season</span>`,
-    `<span class="sky-chip"><span class="dot"></span>Sun in ${esc(sky.sun.sign)}</span>`,
+    // "Cancer Season" and "Sun in Cancer" are the same fact. The season reads
+    // better and the Sun's exact degree lives in the Technical Sky table below,
+    // where it is actually useful.
+    `<span class="sky-chip"><span class="dot"></span>${esc(sky.zodiac_season)} Season</span>`,
     `<span class="sky-chip"><span class="dot"></span>Moon in ${esc(sky.moon.sign)}</span>`,
     `<span class="sky-chip"><span class="dot"></span>${esc(sky.moon.phase_name)} · ${Math.round(sky.moon.illumination_percent)}% lit</span>`,
     ...(sky.retrogrades || []).map(r => `<span class="sky-chip retro"><span class="dot"></span>${esc(r)} retrograde</span>`),
@@ -2985,28 +2967,40 @@ function axisRenderSky(sky) {
     ? "A slow-down-and-review kind of sky — good for tidying and second drafts."
     : `${sky.moon.waxing ? "A building, lean-in" : "A settling, wind-down"} sky today.`;
 
-  const detailKey = detailKeyFor(AXIS.detail);
+  // Update 5.2: every reader gets the complete technical view. The advanced
+  // factor phrasing is the one shown, because "Sun 28°14′ Cancer" is the point
+  // of this section — the plain-language version already appeared in the
+  // fortune above, and repeating it here would say the same thing twice.
   const transitFactors = (AXIS.lastFortune?.factors || []).filter(f => f.type === "transit").slice(0, 3);
   const personal = transitFactors.length ? `
     <div class="current-sky__personal">
-      <div class="u-eyebrow">For ${esc(state.activeChartName)}</div>
-      <ul class="current-sky__transit-list">${transitFactors.map(f => `<li>${esc(f[detailKey] ?? f.simple)}</li>`).join("")}</ul>
+      <div class="u-eyebrow">Active transits for ${esc(state.activeChartName)}</div>
+      <ul class="current-sky__transit-list">${transitFactors.map(f => `<li>${esc(f.advanced ?? f.simple)}</li>`).join("")}</ul>
     </div>` : "";
 
   let advanced = "";
-  if (AXIS.detail === "Advanced" && sky.planets) {
-    const rows = Object.values(sky.planets).map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.sign)} ${p.degrees}°${String(p.minutes).padStart(2, "0")}′</td><td>${p.retrograde ? "℞" : ""}</td></tr>`).join("");
-    advanced = `<details class="sky-advanced"><summary>Technical sky</summary>
-      <table class="placements"><thead><tr><th>Body</th><th>Position</th><th>R</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+  if (sky.planets) {
+    const rows = Object.values(sky.planets).map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.sign)} ${p.degrees}°${String(p.minutes).padStart(2, "0")}′</td><td>${p.retrograde ? `<abbr title="Retrograde">℞</abbr>` : ""}</td></tr>`).join("");
+    advanced = `
+      <div class="sky-technical">
+        <h3 class="sky-technical__title">Positions right now</h3>
+        <p class="sky-technical__help">Each body's exact position. Degrees are measured within the sign; ℞ means the planet appears to move backwards from Earth.</p>
+        <div class="sky-technical__scroll">
+          <table class="placements">
+            <thead><tr><th scope="col">Body</th><th scope="col">Position</th><th scope="col"><span class="sr-only">Retrograde</span><span aria-hidden="true">℞</span></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
   }
 
-  const summary = `${sky.moon.phase_name} Moon, ${Math.round(sky.moon.illumination_percent)}% illuminated and ${sky.moon.waxing ? "waxing" : "waning"}, in ${sky.moon.sign}. Sun in ${sky.zodiac_season}.${(sky.retrogrades || []).length ? ` ${sky.retrogrades.join(", ")} retrograde.` : ""}`;
+  const summary = `${sky.moon.phase_name} Moon, ${Math.round(sky.moon.illumination_percent)}% illuminated and ${sky.moon.waxing ? "waxing" : "waning"}, in ${sky.moon.sign}. ${sky.zodiac_season} season.${(sky.retrogrades || []).length ? ` ${sky.retrogrades.join(", ")} retrograde.` : ""}`;
 
   $("#today-sky").innerHTML = `
     <div class="current-sky">
       <div class="current-sky__moon" aria-hidden="true">${moonSvg}</div>
       <div class="current-sky__body">
-        <h2>Current Sky</h2>
+        <h2>Technical Sky</h2>
         <p class="sr-only">${esc(summary)}</p>
         ${localTime ? `<div class="current-sky__local">${esc(localTime)} · your local time</div>` : ""}
         <div class="sky-facts">${chips}</div>
@@ -3087,7 +3081,7 @@ function axisRenderHistoryEmpty() {
 }
 
 function axisRenderHistory(entries) {
-  const adv = AXIS.detail === "Advanced";
+  const adv = true;   // Update 5.2: history always shows the full entry
   $("#history-body").innerHTML = `<div class="history-list">${entries.map(f => `
     <details class="history-entry">
       <summary>

@@ -98,7 +98,15 @@ test("watch-out reflects retrogrades when present, avoids fear/forbidden copy", 
   const f = fortune();
   assert.doesNotMatch(f.watch_out.toLowerCase(), /don't overreact/);
   if (f.sky_snapshot.retrogrades.includes("Mercury")) {
-    assert.match(f.watch_out, /Mercury is retrograde/);
+    // Update 5.2: the advice still comes FROM the retrograde, but no longer
+    // names it. This asserts the meaning survived the translation — messages
+    // and plans needing a second look is the practical content of a Mercury
+    // retrograde — while the plain-language guarantee below forbids the term
+    // itself. Asserting the old phrasing would have re-enforced the jargon.
+    assert.match(f.watch_out.toLowerCase(), /messages|plans|details|confirm|second look/,
+      "the retrograde's practical advice must survive in plain words");
+    assert.doesNotMatch(f.watch_out, /Mercury/,
+      "…without naming the planet, which belongs to Technical Sky");
   }
 });
 
@@ -149,4 +157,70 @@ test("personalTransits are within orb and marked applying/separating", () => {
     assert.equal(typeof t.applying, "boolean");
     assert.ok(["conjunction","sextile","square","trine","opposition"].includes(t.aspect));
   }
+});
+
+// ── Plain-language guarantee (Update 5.2) ──────────────────────────────────
+//
+// A source-level test on the card builder passed while the RENDERED fortune
+// still read "Mercury is retrograde, so double-check messages…" — because the
+// wording came from the engine's data, not from the template the test scanned.
+// Only opening the page caught it.
+//
+// These tests read the composed output, which is where the words actually are.
+
+const TECHNICAL_TERMS = [
+  "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
+  "retrograde", "house", "aspect", "conjunct", "square", "trine", "sextile",
+  "opposition", "orb", "degree", "ascendant", "midheaven", "natal", "transit",
+];
+
+test("the plain readings never use technical astrology wording", () => {
+  // Several skies, so one lucky sample cannot pass by accident. Mercury
+  // retrograde is included deliberately: that branch is the one that leaked.
+  const skies = [
+    SKY,
+    { ...SKY, retrogrades: ["Mercury"] },
+    { ...SKY, retrogrades: ["Mercury", "Saturn", "Neptune"] },
+    { ...SKY, retrogrades: [] },
+  ];
+
+  for (const sky of skies) {
+    const f = fortune({ sky });
+    for (const field of ["mood", "love_reading", "luck_reading", "watch_out"]) {
+      const text = String(f[field] || "");
+      for (const term of TECHNICAL_TERMS) {
+        assert.ok(!new RegExp(`\\b${term}\\b`, "i").test(text),
+          `${field} contains "${term}" — the plain half of the fortune must not use it.\n  ${text}`);
+      }
+    }
+  }
+});
+
+test("the technical wording survives, in the factors", () => {
+  // Translating the readings must not lose the astrology — it moves it to
+  // Technical Sky, which renders factors[].advanced.
+  const f = fortune({ sky: { ...SKY, retrogrades: ["Mercury"] } });
+  const advanced = (f.factors || []).map((x) => x.advanced).join(" ");
+  assert.match(advanced, /Mercury/, "the technical half must still name the planet");
+  assert.match(advanced, /retrograde/i);
+});
+
+test("translating the wording kept the fortune deterministic", () => {
+  const sky = { ...SKY, retrogrades: ["Mercury"] };
+  const a = fortune({ sky });
+  const b = fortune({ sky });
+  assert.equal(a.watch_out, b.watch_out);
+  assert.equal(a.mood, b.mood);
+  assert.equal(a.seed_hash, b.seed_hash);
+});
+
+test("a stored fortune from before the redesign still renders", () => {
+  // The cards read mood / love_reading / luck_reading / watch_out and tolerate
+  // a missing field. History must not be invalidated by a visual change.
+  const f = fortune();
+  const asStored = { ...f, watch_out: undefined };   // an older row lacking a field
+  const present = ["mood", "love_reading", "luck_reading", "watch_out"]
+    .filter((k) => typeof asStored[k] === "string" && asStored[k].trim());
+  assert.equal(present.length, 3, "the remaining readings should still be usable");
+  assert.ok(asStored.factors?.length, "factors survive for Technical Sky");
 });

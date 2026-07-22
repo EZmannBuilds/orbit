@@ -16,65 +16,6 @@
 .fortune-card h2 { font-size: 22px; margin-bottom: 2px; }
 .fortune-card__sub { color: var(--color-secondary); font-size: 14px; margin-bottom: 16px; }
 
-/* ── Fortune carousel: one topic card at a time ───────────────────────────── */
-.fortune-carousel { margin-top: 4px; }
-.fortune-carousel__nav {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  margin-bottom: 10px;
-}
-.fortune-carousel__arrow {
-  display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto;
-  background: var(--color-surface-sunken, #12152a); border: 1px solid var(--color-border);
-  border-radius: 999px; color: var(--color-primary); cursor: pointer;
-}
-.fortune-carousel__arrow:hover { border-color: var(--axis-lavender); }
-.fortune-carousel__arrow svg { width: 18px; height: 18px; }
-.fortune-carousel__status {
-  font-size: 13px; color: var(--color-secondary); text-align: center; flex: 1;
-  text-transform: uppercase; letter-spacing: 0.06em;
-}
-.fortune-carousel__viewport {
-  min-height: 128px; display: flex; align-items: center;
-  border-radius: var(--axis-radius-md);
-  touch-action: pan-y; /* keep vertical page scroll; horizontal swipe drives the carousel */
-}
-.fortune-carousel__viewport:focus-visible {
-  outline: 2px solid var(--axis-blue); outline-offset: 4px; border-radius: var(--axis-radius-md);
-}
-.fortune-carousel__card { width: 100%; }
-.fortune-carousel__card.is-entering { animation: fortune-card-enter 260ms var(--ease-decelerate, ease-out); }
-@keyframes fortune-card-enter {
-  from { opacity: 0; transform: translateX(10px); }
-  to   { opacity: 1; transform: none; }
-}
-.fortune-topic__body { font-size: 17px; line-height: 1.55; color: var(--color-primary); }
-.fortune-carousel__dots { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
-.fortune-carousel__dot {
-  width: 10px; height: 10px; padding: 0; border-radius: 50%; border: 0; cursor: pointer;
-  background: var(--color-border-strong, #3a3f66);
-}
-.fortune-carousel__dot[aria-selected="true"] { background: var(--axis-lavender); }
-.fortune-carousel__dot:focus-visible { outline: 2px solid var(--axis-blue); outline-offset: 3px; }
-
-/* Lucky number + color, rendered as carousel cards */
-.lucky-number { display: grid; justify-items: start; gap: 6px; }
-.lucky-number__value {
-  font-size: 52px; font-weight: 700; line-height: 1;
-  color: var(--axis-moon); font-variant-numeric: tabular-nums;
-}
-.lucky-number__label, .lucky-color__label {
-  font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--color-secondary);
-}
-.lucky-color { display: flex; align-items: center; gap: 14px; }
-.lucky-color__swatch {
-  width: 44px; height: 44px; border-radius: 12px; flex: 0 0 auto;
-  border: 1px solid rgba(255,255,255,0.35);
-  box-shadow: var(--axis-glow-soft) currentColor;
-}
-.lucky-color__text { display: grid; gap: 2px; }
-.lucky-color__name { font-size: 18px; color: var(--color-primary); }
-.lucky-color__hex { font-size: 13px; color: var(--color-secondary); font-family: var(--font-mono, monospace); }
-
 /* Why this reading — progressive disclosure */
 .why-reading { margin-top: 16px; }
 .why-reading > summary {
@@ -153,3 +94,79 @@
 /* First-run / setup state */
 .fortune-setup { display: grid; gap: 12px; max-width: 520px; }
 .fortune-setup p { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }
+
+/* ── Today's Fortune: cards (Update 5.2) ───────────────────────────────────
+   Replaces the carousel. Everything the fortune says is visible by scrolling,
+   which is the one interaction every user already knows — the old version hid
+   four of five readings behind a swipe with only a row of dots to suggest it. */
+
+.fortune-head { margin-bottom: var(--space-4, 1.25rem); }
+
+.fortune-head__eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9aa3b2);
+}
+
+.fortune-head__date { margin: 0.15rem 0 0.5rem; font-size: 0.85rem; color: var(--text-muted, #9aa3b2); }
+
+/* The title names the day before any detail appears. */
+.fortune-head__title {
+  margin: 0 0 0.4rem;
+  font-size: clamp(1.35rem, 4.5vw, 1.9rem);
+  line-height: 1.25;
+  max-width: 22ch;                 /* a title, not a paragraph */
+}
+
+.fortune-head__note { margin: 0; font-size: 0.78rem; color: var(--text-muted, #9aa3b2); }
+
+.fortune-grid {
+  display: grid;
+  gap: var(--space-3, 1rem);
+  grid-template-columns: 1fr;      /* 375px: one column, no clipping */
+}
+
+.fortune-card2 {
+  padding: var(--space-3, 1rem);
+  border: 1px solid var(--border, #262b38);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--surface-2, #171b26);
+}
+
+/* The overall reading is the one people came for, so it leads and spans. */
+.fortune-card2--primary { border-color: var(--accent, #8b9cf5); }
+.fortune-card2--caution { border-left: 3px solid var(--warn-border, #7a5c22); }
+
+.fortune-card2__label { margin: 0 0 0.1rem; font-size: 1rem; }
+.fortune-card2__lede {
+  margin: 0 0 0.6rem;
+  font-size: 0.76rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9aa3b2);
+}
+.fortune-card2__body {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--text-soft, #c7cddb);
+  max-width: 62ch;                 /* readable line length on wide screens */
+}
+
+.fortune-closing {
+  margin: var(--space-3, 1rem) 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #9aa3b2);
+}
+
+@media (min-width: 640px) {
+  .fortune-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fortune-card2--primary { grid-column: 1 / -1; }
+}
+
+@media (min-width: 1100px) {
+  /* Primary spans the top; the three supporting readings sit beneath it. */
+  .fortune-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fortune-card2--primary { grid-column: 1 / -1; }
+}

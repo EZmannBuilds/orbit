@@ -229,13 +229,15 @@ test("9c. switching charts survives sign-out and later sign-in", async () => {
   assert.equal(afterLogin.profile.id, "b");
 });
 
-test("9b. the Home selector refreshes the reading and resets the carousel", () => {
-  // The carousel key is (chart_id | fortune_date), so a chart switch resets it.
-  assert.match(appJs, /AXIS\.carousel\.key !== key/);
-  assert.match(appJs, /F\.chart_id \|\| "local"/);
-  // Switching goes through the single activation endpoint, then reloads.
+test("9b. the Home selector refreshes the reading through the activation endpoint", () => {
+  // Update 5.2 removed the carousel, so there is no slide index to reset — the
+  // cards simply re-render from the new fortune. What still matters, and what
+  // this test now guards, is that switching charts goes through the single
+  // authenticated activation endpoint rather than a second selection system.
   assert.match(appJs, /\/activate/);
   assert.match(appJs, /axisWireChartPicker/);
+  assert.match(appJs, /axisRenderFortune/, "the reading re-renders after a switch");
+  assert.ok(!/AXIS\.carousel/.test(appJs), "no carousel state should survive");
 });
 
 // ══ 10. Signed-out local preview still works ═══════════════════════════════

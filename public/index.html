@@ -78,10 +78,6 @@
             </div>
             <div class="axis-today-head__right">
               <div class="axis-today-date" id="today-date"></div>
-              <div class="axis-detail" role="group" aria-label="Astrology detail level">
-                <button type="button" data-level="Simple" aria-pressed="true">Simple</button>
-                <button type="button" data-level="Advanced" aria-pressed="false">Advanced</button>
-              </div>
             </div>
           </div>
 
@@ -100,8 +96,12 @@
             <button type="button" class="o-btn o-btn--secondary o-btn--sm" id="today-chart-retry">Try again</button>
           </div>
 
-          <div id="today-sky" class="axis-card axis-rise-2"><div class="axis-shimmer" style="height:180px"></div></div>
-          <div id="today-fortune" class="axis-rise-3"><div class="axis-shimmer" style="height:240px"></div></div>
+          <!-- Update 5.2 hierarchy: the reading comes first. Technical Sky
+               explains it and therefore sits below it — putting planetary
+               positions above the fortune made the app open on the most
+               technical thing it does. -->
+          <div id="today-fortune" class="axis-rise-2"><div class="axis-shimmer" style="height:240px"></div></div>
+          <div id="today-sky" class="axis-card axis-rise-3"><div class="axis-shimmer" style="height:180px"></div></div>
 
           <div class="axis-card">
             <div class="axis-ask">

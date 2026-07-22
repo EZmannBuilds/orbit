@@ -163,12 +163,49 @@ test("Me saved-chart failure has Retry and is never an empty state", () => {
   assert.doesNotMatch(renderSaved.slice(errorBranchStart, emptyBranchStart), /No saved charts yet/);
 });
 
-test("Today's Fortune renders as a carousel with all required controls", () => {
-  assert.ok(appJs.includes("fortune-carousel"));
-  assert.ok(appJs.includes("fortune-prev") && appJs.includes("fortune-next"));
-  assert.ok(appJs.includes("fortune-dots"));
-  assert.ok(appJs.includes("ArrowLeft") && appJs.includes("ArrowRight"));
-  assert.ok(appJs.includes("touchstart") && appJs.includes("touchend"));
+test("Today's Fortune renders as cards, with no carousel left behind", () => {
+  // Update 5.2 replaced the carousel. It hid four of five readings behind a
+  // swipe with only a row of dots to suggest it existed.
+  for (const relic of ["fortune-carousel", "fortune-prev", "fortune-next", "fortune-dots",
+                       "axisMoveCarousel", "axisSetCarouselIndex", "axisPaintCarouselCard"]) {
+    assert.ok(!appJs.includes(relic), `${relic} should be gone`);
+  }
+  assert.ok(appJs.includes("axisFortuneCards"), "the card builder should exist");
+  assert.ok(appJs.includes("fortune-grid"), "cards should be laid out as a grid");
+});
+
+test("the fortune title appears above the cards", () => {
+  // Order in the source is order in the document: the day gets a name before
+  // it gets detail.
+  const head = appJs.indexOf("fortune-head__title");
+  const grid = appJs.indexOf('<div class="fortune-grid">');
+  assert.ok(head > 0 && grid > 0, "both the title and the grid should render");
+  assert.ok(head < grid, "the title must be emitted before the card grid");
+});
+
+test("the main fortune copy never names a planet", () => {
+  // The readings come from mood / love_reading / luck_reading / watch_out,
+  // which are plain language by construction. Technical phrasing belongs to
+  // Technical Sky, which reads factors[].advanced instead.
+  const start = appJs.indexOf("function axisFortuneCards");
+  const end = appJs.indexOf("function axisFortuneDate");
+  const cardSource = appJs.slice(start, end);
+  // Word boundaries matter: without them "orb" matches inside "Orbit" and the
+  // test fails on its own explanatory comment rather than on any real content.
+  for (const term of ["Mercury", "Venus", "Mars", "Jupiter", "Saturn", "retrograde",
+                      "house", "aspect", "degrees", "orb"]) {
+    assert.ok(!new RegExp(`\\b${term}\\b`, "i").test(cardSource),
+      `the fortune cards must not reference "${term}" — that belongs in Technical Sky`);
+  }
+});
+
+test("no swipe or arrow-key handler remains for the fortune", () => {
+  assert.ok(!appJs.includes("axisWireFortuneCarousel"));
+  // The swipe threshold comment and handlers were the only touch wiring here.
+  const fortuneRegion = appJs.slice(appJs.indexOf("Today's Fortune: cards"),
+                                    appJs.indexOf("function axisRenderSky"));
+  assert.ok(!/touchstart|touchend|ArrowLeft|ArrowRight/.test(fortuneRegion),
+    "the fortune should need no gesture or key handling at all");
 });
 
 test("Tonight's Moon (the standalone Home card) is gone; Current Sky is unified", () => {
@@ -196,4 +233,45 @@ test("current-location is opt-in only (no geolocation call on load)", () => {
   assert.ok(!bootMatch[0].includes("geolocation"), "boot() must not call geolocation directly");
   assert.ok(appJs.includes("navigator.geolocation"), "geolocation should still be used, just not on load");
   assert.ok(appJs.includes("current-sky-use-location"));
+});
+
+test("Home puts Today's Fortune above Technical Sky", () => {
+  // The reading is what someone opened the app for; the technical section
+  // explains it. Reversing them made Orbit open on planetary positions.
+  const fortune = html.indexOf('id="today-fortune"');
+  const sky = html.indexOf('id="today-sky"');
+  assert.ok(fortune > 0 && sky > 0, "both Home mount points should exist");
+  assert.ok(fortune < sky, "the fortune must be rendered before Technical Sky");
+});
+
+test("Technical Sky is named as such and shows positions without a mode switch", () => {
+  assert.ok(appJs.includes("Technical Sky"), "the section should be named Technical Sky");
+  assert.ok(appJs.includes("sky-technical__title"), "positions table should always render");
+  // The old gate read AXIS.detail === "Advanced" before showing positions.
+  assert.ok(!appJs.includes('AXIS.detail === "Advanced"'),
+    "positions must not be gated behind a detail level any more");
+});
+
+test("the season is stated once, not twice", () => {
+  // "Cancer Season" and "Sun in Cancer" were the same fact in two chips.
+  assert.ok(!/Sun in \$\{esc\(sky\.sun\.sign\)\}/.test(appJs),
+    "the redundant 'Sun in <sign>' chip should be gone");
+  assert.ok(appJs.includes("Season</span>"), "the season chip should remain");
+});
+
+test("no Simple/Advanced control survives anywhere", () => {
+  for (const relic of ['data-level="Simple"', 'data-level="Advanced"', 'axis-detail']) {
+    assert.ok(!html.includes(relic), `${relic} should be gone from the markup`);
+  }
+  assert.ok(!appJs.includes("axisSetDetail(") || !html.includes("axis-detail"),
+    "no visible control should call the detail setter");
+});
+
+test("a stored Simple preference cannot hide content", () => {
+  // Backward compatibility: the saved value is read but not obeyed, and is
+  // deliberately not deleted.
+  assert.match(appJs, /AXIS\.detail = "Advanced"/,
+    "loading should resolve to the complete experience regardless of what is stored");
+  assert.match(appJs, /return "advanced"/,
+    "detailKeyFor should always select the advanced phrasing");
 });
