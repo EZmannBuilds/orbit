@@ -8,7 +8,7 @@ Read this before running any `vercel` command in this repository.
 
 ## What happened
 
-Run from `/Users/mr.mann/Projects/orbit`:
+Run from `/path/to/orbit`:
 
 ```bash
 git push -u origin feat/orbit-axis-core-portability   # succeeded
@@ -46,7 +46,7 @@ The build then used the Vite preset, looked for `dist`, found none, and stopped.
 
 ### 2. The commands ran from a checkout that predated the work
 
-`/Users/mr.mann/Projects/orbit` is on `feat/orbit-axis-environment-safety`
+`/path/to/orbit` is on `feat/orbit-axis-environment-safety`
 (Update 4.0.2). Everything relevant — `vercel.json`, `scripts/deploy-check.js`,
 the portable Linux runtime — arrived in Updates 4.0.3 and 4.0.4, which live on
 `feat/orbit-axis-core-portability` in the worktree at
@@ -67,7 +67,7 @@ So:
 |---|---|
 | Vercel commands, builds, `deploy:check`, tests | `.claude/worktrees/vercel-deployment-readiness-617643` |
 | Branch there | `feat/orbit-axis-core-portability` |
-| The main checkout | `/Users/mr.mann/Projects/orbit` — still on Update 4.0.2 |
+| The main checkout | `/path/to/orbit` — still on Update 4.0.2 |
 
 The main checkout will be the right place again once this work is merged into
 `main`. Until then, running Vercel commands there builds an old tree.
@@ -144,7 +144,7 @@ org ids are account-private and are never read, compared, or printed.
 ## Correct procedure, once an Orbit project exists
 
 ```bash
-cd /Users/mr.mann/Projects/orbit/.claude/worktrees/vercel-deployment-readiness-617643
+cd /path/to/orbit/.claude/worktrees/vercel-deployment-readiness-617643
 
 npm run deploy:check                              # confirm the checkout is right
 npx vercel link --scope lorehouse-team --project orbit-axis --yes

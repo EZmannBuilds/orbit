@@ -21,7 +21,7 @@ case; it never pretends the history is permanent.
 ## Run it locally, in order
 
 ```bash
-cd /Users/mr.mann/Projects/orbit
+cd /path/to/orbit
 
 # 1. Prerequisites (Docker must be running for the local database).
 docker info                 # should print a server version

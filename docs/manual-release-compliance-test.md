@@ -6,7 +6,7 @@ anything. You can do it with your own account.
 ## Start it
 
 ```bash
-cd /Users/mr.mann/Projects/orbit/.claude/worktrees/vercel-deployment-readiness-617643
+cd /path/to/orbit/.claude/worktrees/vercel-deployment-readiness-617643
 npm run dev
 ```
 

@@ -20,7 +20,7 @@ which database you are pointed at.
 ## Start it
 
 ```bash
-cd /Users/mr.mann/Projects/orbit/.claude/worktrees/vercel-deployment-readiness-617643
+cd /path/to/orbit/.claude/worktrees/vercel-deployment-readiness-617643
 npm ci
 npm run dev
 ```

@@ -306,3 +306,56 @@ test("the built client carries no service-role key and no private paths", { skip
     assert.ok(!/SUPABASE_SERVICE_ROLE_KEY\s*[:=]\s*["'][^"']+/.test(text), `${file} carries a key`);
   }
 });
+
+// ── Public repository hygiene (Update 5.2.1) ────────────────────────────────
+//
+// Everything git tracks becomes world-readable the moment the repository is
+// public. The artifact scan above does not cover this: docs, notes, and test
+// fixtures never reach the build output but do reach GitHub.
+
+const PRIVATE_PATH_PLACEHOLDERS = new Set(["example", "...", ".."]);
+
+test("no tracked file carries a private filesystem path", () => {
+  const tracked = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
+    .split("\0").filter(Boolean);
+  assert.ok(tracked.length > 50, "expected many tracked files — an empty scan proves nothing");
+
+  const repoRoot = new URL("../", import.meta.url);
+  const offenders = [];
+  let scanned = 0;
+  for (const rel of tracked) {
+    let text;
+    let buf;
+    try { buf = readFileSync(new URL(rel, repoRoot)); } catch { continue; }
+    if (buf.includes(0)) continue;          // compiled binary, not source we author
+    text = buf.toString("utf8");
+    scanned += 1;
+    // This test file necessarily names the pattern it forbids.
+    if (rel.endsWith("release-compliance.test.js")) continue;
+    // Case-sensitive: Swiss Ephemeris embeds its own lowercase default search
+    // paths (/users/ephe/), which are upstream constants, not anyone's home
+    // directory. "example" is the deliberate synthetic fixture, and "..." is a
+    // placeholder used in prose.
+    for (const [, name] of text.matchAll(/\/Users\/([A-Za-z0-9._-]+)/g)) {
+      if (!PRIVATE_PATH_PLACEHOLDERS.has(name)) {
+        offenders.push(`${rel} (/Users/${name})`);
+        break;
+      }
+    }
+  }
+  // Without this the try/catch above could skip every file and "pass" while
+  // reading nothing at all.
+  assert.ok(scanned > 50, `only ${scanned} tracked files were actually read — the scan is not running`);
+  assert.deepEqual(offenders, [],
+    `these tracked files leak a private home-directory path; use /path/to/orbit instead`);
+});
+
+test("the Obsidian mirror is not tracked for publication", () => {
+  // Internal project-management notes — deployment blockers, incident
+  // write-ups, roadmap — are not needed to build Orbit and should not be
+  // published. The canonical copy lives in the vault.
+  const tracked = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
+    .split("\0").filter(Boolean);
+  const vaultFiles = tracked.filter((f) => /^07 Orbit App\//.test(f) || /\.obsidian\//.test(f));
+  assert.deepEqual(vaultFiles, [], "the Obsidian mirror must stay out of the public repository");
+});

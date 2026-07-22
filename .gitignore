@@ -36,3 +36,8 @@ supabase/.branches/
 # `vercel link` / `vercel build` write project ids, org ids, and pulled
 # environment values here. None of it belongs in the repository.
 .vercel/
+
+# Obsidian mirror: internal project-management notes, not needed to build
+# the app and not appropriate for a public repository. Canonical copy lives in
+# the Orbit vault.
+07 Orbit App/
