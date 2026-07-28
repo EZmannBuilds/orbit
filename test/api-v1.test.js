@@ -103,6 +103,43 @@ test("no v1 response is ever HTML", async () => {
   assert.equal(typeof r.body, "object");
 });
 
+test("current sky exposes the canonical local-day contract through API v1", async () => {
+  const r = await call({
+    url: "/api/v1/sky/current?tz=America%2FChicago&at=2026-07-28T01%3A30%3A00Z",
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.data.context_version, "current-sky-context-v1");
+  assert.equal(r.body.data.calculated_at_utc, "2026-07-28T01:30:00.000Z");
+  assert.equal(r.body.data.user_timezone, "America/Chicago");
+  assert.equal(r.body.data.timezone_source, "request");
+  assert.equal(r.body.data.timezone_fallback, false);
+  assert.equal(r.body.data.local_date, "2026-07-27");
+  assert.ok(r.body.data.moon_phase_name);
+  assert.equal(typeof r.body.data.moon_phase_fraction, "number");
+  assert.equal(typeof r.body.data.illumination_percent, "number");
+  assert.equal(typeof r.body.data.is_waxing, "boolean");
+  assert.ok(r.body.data.next_full_moon.instant_utc);
+  assert.ok(r.body.data.next_new_moon.instant_utc);
+  assert.equal(r.body.data.source.calculation, "orbit-axis-engine");
+});
+
+test("current sky labels UTC fallback and rejects an invalid requested timezone", async () => {
+  const fallback = await call({
+    url: "/api/v1/sky/current?at=2026-07-28T01%3A30%3A00Z",
+  });
+  assert.equal(fallback.status, 200);
+  assert.equal(fallback.body.data.user_timezone, "UTC");
+  assert.equal(fallback.body.data.timezone_source, "utc_fallback");
+  assert.equal(fallback.body.data.timezone_fallback, true);
+
+  const invalid = await call({
+    url: "/api/v1/sky/current?tz=Definitely%2FNot_A_Zone",
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.body.error.code, "INVALID_TIMEZONE");
+  assert.equal(invalid.body.error.details.field, "tz");
+});
+
 test("a well-formed inbound request id is honoured; a hostile one is not", async () => {
   const good = await call({ url: "/api/v1/health", headers: { "x-request-id": "client-abc-123" } });
   assert.equal(good.body.meta.requestId, "client-abc-123");
@@ -459,7 +496,7 @@ test("preflight is answered for an allowed origin", async () => {
 // ── route table and codes ───────────────────────────────────────────────────
 
 test("the documented route table matches what is served", async () => {
-  assert.equal(ROUTE_TABLE.length, 8);
+  assert.equal(ROUTE_TABLE.length, 9);
   for (const r of ROUTE_TABLE) {
     assert.match(r.path, /^\/api\/v1\//);
   }

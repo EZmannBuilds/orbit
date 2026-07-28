@@ -255,6 +255,31 @@ test("a deterministic astrology route still answers", async () => {
   assert.equal(body.count, 12, "the twelve zodiac signs");
 });
 
+test("legacy sky routes preserve date fields and expose canonical lunar instants", async () => {
+  const handler = createOrbitApp({ env: localEnv() });
+  const chartRes = await request(handler, {
+    url: "/api/chart/now?tz=America%2FChicago",
+  });
+  const eventsRes = await request(handler, {
+    url: "/api/events?tz=America%2FChicago",
+  });
+  assert.equal(chartRes.statusCode, 200);
+  assert.equal(eventsRes.statusCode, 200);
+
+  const chart = JSON.parse(chartRes.body());
+  const events = JSON.parse(eventsRes.body());
+  const full = events.events.find((event) => event.kind === "full_moon");
+  const nextNew = events.events.find((event) => event.kind === "new_moon");
+
+  assert.equal(chart.moon.next_full_moon_utc, full.instant_utc);
+  assert.equal(chart.moon.next_new_moon_utc, nextNew.instant_utc);
+  assert.equal(chart.moon.next_full_moon, full.date);
+  assert.equal(chart.moon.next_new_moon, nextNew.date);
+  assert.equal(chart.local_date, events.local_date);
+  assert.equal(chart.source.calculation, "orbit-axis-engine");
+  assert.equal(events.source.calculation, "orbit-axis-engine");
+});
+
 test("OPTIONS preflight is answered without reaching a route", async () => {
   const res = await request(createOrbitApp({ env: localEnv() }), { method: "OPTIONS", url: "/api/ask" });
   assert.equal(res.statusCode, 204);
