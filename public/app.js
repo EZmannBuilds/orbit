@@ -832,7 +832,7 @@ function renderEvents(events) {
   $("#events-count").textContent = `${events.length} upcoming`;
   $("#events-timeline").innerHTML = events.map(e => `
     <div class="o-timeline__item">
-      <div class="o-timeline__date">${esc(e.date)}</div>
+      <div class="o-timeline__date">${esc(formatLocalDateKey(e.date))}</div>
       <div class="o-timeline__body">
         <div class="o-timeline__title">${esc(e.title)}</div>
         <div class="o-timeline__detail">${esc(e.detail)}</div>
@@ -845,7 +845,7 @@ function renderEvents(events) {
         <div class="o-list__title">${esc(e.title)}</div>
         <div class="o-list__sub">${esc(e.detail)}</div>
       </div>
-      <span class="o-badge">${esc(e.date)}</span>
+      <span class="o-badge">${esc(formatLocalDateKey(e.date))}</span>
     </div>`).join("")}</div>`;
 }
 
@@ -2260,10 +2260,11 @@ function wireAsk() {
 
 /* ── Data ──────────────────────────────────────────────────────────────── */
 async function refreshData(notify = false) {
+  const timezone = axisResolveTimezone();
   const [chart, symbolsData, eventsData, health] = await Promise.all([
-    get("/api/chart/now"),
+    get(`/api/chart/now?tz=${encodeURIComponent(timezone)}`),
     get("/api/symbols"),
-    get("/api/events?count=9"),
+    get(`/api/events?count=9&tz=${encodeURIComponent(timezone)}`),
     get("/api/health").catch(() => ({ ok: false })),
   ]);
 
@@ -2334,7 +2335,7 @@ async function boot() {
   loadLocalIntelligence();
 
   // Orbit Axis daily experience (Today + History + detail levels).
-  axisInit();
+  await axisInit();
 
   await refreshData();
 }
@@ -3076,7 +3077,7 @@ function axisWireSkyControls() {
   });
 }
 
-function axisInit() {
+async function axisInit() {
   if (!$("#panel-home")) return;
   const today = new Date();
   $("#today-date").textContent = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -3090,7 +3091,7 @@ function axisInit() {
 
   axisWireChartPicker();
   axisWireSkyControls();
-  axisSyncCurrentTimezone();
+  await axisSyncCurrentTimezone();
   axisLoadDetail();
   // A signed-in returning user already had Today loaded during session restore;
   // loading it again here would double every startup request.
@@ -3220,7 +3221,10 @@ function axisRenderFortune(F) {
 
 /** A human date, falling back to the raw value rather than showing nothing. */
 function axisFortuneDate(F) {
-  const raw = F.fortune_date || "";
+  return formatLocalDateKey(F.fortune_date || "");
+}
+
+function formatLocalDateKey(raw) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
   const [y, m, d] = raw.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d))
@@ -3248,6 +3252,16 @@ function axisRenderSky(sky) {
   const localTime = sky.local_time_iso
     ? new Date(sky.local_time_iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : "";
+  const localDateLabel = formatLocalDateKey(sky.local_date || "");
+  if (localDateLabel) {
+    $("#today-date").textContent = localDateLabel;
+    $("#topnav-date").textContent = new Date(`${sky.local_date}T12:00:00.000Z`)
+      .toLocaleDateString("en-US", {
+        weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
+      });
+  }
+  const nextFullLabel = formatLocalDateKey(sky.next_full_moon?.local_date || "");
+  const nextNewLabel = formatLocalDateKey(sky.next_new_moon?.local_date || "");
 
   const chips = [
     // "Cancer Season" and "Sun in Cancer" are the same fact. The season reads
@@ -3300,6 +3314,10 @@ function axisRenderSky(sky) {
         <p class="sr-only">${esc(summary)}</p>
         ${localTime ? `<div class="current-sky__local">${esc(localTime)} · your local time</div>` : ""}
         <div class="sky-facts">${chips}</div>
+        <div class="sky-next-events" aria-label="Next lunar events">
+          <span>Next full moon <strong>${esc(nextFullLabel)}</strong></span>
+          <span>Next new moon <strong>${esc(nextNewLabel)}</strong></span>
+        </div>
         <div class="sky-theme">${theme}</div>
         ${personal}
         <!-- Update 5.2b: the two secondary destinations, reached from the
@@ -3388,7 +3406,7 @@ function axisRenderHistory(entries) {
     <details class="history-entry">
       <summary>
         <div class="history-entry__top">
-          <span class="history-entry__date">${esc(f.fortune_date)}</span>
+          <span class="history-entry__date">${esc(formatLocalDateKey(f.fortune_date))}</span>
           <span class="history-entry__chips">
             <span class="history-entry__num">#${esc(f.lucky_number)}</span>
             <span class="history-entry__swatch" style="background:${esc(f.lucky_color?.value || "#888")}"></span>

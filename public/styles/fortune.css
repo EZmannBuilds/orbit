@@ -55,6 +55,11 @@
 }
 .sky-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--axis-blue); }
 .sky-chip.retro .dot { background: var(--color-warning, #f0c674); }
+.sky-next-events {
+  display: flex; flex-wrap: wrap; gap: 8px 18px;
+  margin-top: 12px; color: var(--color-secondary); font-size: 14px;
+}
+.sky-next-events strong { color: var(--color-primary); font-weight: 650; }
 .sky-theme { margin-top: 12px; font-size: 15px; color: var(--color-primary); line-height: 1.5; }
 .sky-advanced { margin-top: 10px; }
 .sky-advanced summary { cursor: pointer; color: var(--axis-blue); font-size: 14px; }
@@ -76,6 +81,7 @@
 @media (max-width: 640px) {
   .current-sky { flex-direction: column; align-items: center; text-align: center; }
   .current-sky__moon { margin: 0 0 6px; width: 96px; height: 96px; }
+  .sky-next-events { justify-content: center; }
   .current-sky__location { justify-content: center; text-align: center; }
 }
 
