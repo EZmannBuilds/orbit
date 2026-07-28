@@ -9,6 +9,7 @@
 
 import { renderMoonSVG } from "./moon-phase.js";
 import { decideStartupView, STARTUP_VIEW } from "./startup-state.js";
+import { apiUrl } from "./platform.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -105,7 +106,12 @@ function apiTransportMessage(kind, status) {
 async function request(path, { method = "GET", body = null } = {}) {
   let response;
   try {
-    response = await fetch(path, {
+    // apiUrl() returns `path` UNCHANGED in a browser, so this is the same
+    // relative request the web app has always made. Only the native container,
+    // which is served from capacitor://localhost and has no same-origin API,
+    // gets an absolute origin — and that origin is configuration, never a
+    // domain written into source. See public/platform.js.
+    response = await fetch(apiUrl(path), {
       method,
       headers: { "Content-Type": "application/json" },
       // same-origin keeps the Orbit session cookie AND, on a protected Vercel
@@ -216,7 +222,7 @@ function setupPlaceSearch(prefix) {
       state.places.controllers[prefix] = controller;
       if (status) status.textContent = "Searching...";
       try {
-        const response = await fetch(`/api/locations/search?q=${encodeURIComponent(q)}&limit=5`, {
+        const response = await fetch(apiUrl(`/api/locations/search?q=${encodeURIComponent(q)}&limit=5`), {
           credentials: "same-origin",
           signal: controller.signal,
         });
@@ -598,7 +604,7 @@ const featureState = { tarot: false, learn: false, news: false };
 
 async function loadFeatureFlags() {
   try {
-    const res = await fetch("/api/features");
+    const res = await fetch(apiUrl("/api/features"));
     const parsed = await readApiResponse(res);
     if (parsed.kind !== "json" || !parsed.ok) return;   // keep the safe defaults
     const data = parsed.data ?? {};
@@ -625,7 +631,7 @@ async function loadFeaturePanels() {
   for (const [id, on] of Object.entries(featureState)) {
     if (!on || document.getElementById(`panel-${id}`)) continue;
     try {
-      const res = await fetch(`/api/features/panel/${id}`);
+      const res = await fetch(apiUrl(`/api/features/panel/${id}`));
       if (!res.ok) continue;                       // production answers 404; that is correct
       const markup = await res.text();
       const holder = document.createElement("div");
@@ -885,7 +891,7 @@ function wireTools() {
     if (!prompt) return;
     $("#query-result").innerHTML = `<span class="o-spinner" style="display:inline-block;vertical-align:middle;"></span> <span class="u-muted">Consulting the atlas…</span>`;
     try {
-      const response = await fetch("/api/query", {
+      const response = await fetch(apiUrl("/api/query"), {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
@@ -1266,7 +1272,7 @@ function wireAccountDeletion() {
     message.textContent = "Deleting your account…";
 
     try {
-      const res = await fetch("/api/v1/account", {
+      const res = await fetch(apiUrl("/api/v1/account"), {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirmation: REQUIRED }),
@@ -2101,7 +2107,7 @@ async function submitAsk(question, { isRetry = false, retryCard = null } = {}) {
   askState.controller = controller;
 
   try {
-    const res = await fetch("/api/ask", {
+    const res = await fetch(apiUrl("/api/ask"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ question: text, conversation_id: askState.conversationId }),

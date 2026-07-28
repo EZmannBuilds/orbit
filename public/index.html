@@ -2,7 +2,12 @@
 <html lang="en" data-theme="dark" data-density="comfortable">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- viewport-fit=cover is what makes env(safe-area-inset-*) report real
+       values. navigation.css has always used those insets to keep the phone
+       bottom bar clear of the home indicator, but without this they resolve to
+       0 and the padding silently does nothing — on a notched browser as well
+       as in the iOS app. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="dark light" />
   <title>Orbit Axis — your daily sky</title>
   <meta name="description" content="Orbit Axis — a calm, beginner-friendly daily astrology companion." />
@@ -20,6 +25,8 @@
   <link rel="stylesheet" href="/styles/fortune.css" />
   <link rel="stylesheet" href="/styles/history.css" />
   <link rel="stylesheet" href="/styles/motion.css" />
+  <!-- Last, so its container corrections win over the base primitives. -->
+  <link rel="stylesheet" href="/styles/native.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='30' fill='none' stroke='%234f83ff' stroke-width='6'/><circle cx='78' cy='30' r='9' fill='%234f83ff'/></svg>" />
 </head>
 <body>
@@ -880,6 +887,16 @@
   <!-- ── Toast region ─────────────────────────────────────────────────── -->
   <div class="o-toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
 
+  <!-- Committed with an inert same-origin default, and rewritten locally by
+       `npm run app:config` so the native container knows which origin to call.
+       Committed rather than gitignored because scripts/build.js fails when this
+       document references a file that does not exist, and a browser must never
+       depend on a step only a native build runs. Not a module: it assigns a
+       global that platform.js reads, and must be evaluated before it. -->
+  <script src="/app-config.js"></script>
+  <!-- Container behavior: safe areas, external links, hardware back, resume.
+       Every part of it is a no-op in a browser. -->
+  <script src="/native-shell.js" type="module"></script>
   <script src="/app.js" type="module"></script>
 </body>
 </html>
