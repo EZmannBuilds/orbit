@@ -160,7 +160,27 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+#
+# EXACT is the operative word, and the failure mode is silent (Dev Update 1.2).
+# Orbit asks Supabase to send recovery links back to /reset-password.html. When
+# that URL is not on this list, GoTrue does not reject the request — it quietly
+# substitutes site_url, so the link in the email lands on the application root,
+# the reset form is never shown, and the token is discarded. Nothing logs an
+# error; the only symptom is a person who cannot reset their password.
+#
+# Verified locally: with only the entry below missing, a recovery email arrived
+# carrying redirect_to=http://127.0.0.1:3000 instead of the reset page.
+#
+# The same rule governs the hosted project's Redirect URLs in the Supabase
+# dashboard, which must list the production reset page explicitly. See
+# docs/manual-auth-redirect-configuration.md.
+additional_redirect_urls = [
+  "https://127.0.0.1:3000",
+  "http://127.0.0.1:3000/reset-password.html",
+  "http://localhost:3000/reset-password.html",
+  "http://localhost:3001/reset-password.html",
+  "http://localhost:3099/reset-password.html",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.

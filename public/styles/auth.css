@@ -221,6 +221,33 @@
   font: inherit;
 }
 
+/* Privacy, Terms, and Support sit inline inside a sentence, where a 44px-tall
+   box would break the line. WCAG 2.5.8 exempts links in a block of text for
+   exactly that reason — but "exempt" is not the same as "comfortable on a
+   phone", and these are the links a person taps when they want to know what
+   happens to their birth data.
+
+   The tap area therefore grows with padding, and the LINE HEIGHT grows with
+   it. The obvious version of this trick — padding plus a cancelling negative
+   margin, to keep the sentence compact — was measured at 375px and rejected:
+   it produced 43px boxes whose tops were 19px apart, so "Terms of Use"
+   overlapped the two links on the line below it. Overlapping targets are worse
+   than small ones, because a confident tap lands on the wrong document.
+
+   So the sentence is allowed to get taller. It is four lines of small print on
+   the one screen where being unhurried is the point. */
+.auth-legal {
+  line-height: 3.8;
+}
+/* Vertical padding only. Horizontal padding is what makes a comma or a full
+   stop appear to float away from the link it follows — the target is already
+   tall enough, and these links are wide enough on their own. */
+.auth-legal a {
+  display: inline-block;
+  padding: 13px 1px;
+  border-radius: 6px;
+}
+
 /* What is collected and why, before it is asked for. */
 .auth-privacy {
   width: 100%;
@@ -232,11 +259,21 @@
 .auth-privacy p { margin: 0 0 8px; font-size: 0.78rem; line-height: 1.55; }
 .auth-privacy p:last-child { margin-bottom: 0; }
 
-/* The gate scrolls rather than clipping at 200% zoom or on a short phone in
-   landscape. Without this the submit button is simply unreachable. */
+/* The gate scrolls rather than clipping at 200% zoom, on a short phone in
+   landscape, or simply once the privacy explanation made the card taller.
+   Without this the top of the card overflows above the viewport and cannot be
+   scrolled back to — measured at 1280x720: the card was 813px tall in a 720px
+   container and its first 115px were unreachable.
+
+   BOTH properties are needed. `align-content` positions the single grid track;
+   `align-items` positions the card inside it, and left at the `place-items:
+   center` inherited from the base rule it re-centres the overflow straight
+   back off-screen. `safe` is what makes each fall back to start-alignment
+   exactly when centring would push content out of reach. */
 .auth-gate {
   overflow-y: auto;
   align-content: safe center;
+  align-items: safe center;
 }
 .auth-card { max-height: none; }
 
