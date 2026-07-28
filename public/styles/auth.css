@@ -181,3 +181,68 @@
 .auth-legal { margin-top: 0.35rem; font-size: 0.78rem; line-height: 1.5; }
 .auth-legal a { color: var(--accent, #8b9cf5); text-decoration: underline; text-underline-offset: 2px; }
 .auth-legal a:focus-visible { outline: 2px solid var(--accent, #8b9cf5); outline-offset: 3px; border-radius: 3px; }
+
+/* ── Dev Update 1.2 :: accessible authentication gate ───────────────────────
+   Labels are separate elements associated by `for`, rather than wrapping their
+   input. A wrapping label reads its whole subtree as the accessible name, so
+   the "Show"/"Hide" button inside the password row became part of the field's
+   name — "Password Show" — for every screen reader user. */
+.auth-form > label {
+  justify-self: start;
+  margin-bottom: -6px;
+  color: var(--color-secondary);
+  font-size: 14px;
+}
+
+/* The confirm-password pair is one grid child so `hidden` still hides both. */
+#auth-confirm-wrap {
+  display: grid;
+  gap: 6px;
+}
+#auth-confirm-wrap[hidden] { display: none; }
+#auth-confirm-wrap label { color: var(--color-secondary); font-size: 14px; }
+
+/* 44px minimum for every interactive target in the gate, at every width. */
+.auth-tabs button,
+.auth-form button,
+.password-row button {
+  min-height: 44px;
+}
+
+.auth-form .linklike {
+  min-height: 44px;
+  padding: 0 8px;
+  color: var(--axis-lavender);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  font: inherit;
+}
+
+/* What is collected and why, before it is asked for. */
+.auth-privacy {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface-sunken);
+}
+.auth-privacy p { margin: 0 0 8px; font-size: 0.78rem; line-height: 1.55; }
+.auth-privacy p:last-child { margin-bottom: 0; }
+
+/* The gate scrolls rather than clipping at 200% zoom or on a short phone in
+   landscape. Without this the submit button is simply unreachable. */
+.auth-gate {
+  overflow-y: auto;
+  align-content: safe center;
+}
+.auth-card { max-height: none; }
+
+/* The shell keeps its layout while inert; it must not become interactive
+   again through a stray pointer event. */
+.app-shell[inert] {
+  pointer-events: none;
+  user-select: none;
+}

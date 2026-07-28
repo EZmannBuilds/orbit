@@ -649,40 +649,67 @@
     </div>
   </div>
 
-  <!-- ── Authentication gate ──────────────────────────────────────────── -->
-  <div class="auth-gate" id="auth-gate" hidden>
+  <!-- ── Authentication gate ──────────────────────────────────────────────
+       A real dialog, not a visual overlay. It obscures the whole application,
+       so it must also obscure it from a keyboard and a screen reader: opening
+       it marks the shell inert and removes it from the accessibility tree.
+
+       Escape deliberately does NOT close this one. There is nothing behind it
+       to return to — dismissing a gate that guards the entire signed-out app
+       would leave someone stranded on an inert shell with no way back. Every
+       other dialog in Orbit closes on Escape; this is the documented
+       exception, and openModal is told so explicitly rather than by omission.
+  -->
+  <div class="auth-gate" id="auth-gate" hidden role="dialog" aria-modal="true"
+       aria-labelledby="auth-gate-title" aria-describedby="auth-gate-description">
     <div class="auth-card">
       <div class="chat-orbit" aria-hidden="true"><span></span></div>
       <div>
-        <h1>Welcome to Orbit Axis</h1>
-        <p>Sign in to save charts, restore your active chart, and keep daily readings across devices.</p>
+        <h1 id="auth-gate-title">Welcome to Orbit Axis</h1>
+        <p id="auth-gate-description">Sign in to save charts, restore your active chart, and keep daily readings across devices.</p>
       </div>
-      <div class="auth-tabs" role="tablist" aria-label="Account action">
+      <div class="auth-tabs" role="group" aria-label="Account action">
         <button type="button" data-auth-mode="signin" aria-pressed="true">Sign in</button>
         <button type="button" data-auth-mode="signup" aria-pressed="false">Create account</button>
       </div>
       <form id="auth-form" class="auth-form">
-        <label>Email <input type="email" id="auth-email" autocomplete="email" required /></label>
-        <label>Password
-          <span class="password-row">
-            <input type="password" id="auth-password" autocomplete="current-password" minlength="8" required />
-            <button type="button" id="auth-toggle-password" aria-label="Show password">Show</button>
-          </span>
-        </label>
-        <label id="auth-confirm-wrap" hidden>Confirm password
+        <label for="auth-email">Email</label>
+        <input type="email" id="auth-email" autocomplete="email" required />
+        <label for="auth-password">Password</label>
+        <span class="password-row">
+          <input type="password" id="auth-password" autocomplete="current-password" minlength="8" required />
+          <button type="button" id="auth-toggle-password" aria-label="Show password" aria-pressed="false">Show</button>
+        </span>
+        <span id="auth-confirm-wrap" hidden>
+          <label for="auth-confirm">Confirm password</label>
           <input type="password" id="auth-confirm" autocomplete="new-password" minlength="8" />
-        </label>
+        </span>
         <button type="submit" id="auth-submit">Sign in</button>
-        <div class="auth-message" id="auth-message" role="status"></div>
+        <!-- assertive, not polite: a failed sign-in is the one thing a screen
+             reader user must not have to go hunting for. -->
+        <div class="auth-message" id="auth-message" role="status" aria-live="assertive" aria-atomic="true"></div>
         <!-- Hidden while creating an account, where it makes no sense. -->
         <p class="auth-footnote" id="auth-forgot-wrap">
           <button type="button" class="linklike" id="auth-forgot">Forgot your password?</button>
         </p>
-        <!-- Shown where an account is actually created, which is the moment the
-             terms are being agreed to. -->
+        <!-- Before any account or birth data is requested, say plainly what is
+             collected and where the full answers live. -->
+        <div class="auth-privacy" id="auth-privacy">
+          <p class="auth-footnote">
+            Orbit Axis asks for your birth date, birth time, and birthplace so it
+            can calculate your chart. That data is stored in your account, is
+            visible only to you, and is never sold or shared. You can export it
+            or delete your account at any time, from Settings.
+          </p>
+          <p class="auth-footnote">
+            Your chart, transits, and daily readings are calculated by Orbit's
+            own astronomy engine. They do not depend on generative AI.
+          </p>
+        </div>
         <p class="auth-footnote auth-legal">
           By continuing you agree to the <a href="/terms">Terms of Use</a>
           and <a href="/privacy">Privacy Policy</a>.
+          Need help? <a href="/support">Support</a>.
         </p>
       </form>
     </div>

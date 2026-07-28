@@ -995,15 +995,56 @@ function focusables(root) {
   return $$(FOCUSABLE, root).filter(el => el.offsetParent !== null || el === document.activeElement);
 }
 
-function openModal(el, { onClose = null, initialFocus = null } = {}) {
+/**
+ * Everything the dialog is layered over.
+ *
+ * A focus trap stops Tab from LEAVING the dialog. It does nothing about the
+ * other ways focus gets behind one: a screen reader's virtual cursor, a
+ * browser's find-in-page, a touch-screen swipe through the reading order, or
+ * simply clicking. `inert` is what actually removes those, and it takes the
+ * subtree out of the accessibility tree at the same time, so a screen reader
+ * cannot narrate the obscured application either.
+ *
+ * Deliberately excludes the dialogs themselves — they live outside .app-shell
+ * — so opening one does not make it inert along with the page behind it.
+ */
+function backgroundRegions() {
+  return $$(".app-shell");
+}
+
+function setBackgroundInert(on) {
+  for (const region of backgroundRegions()) {
+    if (on) {
+      region.setAttribute("inert", "");
+      region.setAttribute("aria-hidden", "true");
+    } else {
+      region.removeAttribute("inert");
+      region.removeAttribute("aria-hidden");
+    }
+  }
+}
+
+/**
+ * @param {object} options
+ * @param {boolean} [options.dismissible=true]
+ *   false for a dialog with nothing behind it to return to — the signed-out
+ *   authentication gate. Escape there would dismiss the only usable surface on
+ *   the page and leave the person on an inert shell. Every other dialog in
+ *   Orbit closes on Escape.
+ */
+function openModal(el, { onClose = null, initialFocus = null, dismissible = true } = {}) {
   if (!el || modalStack.some(m => m.el === el)) return;
-  const entry = { el, onClose, restoreTo: document.activeElement };
+  const entry = { el, onClose, dismissible, restoreTo: document.activeElement };
   modalStack.push(entry);
   el.hidden = false;
+  // Only the first dialog needs to do this; nested ones are already covered,
+  // and clearing it on the inner close would expose the shell behind the outer.
+  if (modalStack.length === 1) setBackgroundInert(true);
 
   entry.keydown = (event) => {
     if (modalStack[modalStack.length - 1]?.el !== el) return;
     if (event.key === "Escape") {
+      if (!dismissible) return;
       event.preventDefault();
       closeModal(el);
       return;
@@ -1031,6 +1072,10 @@ function closeModal(el) {
   document.removeEventListener("keydown", entry.keydown, true);
   el.removeEventListener("click", entry.click);
   el.hidden = true;
+  // Released only when the last dialog closes. Restoring focus while the shell
+  // is still inert silently drops it to the body, which is how "focus returns
+  // to the button you opened this from" quietly stops being true.
+  if (!modalStack.length) setBackgroundInert(false);
   entry.onClose?.();
   // Restore focus to whatever opened the dialog (falls back to the body).
   if (entry.restoreTo && document.contains(entry.restoreTo)) entry.restoreTo.focus();
@@ -1094,10 +1139,17 @@ function wireAuth() {
   modeButtons.forEach(btn => btn.addEventListener("click", () => setMode(btn.dataset.authMode)));
   $("#auth-toggle-password")?.addEventListener("click", () => {
     const input = $("#auth-password");
+    const button = $("#auth-toggle-password");
+    // `showing` is the state BEFORE the click, so every assignment below is the
+    // state after it. Reading it the other way round is how a visibility toggle
+    // ends up announcing the opposite of what it did.
     const showing = input.type === "text";
     input.type = showing ? "password" : "text";
-    $("#auth-toggle-password").textContent = showing ? "Show" : "Hide";
-    $("#auth-toggle-password").setAttribute("aria-label", showing ? "Show password" : "Hide password");
+    button.textContent = showing ? "Show" : "Hide";
+    button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+    button.setAttribute("aria-pressed", String(!showing));
+    // Toggling visibility should not cost the person their place in the form.
+    input.focus();
   });
 
   // Guards a double-click, an impatient second Enter, and a slow network from
@@ -1215,7 +1267,7 @@ function clearPrivateState({ purgeLocalData = false } = {}) {
   if (!$("#onboarding-gate").hidden) closeModal($("#onboarding-gate"));
   if (!$("#chart-modal").hidden) closeModal($("#chart-modal"));
   $("#today-chart-error").hidden = true;
-  $("#auth-gate").hidden = false;
+  showAuthGate();
   resetAskForAuthChange(); // never leave one account's conversation on screen
 }
 
@@ -1313,13 +1365,32 @@ function wireAccountDeletion() {
   });
 }
 
+/* ── The authentication gate ───────────────────────────────────────────────
+   Routed through the same dialog machinery as every other modal so that focus
+   trapping, background inertness, and accessibility-tree removal cannot drift
+   apart from the rest of the app. It is opened and closed by exactly two
+   functions, because five scattered `hidden = ...` assignments is how three of
+   them end up forgetting the inert shell. */
+function showAuthGate() {
+  const gate = $("#auth-gate");
+  if (!gate || !gate.hidden) return;
+  // Nothing behind this to go back to, so Escape must not dismiss it.
+  openModal(gate, { dismissible: false, initialFocus: $("#auth-email") });
+}
+
+function hideAuthGate() {
+  const gate = $("#auth-gate");
+  if (!gate || gate.hidden) return;
+  closeModal(gate);
+}
+
 // Startup runs in a fixed order: resolve auth -> load saved charts -> decide.
 // Onboarding is only ever a *decision*, never a default, so a returning user is
 // never asked to set up a chart they already have.
 async function restoreSession() {
   state.auth.restoring = true;
   setStartupStatus("Restoring your Orbit…");
-  $("#auth-gate").hidden = true;
+  hideAuthGate();
   try {
     const data = await get("/api/auth/session");
     if (data.signed_in) {
@@ -1332,14 +1403,14 @@ async function restoreSession() {
       state.activeProfile = null;
       state.activeNatalChart = null;
       state.chartsStatus = "idle";
-      $("#auth-gate").hidden = false;
+      showAuthGate();
       renderAccount();
       renderSavedCharts();
     }
   } catch {
     // Couldn't even resolve the session — show the sign-in gate, not onboarding.
     state.auth.user = null;
-    $("#auth-gate").hidden = false;
+    showAuthGate();
   } finally {
     state.auth.restoring = false;
     finishStartup();
@@ -1351,7 +1422,7 @@ async function applySignedIn(user, { quiet = false } = {}) {
   // Auth is resolved the moment we have the user — record that before the chart
   // decision runs, otherwise it would still read as "loading".
   state.auth.restoring = false;
-  $("#auth-gate").hidden = true;
+  hideAuthGate();
   renderAccount();
   setStartupStatus("Loading your charts…");
   await loadSavedCharts();
@@ -1411,6 +1482,11 @@ function finishStartup() {
   state.startup = "ready";
   const gate = $("#startup-gate");
   if (gate) gate.hidden = true;
+  // The startup gate covers the auth gate during restore, so focus placed at
+  // open time would land on a field nobody can see yet. Place it once the
+  // cover is actually gone.
+  const auth = $("#auth-gate");
+  if (auth && !auth.hidden) $("#auth-email")?.focus();
 }
 
 function renderAccount() {
