@@ -556,11 +556,44 @@
                 <summary>Account</summary>
                 <div class="account-panel">
                   <div class="o-kv"><span class="o-kv__k">Signed in as</span><span class="o-kv__v" id="account-email">Not signed in</span></div>
-                  <p class="more-note">Your account, saved charts, active chart, daily fortunes, history, and detail level are stored in Supabase. The vault is only for product documentation.</p>
-                  <p class="more-note">Export data is planned.</p>
+
+                  <!-- What is collected, why, where it lives, who can see it,
+                       and how to leave. Stated here as well as at the gate,
+                       because this is where someone comes looking for it. -->
+                  <h3 class="account-panel__heading">Your data</h3>
+                  <p class="more-note">
+                    Orbit Axis stores your email, your birth date, birth time, and
+                    birthplace, your saved charts, your active chart, your daily
+                    readings and their history, and your display preferences.
+                  </p>
+                  <p class="more-note">
+                    Birth details are needed to calculate your chart — the date
+                    places the planets, the time places the houses and angles, and
+                    the birthplace supplies the coordinates and timezone. Without a
+                    reliable time, Orbit leaves houses and angles out rather than
+                    guessing at them.
+                  </p>
+                  <p class="more-note">
+                    It is stored in Orbit's Supabase database, protected by
+                    row-level security so that only your account can read it. It is
+                    not sold, and it is not shared with advertisers or other users.
+                  </p>
+                  <p class="more-note">
+                    Your chart, transits, moon phases, and daily readings are
+                    calculated by Orbit's own astronomy engine. They do not depend
+                    on generative AI, and they keep working when AI is unavailable.
+                  </p>
+                  <p class="more-note">
+                    You can download everything at any time, and deleting your
+                    account removes all of it permanently.
+                  </p>
+
                   <div class="more-actions">
+                    <button class="o-btn o-btn--secondary" type="button" id="account-export">Export my data</button>
+                    <button class="o-btn o-btn--secondary" type="button" id="account-password-reset">Reset password</button>
                     <button class="o-btn o-btn--secondary" type="button" id="account-signout">Sign out</button>
                   </div>
+                  <div class="auth-message" id="account-export-message" role="status" aria-live="polite" aria-atomic="true"></div>
 
                   <p class="more-note legal-links">
                     <a href="/privacy">Privacy Policy</a> ·

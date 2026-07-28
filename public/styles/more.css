@@ -212,3 +212,26 @@
 .legal-links { display: flex; flex-wrap: wrap; gap: 0.4rem 0.5rem; }
 .legal-links a { color: var(--accent, #8b9cf5); text-decoration: underline; text-underline-offset: 2px; }
 .legal-links a:focus-visible { outline: 2px solid var(--accent, #8b9cf5); outline-offset: 3px; border-radius: 3px; }
+
+/* ── Dev Update 1.2 :: account data ownership ─────────────────────────────── */
+.account-panel__heading {
+  margin: 14px 0 6px;
+  font-size: 0.95rem;
+  color: var(--color-primary);
+}
+
+/* Three actions where there was one; they must wrap rather than shrink below
+   a usable target on a phone. */
+.account-panel .more-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.account-panel .more-actions .o-btn {
+  min-height: 44px;
+}
+
+#account-export-message {
+  margin-top: 8px;
+  text-align: left;
+}

@@ -1215,7 +1215,103 @@ function wireAuth() {
     toast("Signed out");
   });
 
+  wireAccountExport();
+  wireAccountPasswordReset();
   wireAccountDeletion();
+}
+
+/* ── Export my data ────────────────────────────────────────────────────────
+   Free, and reachable in two clicks from Settings. Deletion without a way to
+   take your data first is not ownership, so this sits beside it rather than
+   somewhere a person has to go looking. */
+function wireAccountExport() {
+  const button = $("#account-export");
+  const message = $("#account-export-message");
+  if (!button || !message) return;
+
+  let running = false;
+  button.addEventListener("click", async () => {
+    if (running) return;
+    running = true;
+    button.disabled = true;
+    message.textContent = "Gathering your data…";
+    let url = null;
+    try {
+      // The timezone is a courtesy — it only decides the readable local
+      // timestamp printed beside the UTC one inside the file.
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+      const res = await fetch(`/api/v1/account/export?timezone=${encodeURIComponent(timezone)}`, {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      // Through the shared reader, so a login wall, a rewrite, or a hosting
+      // provider's HTML 404 is reported as a transport problem rather than
+      // being parsed as if it were the export.
+      const result = await readApiResponse(res);
+      if (result.kind !== "json") {
+        message.textContent = apiTransportMessage(result.kind, result.status);
+        return;
+      }
+      const payload = result.data || {};
+      if (!result.ok || payload.error) {
+        message.textContent = payload?.error?.message || "Your data could not be exported just now.";
+        return;
+      }
+
+      // Named from the response header rather than rebuilt here, so the file a
+      // person receives is the one the server said it was sending.
+      const disposition = res.headers.get("content-disposition") || "";
+      const named = /filename="([^"]+)"/.exec(disposition);
+      const filename = named ? named[1] : "orbit-axis-export.json";
+
+      const blob = new Blob([JSON.stringify(payload.data, null, 2)], { type: "application/json" });
+      url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      message.textContent = `Downloaded ${filename}.`;
+    } catch {
+      message.textContent = "Your data could not be exported just now. Check your connection and try again.";
+    } finally {
+      // The blob URL holds the whole export in memory and would keep it alive
+      // for the life of the document. Revoked after the click has been handled.
+      if (url) setTimeout(() => URL.revokeObjectURL(url), 0);
+      running = false;
+      button.disabled = false;
+    }
+  });
+}
+
+/* ── Reset password from a signed-in session ───────────────────────────────
+   Reuses the same email flow as "Forgot your password?". Someone who is signed
+   in but wants to change their password should not have to sign out and
+   pretend to have forgotten it. */
+function wireAccountPasswordReset() {
+  const button = $("#account-password-reset");
+  const message = $("#account-export-message");
+  if (!button || !message) return;
+
+  button.addEventListener("click", async () => {
+    const email = state.auth.user?.email;
+    if (!email) {
+      message.textContent = "Sign in first.";
+      return;
+    }
+    button.disabled = true;
+    message.textContent = "Sending a reset link…";
+    try {
+      const data = await post("/api/auth/password/request", { email });
+      message.textContent = data.message || "A reset link is on its way to your email.";
+    } catch (error) {
+      message.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
 }
 
 /**

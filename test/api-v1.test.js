@@ -496,22 +496,31 @@ test("preflight is answered for an allowed origin", async () => {
 // ── route table and codes ───────────────────────────────────────────────────
 
 test("the documented route table matches what is served", async () => {
-  assert.equal(ROUTE_TABLE.length, 9);
+  assert.equal(ROUTE_TABLE.length, 10);
   for (const r of ROUTE_TABLE) {
     assert.match(r.path, /^\/api\/v1\//);
   }
 
   // The interesting property is not the count but which routes are public.
-  // Every calculation route must stay reachable without an account, and the
-  // only authenticated route must be the destructive one.
-  const authenticated = ROUTE_TABLE.filter((r) => r.access === "authenticated");
-  assert.deepEqual(authenticated.map((r) => r.path), ["/api/v1/account"],
-    "account deletion must be the only authenticated route in v1");
-  assert.equal(authenticated[0].method, "DELETE");
+  // Every calculation route must stay reachable without an account; every
+  // account route must not be reachable without one.
+  const accountRoutes = ROUTE_TABLE.filter((r) => r.path.startsWith("/api/v1/account"));
+  assert.deepEqual(
+    accountRoutes.map((r) => `${r.method} ${r.path}`).sort(),
+    ["DELETE /api/v1/account", "GET /api/v1/account/export"],
+    "the account surface is deletion and export, and nothing else",
+  );
+  for (const r of accountRoutes) {
+    assert.equal(r.access, "authenticated",
+      `${r.path} touches one person's own data and must require a verified session`);
+  }
 
+  // Stated the other way round as well, so a future route added under
+  // /api/v1/account without an `authenticated: true` flag fails here rather
+  // than shipping open.
   for (const r of ROUTE_TABLE.filter((r) => r.access === "public")) {
     assert.ok(!r.path.startsWith("/api/v1/account"),
-      "no account route may be public — it is destructive");
+      "no account route may be public");
   }
 });
 
