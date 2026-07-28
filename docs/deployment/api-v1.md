@@ -26,6 +26,7 @@ under paths that require a verified Supabase token.
 | GET | `/api/v1/health` | public |
 | GET | `/api/v1/version` | public |
 | GET | `/api/v1/source` | public |
+| GET | `/api/v1/sky/current` | public, rate-limited |
 | POST | `/api/v1/charts/natal` | public, rate-limited |
 | POST | `/api/v1/charts/transits` | public, rate-limited |
 | POST | `/api/v1/charts/synastry` | public, rate-limited |
@@ -39,6 +40,12 @@ health endpoint is a reconnaissance target.
 `/source` exists because Orbit's calculation engine is AGPL-3.0-or-later. The
 licence requires that users of a network service can obtain the source, and an
 endpoint that says where to get it is how that obligation is met in practice.
+
+`/sky/current` is the versioned `CurrentSkyContext` contract shared by the web
+experience and future clients. It accepts optional `tz` and `at` query
+parameters. `tz` is an IANA timezone and `at` is an ISO-8601 instant. With no
+timezone the response explicitly labels its UTC fallback; an invalid requested
+timezone is rejected rather than silently replaced.
 
 ## Response envelope
 

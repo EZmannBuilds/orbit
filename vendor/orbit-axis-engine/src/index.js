@@ -87,8 +87,10 @@ export {
 export {
   currentSky,
   moonPhase,
+  nextLunarEvents,
   skySnapshotHash,
   SKY_VERSION,
+  LUNAR_EVENTS_VERSION,
 } from "./domain/current-sky.js";
 
 export {
