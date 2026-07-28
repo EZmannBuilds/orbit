@@ -19,6 +19,7 @@ import {
 } from "./moon-scene.js";
 import { decideStartupView, STARTUP_VIEW } from "./startup-state.js";
 import { ICON_PATHS } from "./icons.js";
+import { apiUrl } from "./platform.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -116,7 +117,15 @@ function apiTransportMessage(kind, status) {
 async function request(path, { method = "GET", body = null } = {}) {
   let response;
   try {
-    response = await fetch(path, {
+    // apiUrl() returns `path` UNCHANGED in a browser, so this is the same
+    // relative request the web app has always made. Only the native container,
+    // which is served from capacitor://localhost and has no same-origin API,
+    // gets an absolute origin — and that origin is configuration, never a
+    // domain written into source. See public/platform.js.
+    //
+    // This is the shared request wrapper, so every get()/post() in the app is
+    // covered by this one call.
+    response = await fetch(apiUrl(path), {
       method,
       headers: { "Content-Type": "application/json" },
       // same-origin keeps the Orbit session cookie AND, on a protected Vercel
@@ -293,7 +302,7 @@ async function runPlaceSearch(prefix, query) {
   state.places.controllers[prefix] = controller;
   setPlaceStatus(prefix, "Searching…");
   try {
-    const response = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}&limit=5`, {
+    const response = await fetch(apiUrl(`/api/locations/search?q=${encodeURIComponent(query)}&limit=5`), {
       credentials: "same-origin", signal: controller.signal,
     });
     const parsed = await readApiResponse(response);
@@ -1281,7 +1290,7 @@ const featureState = { tarot: false, learn: false, news: false };
 
 async function loadFeatureFlags() {
   try {
-    const res = await fetch("/api/features");
+    const res = await fetch(apiUrl("/api/features"));
     const parsed = await readApiResponse(res);
     if (parsed.kind !== "json" || !parsed.ok) return;   // keep the safe defaults
     const data = parsed.data ?? {};
@@ -1308,7 +1317,7 @@ async function loadFeaturePanels() {
   for (const [id, on] of Object.entries(featureState)) {
     if (!on || document.getElementById(`panel-${id}`)) continue;
     try {
-      const res = await fetch(`/api/features/panel/${id}`);
+      const res = await fetch(apiUrl(`/api/features/panel/${id}`));
       if (!res.ok) continue;                       // production answers 404; that is correct
       const markup = await res.text();
       const holder = document.createElement("div");
@@ -2086,7 +2095,7 @@ function wireAccountExport() {
       // The timezone is a courtesy — it only decides the readable local
       // timestamp printed beside the UTC one inside the file.
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-      const res = await fetch(`/api/v1/account/export?timezone=${encodeURIComponent(timezone)}`, {
+      const res = await fetch(apiUrl(`/api/v1/account/export?timezone=${encodeURIComponent(timezone)}`), {
         headers: { Accept: "application/json" },
         credentials: "same-origin",
         cache: "no-store",
@@ -2281,7 +2290,7 @@ function wireAccountDeletion() {
     message.textContent = "Deleting your account…";
 
     try {
-      const res = await fetch("/api/v1/account", {
+      const res = await fetch(apiUrl("/api/v1/account"), {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirmation: REQUIRED }),
@@ -2940,7 +2949,7 @@ function onIdentityRemoveClicked() {
 async function uploadChartAvatar(chart, blob) {
   let response;
   try {
-    response = await fetch(`/api/charts/${encodeURIComponent(chart.id)}/avatar?expectedVersion=${Number(chart.avatar_version) || 0}`, {
+    response = await fetch(apiUrl(`/api/charts/${encodeURIComponent(chart.id)}/avatar?expectedVersion=${Number(chart.avatar_version) || 0}`), {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "image/webp" },
