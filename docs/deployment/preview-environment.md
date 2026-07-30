@@ -14,7 +14,11 @@ Update 4.0.3 — Vercel Deployment Foundation
 
 Update 4.0.4 — Orbit Core Portability
   Code-level portability blocker RESOLVED and verified on Linux x64.
-  Preview still blocked pending owner-only configuration.
+  Vercel Linux build now verified.
+
+Dev Update 1.2 — Authentication and Account Trust
+  Protected fail-closed Preview exists.
+  Database-backed acceptance remains blocked pending a database decision.
 ```
 
 After Update 4.0.4 there are **no known code-level blockers**. Everything
@@ -31,7 +35,9 @@ It does **not** mean any of the following:
 - A custom domain is configured
 - Orbit Intelligence production hosting has been selected
 
-Nothing was pushed, merged, deployed, or migrated remotely.
+For Dev Update 1.2, the dedicated branch was pushed, the reviewed grant-only
+migration was applied, and a protected Preview was deployed. Nothing was
+merged to `main`, promoted to Production, or given a deployed service-role key.
 
 ---
 
@@ -56,17 +62,17 @@ broken on purpose).
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ORBIT_ENVIRONMENT`, and
 `ORBIT_PREVIEW_PROJECT_REFS`. Only the owner can set these.
 
-**4. No Orbit Vercel project exists.**
-The authenticated team (`lorehouse-team`) contains exactly one project,
-`the-lorehouse`, which belongs to a different application. There is no
-`orbit-axis` project to link to, so `npx vercel build` still cannot run and
-**the Vercel build remains unverified**; `npm run build` is a local
-verification step, not a substitute.
+**4. ~~No Orbit Vercel project exists.~~ RESOLVED.**
+The dedicated `lorehouse-team/orbit-axis` project is linked and verified.
+Dev Update 1.2 built successfully on Vercel's Linux/Node 22 infrastructure.
+The protected review deployment is
+`https://orbit-axis-gkeqjgca5-lorehouse-team.vercel.app`.
 
-Creating the project changes external account state, so it is an owner action.
-Do **not** link Orbit to `the-lorehouse` — that is exactly what caused the
-Update 4.0.4.1 incident ([vercel-link-incident.md](vercel-link-incident.md)),
-and `deploy:check` now blocks it.
+The deployment is intentionally fail-closed: only
+`ORBIT_ENVIRONMENT=preview` is configured for this branch. It has no Supabase
+URL/key and no service-role key. Unauthenticated requests are redirected to
+Vercel SSO. Do not describe database-backed auth as Preview-verified until
+blockers 2 and 3 are resolved.
 
 ### RESOLVED in Update 4.0.4 — the Swiss Ephemeris platform blocker
 

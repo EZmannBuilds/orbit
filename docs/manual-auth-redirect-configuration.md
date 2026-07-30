@@ -1,7 +1,8 @@
 # Supabase authentication redirect configuration
 
-**Dev Update 1.2.** This is owner-operated dashboard configuration. It cannot be
-set from the repository, and it cannot be verified from here.
+**Dev Update 1.2.** The hosted URL configuration was inspected and updated in
+the Supabase dashboard on 2026-07-30. The two exact production entries below
+are now present, and the existing localhost and Preview entries were retained.
 
 ## The failure this prevents
 
@@ -42,7 +43,7 @@ working, and the new one signed in. The same link used a second time returned
 `otp_expired`, which the page reports honestly with the form hidden.
 
 Local configuration is tracked in `supabase/config.toml`. **The hosted project
-is not**, and must be changed by hand.
+is not**, so this document records the dashboard verification separately.
 
 ## Required hosted configuration
 
@@ -79,7 +80,21 @@ Use a **disposable** account. Never the owner's primary account.
 
 ## Status
 
-Unverified against the hosted project. The application side is complete and
-verified locally; `passwordResetRedirect()` in `lib/server/create-app.js`
-already derives `https://<host>/reset-password.html` from the request host and
-never accepts a client-supplied redirect.
+Hosted dashboard configuration verified 2026-07-30:
+
+- Site URL: `https://orbit-axis-omega.vercel.app`
+- exact root redirect present
+- exact `/reset-password.html` redirect present
+- five pre-existing localhost/Preview entries retained
+- no other Auth setting changed
+
+The application side is complete and verified locally.
+`passwordResetRedirect()` in `lib/server/create-app.js` derives
+`https://<host>/reset-password.html` from the request host and never accepts a
+client-supplied redirect. A disposable local account received the recovery
+email and the reset link targeted the correct local page; invalid and reused
+tokens are covered by the automated suite.
+
+The hosted email journey was not executed because no approved disposable
+hosted inbox/account was supplied. Configuration is verified; an actual hosted
+recovery email is therefore still a release-owner acceptance check.

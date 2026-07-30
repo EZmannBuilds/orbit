@@ -9,15 +9,21 @@ Update 4.0.3 — Vercel Deployment Foundation
 
 Update 4.0.4 — Orbit Core Portability
   Code-level portability blocker RESOLVED and verified on Linux x64.
-  Preview still blocked pending owner-only configuration.
+  Linux-normal Vercel build verified.
+
+Dev Update 1.2 — Authentication and Account Trust
+  Protected fail-closed Preview deployed 2026-07-30.
+  Database-backed Preview acceptance remains blocked pending an approved
+  non-production Supabase branch/project or fresh explicit approval to share
+  production data.
 ```
 
 | Question | Answer |
 |---|---|
 | Is the ephemeris portability blocker resolved? | **Yes.** A statically linked linux-x64 Swiss Ephemeris 2.10.03 runtime ships and is checksum-verified. |
 | Is Linux execution verified? | **Yes.** Runtime check, full calculation chain, the whole test suite, and the real Vercel function handler all ran inside a `linux/amd64` container. |
-| Is the Vercel build verified? | **No.** `npx vercel build` requires linking the repository to a Vercel project, which is an owner action. It has never run. |
-| Is Preview healthy? | **No.** No Preview Deployment has ever been created. Preview must not be described as healthy until one has been tested. |
+| Is the Vercel build verified? | **Yes.** Local Vercel build passed and a normal source deployment rebuilt successfully on Vercel Linux/Node 22 on 2026-07-30. |
+| Is Preview healthy? | **Partially.** The protected static shell is deployed and the environment guard intentionally keeps the function fail-closed because no approved Preview database is configured. Auth/database acceptance is not complete. |
 
 Run `npm run deploy:check` for the current, honest list of what remains.
 
@@ -130,11 +136,19 @@ database and runs no migration.
 
 1. Push the deployment branch to GitHub.
 2. Vercel builds a Preview Deployment for every push to a non-production branch.
-3. The Preview URL is private to the Vercel account unless shared.
+3. The Preview URL is protected by Vercel Authentication and returns an SSO
+   redirect to unauthenticated requests.
 4. `main` remains the Production branch and is **not** deployed by this work.
 
-Preview requires an explicitly approved, disposable Supabase project. See
-[preview-environment.md](preview-environment.md).
+The Dev Update 1.2 review Preview is
+`https://orbit-axis-gkeqjgca5-lorehouse-team.vercel.app`. It was built normally
+on Vercel's Linux infrastructure, not uploaded from a local prebuilt bundle.
+It intentionally has only `ORBIT_ENVIRONMENT=preview`; no Supabase key or
+service-role credential is present.
+
+Database-backed Preview acceptance requires an explicitly approved, disposable
+Supabase project/branch, or a fresh explicit owner decision to share the
+production database. See [preview-environment.md](preview-environment.md).
 
 ---
 
