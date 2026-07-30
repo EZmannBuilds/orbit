@@ -65,6 +65,14 @@ test("the grant names service_role and nothing broader", () => {
     "these tables must never be readable by anon or PUBLIC");
 });
 
+test("the migration documents a narrow manual revocation", () => {
+  const sql = grantMigration();
+  assert.match(sql, /revoke select on public\.profiles,[\s\S]+from service_role;/i,
+    "rollback must document how to revoke the verification reads");
+  assert.ok(!/revoke\s+(usage|all)\b/i.test(sql),
+    "rollback must not remove broader pre-existing service_role privileges");
+});
+
 test("a table cannot be verified without appearing in the grant list", () => {
   // Stated from the other direction so the pairing is enforced both ways: this
   // is the assertion that fails when someone adds a table to USER_OWNED_TABLES

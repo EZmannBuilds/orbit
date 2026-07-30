@@ -61,3 +61,17 @@ grant select on
   public.vault_note_versions,
   public.vault_edit_proposals
 to service_role;
+
+-- MANUAL REVOCATION
+--
+-- If this verification path is removed, revoke only the table reads introduced
+-- above. Do not revoke schema usage: that privilege can predate this migration
+-- and may support unrelated, separately reviewed service-role work.
+--
+-- revoke select on public.profiles, public.people, public.birth_profiles,
+--   public.daily_fortunes, public.ask_conversations, public.ask_messages,
+--   public.journal_entries, public.llm_runs, public.pattern_insights,
+--   public.sync_events, public.tarot_readings, public.transit_events,
+--   public.business_metrics, public.vault_notes, public.vault_note_versions,
+--   public.vault_edit_proposals
+-- from service_role;
