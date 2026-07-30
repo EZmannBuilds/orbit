@@ -14,8 +14,11 @@ import assert from "node:assert/strict";
 import { checkReadiness, resetReadinessCache } from "../lib/api/readiness.js";
 import { health } from "../lib/api/v1/handlers/platform.js";
 import {
-  sessionCookie, clearSessionCookie, SESSION_COOKIE, isSecureRequest,
+  sessionCookie, clearSessionCookie, SESSION_COOKIE, isSecureRequest, signUpWithPassword,
 } from "../lib/auth/supabase-auth.js";
+import {
+  requestOrigin, signupConfirmationRedirect, passwordResetRedirect,
+} from "../lib/server/create-app.js";
 
 const SESSION = Object.freeze({
   access_token: "test-access-token",
@@ -144,6 +147,63 @@ test("a database outage does not make the calculation API look broken", async ()
 });
 
 // ── Password reset ──────────────────────────────────────────────────────────
+
+test("account confirmation and recovery derive redirects from the deployed request host", () => {
+  const req = { headers: { host: "orbit-preview.example.test" } };
+  const deployed = { isDeployed: true };
+  assert.equal(requestOrigin(req, deployed), "https://orbit-preview.example.test");
+  assert.equal(signupConfirmationRedirect(req, deployed), "https://orbit-preview.example.test/");
+  assert.equal(passwordResetRedirect(req, deployed),
+    "https://orbit-preview.example.test/reset-password.html");
+});
+
+test("auth redirects refuse an unverified remote host and preserve local http", () => {
+  assert.equal(signupConfirmationRedirect(
+    { headers: { host: "attacker.example" } }, { isDeployed: false },
+  ), "");
+  assert.equal(passwordResetRedirect(
+    { headers: { host: "bad/host" } }, { isDeployed: true },
+  ), "");
+  assert.equal(signupConfirmationRedirect(
+    { headers: { host: "localhost:3099" } }, { isDeployed: false },
+  ), "http://localhost:3099/");
+});
+
+test("signup sends the confirmation redirect to Supabase", async () => {
+  const previous = {
+    url: process.env.SUPABASE_URL,
+    key: process.env.SUPABASE_ANON_KEY,
+    fetch: globalThis.fetch,
+  };
+  let requested = "";
+  try {
+    process.env.SUPABASE_URL = "https://exampleprojectref000.supabase.co";
+    process.env.SUPABASE_ANON_KEY = "test-anon-key";
+    globalThis.fetch = async (url) => {
+      requested = String(url);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ user: { id: "test-user", email: "test@example.com" } }),
+      };
+    };
+
+    await signUpWithPassword({
+      email: "test@example.com",
+      password: "safe-test-password",
+      redirectTo: "https://orbit-preview.example.test/",
+    });
+    assert.equal(requested,
+      "https://exampleprojectref000.supabase.co/auth/v1/signup"
+      + "?redirect_to=https%3A%2F%2Forbit-preview.example.test%2F");
+  } finally {
+    globalThis.fetch = previous.fetch;
+    if (previous.url === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = previous.url;
+    if (previous.key === undefined) delete process.env.SUPABASE_ANON_KEY;
+    else process.env.SUPABASE_ANON_KEY = previous.key;
+  }
+});
 
 test("the password reset module exposes the whole flow", async () => {
   const auth = await import("../lib/auth/supabase-auth.js");
