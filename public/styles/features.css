@@ -187,6 +187,9 @@
    chart modal opt out so they keep their own variants (primary/secondary). */
 .chart-form button:not(.o-btn) { margin-top: 12px; background: linear-gradient(135deg, var(--accent), var(--violet));
   color: #0a0c18; border: 0; border-radius: 8px; padding: 9px 18px; font-weight: 600; cursor: pointer; }
+/* Same reason as the auth submit: the light-mode gradient is dark, so the
+   label has to be light. */
+:root[data-theme="light"] .chart-form button:not(.o-btn) { color: #ffffff; }
 .chart-form .place-result { margin-top: 0; background: var(--surface-2); color: var(--text); }
 .chart-form-hint { margin-left: 12px; font-size: 12px; color: var(--dim); }
 .chart-profile-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; color: var(--dim); font-size: 12px; }

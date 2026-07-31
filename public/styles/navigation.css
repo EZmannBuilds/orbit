@@ -140,3 +140,29 @@
     border-width: 2px;
   }
 }
+
+/* ── Tablet: a tab bar, not a stretched phone bar ─────────────────────────
+   Five tabs spread across 768px puts 150px of empty space around each 22px
+   icon, which reads as a phone layout someone forgot to design for. Capping
+   the row and centring it keeps the targets generous without the sprawl. */
+@media (min-width: 641px) and (max-width: 900px) {
+  .rail__nav {
+    max-width: 560px;
+    margin: 0 auto;
+    gap: var(--space-2);
+  }
+}
+
+/* ── The toast must never cover the navigation ────────────────────────────
+   The bar is fixed to the bottom on phone and tablet, and the toast region is
+   also bottom-anchored — so a "Signed in" or a retired-route notice landed on
+   top of three tabs. The toast yields; the navigation does not move. */
+@media (max-width: 900px) {
+  .o-toast-region {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    left: max(var(--space-4), env(safe-area-inset-left));
+    right: max(var(--space-4), env(safe-area-inset-right));
+    transform: none;
+    justify-items: center;
+  }
+}

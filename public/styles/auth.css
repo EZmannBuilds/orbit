@@ -125,6 +125,13 @@
   font-weight: 700;
 }
 
+/* Light mode uses the deep end of the same hues, so the gradient is now dark
+   enough that near-black text on it fails contrast. White passes on both. */
+:root[data-theme="light"] .auth-tabs button[aria-pressed="true"],
+:root[data-theme="light"] .auth-form button[type="submit"] {
+  color: #ffffff;
+}
+
 .auth-form {
   width: 100%;
   display: grid;
