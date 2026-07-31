@@ -206,6 +206,18 @@ test("Enter only belongs to the list when the list is open", () => {
   assert.match(appJs, /if \(!results\.hidden && choosePlaceActive\(prefix\)\) event\.preventDefault\(\)/);
 });
 
+test("Escape closes the results list before it closes the dialog", () => {
+  // The dialog's Escape handler is registered in the CAPTURE phase, so without
+  // an explicit check it wins the race against the combobox and throws away
+  // everything the person typed when they only meant to dismiss the list.
+  const open = appJs.slice(appJs.indexOf("function openModal"), appJs.indexOf("function closeModal"));
+  assert.match(open, /\[role=listbox\]:not\(\[hidden\]\)/,
+    "an open combobox must own Escape first");
+  const escBlock = open.slice(open.indexOf('event.key === "Escape"'));
+  assert.ok(escBlock.indexOf("role=listbox") < escBlock.indexOf("closeModal(el)"),
+    "the check must come before the close");
+});
+
 test("the result count is announced, not just rendered", () => {
   assert.match(appJs, /\$\{items\.length\} \$\{items\.length === 1 \? "match" : "matches"\}/);
   assert.match(chartModal, /id="cm-place-status"[^>]*role="status"[^>]*aria-live="polite"/);

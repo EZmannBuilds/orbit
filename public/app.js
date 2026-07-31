@@ -1022,6 +1022,11 @@ function openModal(el, { onClose = null, initialFocus = null, dismissible = true
     if (modalStack[modalStack.length - 1]?.el !== el) return;
     if (event.key === "Escape") {
       if (!dismissible) return;
+      // An open combobox inside the dialog owns Escape first: it means "close
+      // this list", not "throw away everything I have typed". This listener is
+      // registered in the capture phase, so without the check it wins the race
+      // against the combobox's own handler and closes the whole form.
+      if (el.querySelector("[role=listbox]:not([hidden])")) return;
       event.preventDefault();
       closeModal(el);
       return;
