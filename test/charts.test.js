@@ -71,12 +71,6 @@ function memStore() {
 const OWNER = "11111111-1111-1111-1111-111111111111";
 const OTHER = "22222222-2222-2222-2222-222222222222";
 
-const INPUT = {
-  birth_date: "1990-06-16", birth_time: "08:30", time_accuracy: "exact",
-  birthplace_name: "London", latitude: 51.5, longitude: -0.13,
-  timezone_name: "Europe/London", utc_offset_at_birth: "+00:00",
-};
-
 const PLACE = {
   provider: "geoapify",
   provider_place_id: "unit-london",
@@ -89,6 +83,16 @@ const PLACE = {
   longitude: -0.13,
 };
 
+// Every fixture builds its place the way the browser does: a server-signed
+// selection. These used to pass bare latitude/longitude, which sailed past the
+// signature check — the tests were exercising the hole rather than the door.
+process.env.GEOAPIFY_API_KEY = process.env.GEOAPIFY_API_KEY || "unit-test-location-secret";
+
+const INPUT = {
+  birth_date: "1990-06-16", birth_time: "08:30", time_accuracy: "exact",
+  get birthplace() { return safePlaceForClient(PLACE); },
+};
+
 test("first chart is auto-named 'My Chart', marked primary and active", async () => {
   const store = memStore();
   const svc = createChartService(store);
@@ -98,6 +102,53 @@ test("first chart is auto-named 'My Chart', marked primary and active", async ()
   assert.equal(became_primary, true);
   assert.equal(await store.getActiveId(OWNER), profile.id);
   assert.ok(profile.last_active_at, "first chart records activity");
+});
+
+test("bare coordinates cannot bypass the signed-place requirement", async () => {
+  // THIS IS A REAL HOLE THAT EXISTED. The signature check only ran when the
+  // request carried a `birthplace` object, and latitude/longitude were copied
+  // straight out of request input — so omitting the place entirely and passing
+  // raw coordinates created a chart at any location the caller chose. Found on
+  // the Dev Update 1.4 Preview by crafting the request, not by reading the code.
+  process.env.GEOAPIFY_API_KEY = "unit-test-location-secret";
+  const svc = createChartService(memStore());
+  await assert.rejects(
+    () => svc.create(OWNER, {
+      birth_date: "1990-06-16", time_accuracy: "unknown",
+      birthplace_name: "Anywhere I Like", latitude: 51.5, longitude: -0.13,
+      timezone_name: "Europe/London",
+    }),
+    /latitude and longitude are required/,
+    "unsigned geography must never reach a chart");
+});
+
+test("a forged or absent selection token is refused", async () => {
+  process.env.GEOAPIFY_API_KEY = "unit-test-location-secret";
+  const svc = createChartService(memStore());
+  for (const token of ["forged", "", undefined]) {
+    await assert.rejects(
+      () => svc.create(OWNER, {
+        birth_date: "1990-06-16", time_accuracy: "unknown",
+        birthplace: { ...PLACE, selection_token: token },
+      }),
+      /Choose a birthplace from the search results/,
+      `token ${JSON.stringify(token)} must be refused`);
+  }
+});
+
+test("editing without changing the birthplace keeps the stored coordinates", async () => {
+  // The corollary of the fix: geography comes from the stored record when the
+  // caller is not supplying a fresh verified place. Renaming a chart must not
+  // wipe its location.
+  process.env.GEOAPIFY_API_KEY = "unit-test-location-secret";
+  const store = memStore();
+  const svc = createChartService(store);
+  const { profile } = await svc.create(OWNER, INPUT);
+  const renamed = await svc.update(OWNER, profile.id, { nickname: "Renamed" });
+  const updated = renamed.profile || renamed;
+  assert.equal(updated.nickname, "Renamed");
+  assert.equal(updated.latitude, PLACE.latitude, "coordinates survive a rename");
+  assert.equal(updated.timezone_name, "Europe/London");
 });
 
 test("selected birthplace is verified and profile names persist for My Chart", async () => {
