@@ -46,16 +46,11 @@
   border-radius: 12px; min-height: 18px;
 }
 
-/* Soft button press. */
-.axis-ask__btn, .axis-detail button { transition: transform var(--duration-fast, 140ms) ease, filter var(--duration-fast, 140ms) ease; }
-.axis-ask__btn:active { transform: translateY(1px) scale(0.99); }
-
 /* ── Reduced motion: turn OFF all looping/pulsing motion; keep content ────── */
 @media (prefers-reduced-motion: reduce) {
   .axis-rise, .axis-rise-2, .axis-rise-3 { animation: none; opacity: 1; transform: none; }
   .axis-moon, .axis-moon__halo, .axis-orbit-ring { animation: none; }
   .axis-shimmer { animation: none; }
-  .axis-ask__btn, .axis-detail button { transition: none; }
 }
 
 :root[data-motion="reduced"] .axis-rise,
@@ -71,9 +66,4 @@
 :root[data-motion="reduced"] .axis-orbit-ring,
 :root[data-motion="reduced"] .axis-shimmer {
   animation: none;
-}
-
-:root[data-motion="reduced"] .axis-ask__btn,
-:root[data-motion="reduced"] .axis-detail button {
-  transition: none;
 }

@@ -360,36 +360,6 @@
 }
 .o-overlay[data-open="true"] .o-dialog { transform: translateY(0) scale(1); }
 
-/* ── Command palette ─────────────────────────────────────────────────────── */
-.o-cmd {
-  width: 100%; max-width: 560px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: var(--border-width) solid var(--color-border-strong);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-e3);
-  overflow: hidden;
-  transform: translateY(-8px) scale(0.98);
-  transition: transform var(--duration-base) var(--ease-emphasized);
-}
-.o-overlay[data-open="true"] .o-cmd { transform: translateY(0) scale(1); }
-.o-cmd__input-wrap { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: var(--border-width) solid var(--color-border); }
-.o-cmd__input-wrap svg { width: 18px; height: 18px; color: var(--color-muted); flex: none; }
-.o-cmd__input { flex: 1; background: none; border: none; color: var(--color-primary); font-family: inherit; font-size: var(--text-heading); }
-.o-cmd__input::placeholder { color: var(--color-faint); }
-.o-cmd__input:focus { outline: none; }
-.o-cmd__list { max-height: 340px; overflow-y: auto; padding: var(--space-2); }
-.o-cmd__group-label { padding: var(--space-2) var(--space-3) var(--space-1); font-size: var(--text-meta); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--color-faint); }
-.o-cmd__item {
-  display: flex; align-items: center; gap: var(--space-3);
-  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
-  cursor: pointer; color: var(--color-secondary); font-size: var(--text-body);
-}
-.o-cmd__item[aria-selected="true"] { background: var(--color-accent-soft); color: var(--color-primary); }
-.o-cmd__item .o-cmd__glyph { width: 18px; text-align: center; color: var(--color-muted); }
-.o-cmd__item .o-cmd__hint { margin-left: auto; font-size: var(--text-meta); color: var(--color-faint); }
-.o-cmd__empty { padding: var(--space-6); text-align: center; color: var(--color-muted); font-size: var(--text-caption); }
-
 /* ── Skeleton loader ─────────────────────────────────────────────────────── */
 .o-skel {
   border-radius: var(--radius-sm);

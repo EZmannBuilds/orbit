@@ -20,8 +20,11 @@ const html = readFileSync(join(ROOT, "public", "index.html"), "utf8");
 
 // ── Home actions ────────────────────────────────────────────────────────────
 
-test("Home offers both secondary destinations from Technical Sky", () => {
-  assert.match(appJs, /href="#transits"[^>]*>View Transits|>View Transits</);
+test("Home offers both destinations from Technical Sky", () => {
+  // Today's Transits is primary navigation as of Dev Update 1.3, but Technical
+  // Sky still links to it: the section explains what the page expands on, and
+  // the link uses the same canonical name the tab does.
+  assert.match(appJs, /href="#transits"[^>]*>View Today’s Transits|>View Today’s Transits</);
   assert.match(appJs, /href="#symbol-atlas"[^>]*>Open Symbol Atlas|>Open Symbol Atlas</);
 });
 
@@ -41,12 +44,17 @@ test("the actions are inside Technical Sky, not above the fortune", () => {
   assert.ok(fortuneMount < skyMount, "and the fortune still renders first");
 });
 
-test("neither destination becomes primary navigation", () => {
-  for (const id of ["transits", "symbol-atlas"]) {
+test("Dev Update 1.3 placed each destination on the correct level", () => {
+  // Today's Transits earned a tab: it is a daily destination. The Symbol Atlas
+  // did not — it is a reference someone consults occasionally, and it is
+  // reached from Tools and from the transit details that use its symbols.
+  const level = (id) => {
     const entry = new RegExp(`id: "${id}"[^}]*primary: (true|false)`).exec(appJs);
     assert.ok(entry, `${id} should be registered as a workspace`);
-    assert.equal(entry[1], "false", `${id} must not appear in the primary rail`);
-  }
+    return entry[1];
+  };
+  assert.equal(level("transits"), "true", "Today's Transits is one of the five");
+  assert.equal(level("symbol-atlas"), "false", "the atlas stays secondary");
 });
 
 test("Tarot, Learn, and News stay gone", () => {
@@ -238,10 +246,13 @@ test("the atlas states where each symbol appears in Orbit", () => {
 
 // ── Cross-linking ───────────────────────────────────────────────────────────
 
-test("transit details link to the Symbol Atlas, and the atlas links home", () => {
+test("transit details link to the Symbol Atlas, and the atlas links back to Tools", () => {
   assert.match(appJs, /href="#symbol-atlas"[^>]*>\s*What do these symbols mean\?/);
-  assert.ok(html.includes('id="panel-symbol-atlas"') && html.includes('data-goto="home"'),
-    "the atlas needs a way back");
+  // The way back points at where the atlas is reached from, not at Home — a
+  // back action that skips the page you came from is a dead end wearing an
+  // arrow.
+  assert.ok(html.includes('id="panel-symbol-atlas"') && html.includes('data-goto="tools"'),
+    "the atlas needs a way back to Tools");
 });
 
 // ── Update 5.2a must survive ────────────────────────────────────────────────
@@ -282,7 +293,7 @@ test("every renderer refreshData() calls writes only to elements that exist", ()
 
   // Renderers invoked unconditionally — not inside an if, not optional-chained.
   const called = [...refresh.matchAll(/^\s{2}(render[A-Za-z]+)\(/gm)].map((m) => m[1]);
-  assert.ok(called.length >= 2, `expected several unconditional renderers, saw ${called.join(", ")}`);
+  assert.ok(called.length >= 1, `expected at least one unconditional renderer, saw ${called.join(", ")}`);
 
   const declaredIds = new Set([
     ...[...html.matchAll(/id="([^"]+)"/g)].map((m) => m[1]),

@@ -4,8 +4,28 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" id="meta-theme-color" content="#0a0c0f" />
   <title>Orbit Axis — your daily sky</title>
   <meta name="description" content="Orbit Axis — a calm, beginner-friendly daily astrology companion." />
+  <!-- Theme resolution BEFORE first paint. Three choices — system (default),
+       light, dark — persisted locally so the right theme applies before any
+       network request and before app.js loads. Inline and tiny on purpose:
+       a linked script would race the stylesheets and flash the wrong theme. -->
+  <script>
+    (function () {
+      var stored = null;
+      try { stored = localStorage.getItem("orbit.theme"); } catch (e) { /* private mode */ }
+      if (stored !== "light" && stored !== "dark" && stored !== "system") stored = "system";
+      var resolved = stored === "system"
+        ? (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+        : stored;
+      var root = document.documentElement;
+      root.dataset.theme = resolved;
+      root.dataset.themePreference = stored;
+      var meta = document.getElementById("meta-theme-color");
+      if (meta) meta.setAttribute("content", resolved === "light" ? "#f5f6f8" : "#0a0c0f");
+    })();
+  </script>
   <link rel="stylesheet" href="/styles/tokens.css" />
   <link rel="stylesheet" href="/styles/base.css" />
   <link rel="stylesheet" href="/styles/components.css" />
@@ -14,7 +34,6 @@
   <link rel="stylesheet" href="/styles/features.css" />
   <link rel="stylesheet" href="/styles/orbit-axis.css" />
   <link rel="stylesheet" href="/styles/chat.css" />
-  <link rel="stylesheet" href="/styles/ask.css" />
   <link rel="stylesheet" href="/styles/more.css" />
   <link rel="stylesheet" href="/styles/auth.css" />
   <link rel="stylesheet" href="/styles/fortune.css" />
@@ -34,29 +53,19 @@
       </div>
 
       <div class="rail__section-label">Sections</div>
-      <div class="rail__nav" id="rail-nav" role="tablist" aria-orientation="vertical">
+      <div class="rail__nav" id="rail-nav">
         <!-- populated by app.js -->
       </div>
 
       <div class="rail__spacer"></div>
-
-      <div class="rail__foot">
-        <button class="rail__link rail__link--utility" id="rail-command" type="button">
-          <svg class="rail__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 9h6v6H9z"/></svg>
-          <span class="rail__label">Command</span>
-        </button>
-        <div class="u-caption" style="padding: var(--space-1) var(--space-3);">
-          <span class="o-pill o-pill--success" id="rail-status">Systems nominal</span>
-        </div>
-      </div>
     </nav>
 
     <!-- ── Main area ──────────────────────────────────────────────────── -->
     <div>
       <header class="topnav">
         <div>
-          <div class="topnav__title" id="workspace-title" tabindex="-1">Dashboard</div>
-          <div class="topnav__crumb" id="workspace-crumb">Orbit · Observatory</div>
+          <div class="topnav__title" id="workspace-title" tabindex="-1">Home</div>
+          <div class="topnav__crumb" id="workspace-crumb">Orbit Axis · Your day</div>
         </div>
         <div class="topnav__spacer"></div>
         <div class="topnav__date" id="topnav-date"></div>
@@ -64,12 +73,12 @@
 
       <main class="workspace" id="workspace">
         <!-- ── Home (Orbit Axis daily return point) ─────────────────── -->
-        <section class="workspace-panel" id="panel-home" role="tabpanel" aria-labelledby="tab-home">
+        <section class="workspace-panel" id="panel-home" role="region" aria-labelledby="home-title">
           <div class="axis-starfield" aria-hidden="true"></div>
 
           <div class="axis-today-head">
             <div>
-              <div class="axis-wordmark">Orbit Axis</div>
+              <h1 class="axis-wordmark" id="home-title">Orbit Axis</h1>
               <div class="axis-subtitle">Your sky today, in plain language.</div>
               <div class="axis-reading-for" id="today-reading-for" hidden>Reading for: <strong id="today-chart-name">My Chart</strong></div>
             </div>
@@ -99,132 +108,16 @@
                technical thing it does. -->
           <div id="today-fortune" class="axis-rise-2"><div class="axis-shimmer" style="height:240px"></div></div>
           <div id="today-sky" class="axis-card axis-rise-3"><div class="axis-shimmer" style="height:180px"></div></div>
-
-          <div class="axis-card">
-            <div class="axis-ask">
-              <a class="axis-ask__btn" href="#ask">✦ Ask Orbit</a>
-              <span class="axis-ask__hint">Curious about a word or placement? Ask in plain language — it runs on your machine.</span>
-            </div>
-          </div>
-        </section>
-
-        <!-- ── Dashboard (Overview) ─────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" hidden>
-          <div class="o-section-head">
-            <div class="o-section-head__text">
-              <h1 class="u-title">Dashboard</h1>
-              <p class="u-caption">A single view of today's sky and your observatory at a glance.</p>
-            </div>
-            <div class="o-section-head__actions">
-              <button class="o-btn o-btn--secondary" data-goto="research">Ask Orbit</button>
-              <button class="o-btn o-btn--primary" data-goto="charts">Open charts</button>
-            </div>
-          </div>
-
-          <!-- Zone: Today's Sky -->
-          <div class="stack-sm">
-            <div class="o-card-head"><h3 class="u-eyebrow">Today's Sky</h3><span class="u-meta" id="sky-updated"></span></div>
-            <div class="grid-tiles" id="sky-tiles">
-              <div class="o-tile"><div class="o-skel o-skel--title"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
-              <div class="o-tile"><div class="o-skel o-skel--title"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
-              <div class="o-tile"><div class="o-skel o-skel--title"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
-              <div class="o-tile"><div class="o-skel o-skel--title"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
-            </div>
-          </div>
-
-          <div class="grid-2">
-            <!-- Zone: Upcoming Events -->
-            <div class="o-card">
-              <div class="o-card-head">
-                <h3 class="u-card-title">Upcoming Events</h3>
-                <button class="o-btn o-btn--ghost o-btn--sm" data-goto="transits">View all</button>
-              </div>
-              <div id="dash-events"><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div><div class="o-skel o-skel--line"></div></div>
-            </div>
-
-            <div class="stack-sm">
-              <!-- Zone: Quick Actions -->
-              <div class="o-card">
-                <div class="o-card-head"><h3 class="u-card-title">Quick Actions</h3></div>
-                <div class="stack-sm" id="quick-actions">
-                  <button class="o-btn o-btn--secondary o-btn--block" data-goto="charts">Look up a birth sign</button>
-                  <button class="o-btn o-btn--secondary o-btn--block" data-goto="charts">Compare two signs</button>
-                  <button class="o-btn o-btn--secondary o-btn--block" data-goto="research">Search the symbol atlas</button>
-                </div>
-              </div>
-
-              <!-- Zone: System Status -->
-              <div class="o-card">
-                <div class="o-card-head"><h3 class="u-card-title">System Status</h3></div>
-                <div class="o-panel" id="system-status">
-                  <div class="o-kv"><span class="o-kv__k">Orbit engine</span><span class="o-kv__v"><span class="o-pill o-pill--success">Online</span></span></div>
-                  <div class="o-kv"><span class="o-kv__k">Symbol atlas</span><span class="o-kv__v" id="status-symbols">—</span></div>
-                  <div class="o-kv"><span class="o-kv__k">Data mode</span><span class="o-kv__v">Deterministic</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- ── Charts ───────────────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-charts" role="tabpanel" aria-labelledby="tab-charts" hidden>
-          <div class="o-section-head">
-            <div class="o-section-head__text">
-              <h1 class="u-title">Charts</h1>
-              <p class="u-caption">The zodiac wheel and chart tools. Every value is computed, never predicted.</p>
-            </div>
-            <div class="o-section-head__actions">
-              <div class="o-search" style="min-width: 220px;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-                <input class="o-input" id="charts-search" type="search" placeholder="Filter signs…" aria-label="Filter signs" />
-              </div>
-            </div>
-          </div>
-
-          <div class="grid-split">
-            <div class="o-card">
-              <div class="o-card-head"><h3 class="u-card-title">Zodiac Wheel</h3></div>
-              <div class="wheel-wrap"><svg id="zodiac-wheel" viewBox="0 0 320 320" role="img" aria-label="Interactive zodiac wheel"></svg></div>
-              <div class="wheel-detail" id="wheel-detail">Select a sign on the wheel to inspect its geometry.</div>
-            </div>
-
-            <div class="stack-sm">
-              <div class="o-card">
-                <div class="o-card-head"><h3 class="u-card-title">Birth Date → Sign</h3></div>
-                <form id="birth-form" class="stack-sm">
-                  <div class="o-field">
-                    <label class="o-label" for="birth-date">Date of birth</label>
-                    <input class="o-input" type="date" id="birth-date" required />
-                  </div>
-                  <button class="o-btn o-btn--primary" type="submit">Look up sign</button>
-                </form>
-                <div class="o-body ask-result" id="birth-result"></div>
-              </div>
-
-              <div class="o-card">
-                <div class="o-card-head"><h3 class="u-card-title">Compatibility Geometry</h3></div>
-                <form id="compat-form" class="stack-sm">
-                  <div class="grid-2" style="gap: var(--space-3);">
-                    <div class="o-field"><label class="o-label" for="compat-a">First sign</label><select class="o-select" id="compat-a"></select></div>
-                    <div class="o-field"><label class="o-label" for="compat-b">Second sign</label><select class="o-select" id="compat-b"></select></div>
-                  </div>
-                  <button class="o-btn o-btn--primary" type="submit">Compare geometry</button>
-                </form>
-                <div class="o-body ask-result" id="compat-result"></div>
-              </div>
-            </div>
-          </div>
         </section>
 
         <!-- ── Transits ─────────────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-transits" role="tabpanel" aria-labelledby="tab-transits" hidden>
+        <section class="workspace-panel" id="panel-transits" role="region" aria-labelledby="transits-title" hidden>
           <div class="o-section-head">
             <div class="o-section-head__text">
-              <h1 class="u-title">Transits</h1>
+              <h1 class="u-title" id="transits-title">Today’s Transits</h1>
               <p class="u-caption">The moving sky, measured against <strong id="transits-chart-name">your chart</strong>.</p>
             </div>
             <div class="o-section-head__actions">
-              <button class="o-btn o-btn--secondary" data-goto="home">Back to Home</button>
               <button class="o-btn o-btn--secondary" id="transits-refresh">Refresh</button>
             </div>
           </div>
@@ -244,14 +137,14 @@
              Its own destination as of Update 5.2b. It explains symbols that
              are already on screen elsewhere, so it is reached from Technical
              Sky rather than living inside Research. -->
-        <section class="workspace-panel" id="panel-symbol-atlas" role="tabpanel" aria-labelledby="tab-symbol-atlas" hidden>
+        <section class="workspace-panel" id="panel-symbol-atlas" role="region" aria-labelledby="symbol-atlas-title" hidden>
           <div class="o-section-head">
             <div class="o-section-head__text">
-              <h1 class="u-title">Symbol Atlas</h1>
+              <h1 class="u-title" id="symbol-atlas-title">Symbol Atlas</h1>
               <p class="u-caption">Every symbol Orbit Axis uses, in plain language. A reference, not a course.</p>
             </div>
             <div class="o-section-head__actions">
-              <button class="o-btn o-btn--secondary" data-goto="home">Back to Home</button>
+              <button class="o-btn o-btn--secondary" data-goto="tools">Back to Tools</button>
             </div>
           </div>
 
@@ -260,15 +153,18 @@
             <input class="o-input" id="sa-search" type="search" autocomplete="off"
                    placeholder="Try “Mercury”, “square”, or “rising”"
                    aria-describedby="sa-count" />
-            <div class="o-tabs atlas-kinds" id="sa-filters" role="tablist" aria-label="Symbol categories">
-              <button class="o-tab" role="tab" type="button" data-kind="" aria-selected="true">All</button>
-              <button class="o-tab" role="tab" type="button" data-kind="zodiac_sign" aria-selected="false">Signs</button>
-              <button class="o-tab" role="tab" type="button" data-kind="planet" aria-selected="false">Planets</button>
-              <button class="o-tab" role="tab" type="button" data-kind="angle" aria-selected="false">Angles</button>
-              <button class="o-tab" role="tab" type="button" data-kind="aspect" aria-selected="false">Aspects</button>
-              <button class="o-tab" role="tab" type="button" data-kind="house" aria-selected="false">Houses</button>
-              <button class="o-tab" role="tab" type="button" data-kind="moon" aria-selected="false">Moon</button>
-              <button class="o-tab" role="tab" type="button" data-kind="other" aria-selected="false">Other</button>
+            <!-- Filter toggles, not tabs: they narrow one results list rather
+                 than swapping panels, and a tab without a tabpanel is a promise
+                 the markup does not keep. aria-pressed states the selection. -->
+            <div class="o-tabs atlas-kinds" id="sa-filters" role="group" aria-label="Filter symbols by category">
+              <button class="o-tab" type="button" data-kind="" aria-pressed="true">All</button>
+              <button class="o-tab" type="button" data-kind="zodiac_sign" aria-pressed="false">Signs</button>
+              <button class="o-tab" type="button" data-kind="planet" aria-pressed="false">Planets</button>
+              <button class="o-tab" type="button" data-kind="angle" aria-pressed="false">Angles</button>
+              <button class="o-tab" type="button" data-kind="aspect" aria-pressed="false">Aspects</button>
+              <button class="o-tab" type="button" data-kind="house" aria-pressed="false">Houses</button>
+              <button class="o-tab" type="button" data-kind="moon" aria-pressed="false">Moon</button>
+              <button class="o-tab" type="button" data-kind="other" aria-pressed="false">Other</button>
             </div>
             <p class="u-caption" id="sa-count" role="status" aria-live="polite"></p>
           </div>
@@ -276,50 +172,11 @@
           <div class="sa-results" id="sa-results"></div>
         </section>
 
-        <!-- ── Research ─────────────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-research" role="tabpanel" aria-labelledby="tab-research" hidden>
-          <div class="o-section-head">
-            <div class="o-section-head__text">
-              <h1 class="u-title">Research</h1>
-              <p class="u-caption">Query the deterministic engine and browse the full symbol atlas.</p>
-            </div>
-          </div>
-
-          <div class="o-card o-card--elevated">
-            <div class="o-card-head"><h3 class="u-card-title">Ask Orbit</h3></div>
-            <form id="query-form" class="o-search" style="gap: var(--space-2);">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="position:absolute;left:var(--space-3);width:16px;height:16px;color:var(--color-faint);"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-              <input class="o-input" id="query-input" type="text" placeholder='Try "born June 5" or "courage and fire"…' aria-label="Ask Orbit" style="padding-left: var(--space-8);" />
-              <button class="o-btn o-btn--primary" type="submit" style="flex:none;">Ask</button>
-            </form>
-            <div class="o-body ask-result" id="query-result"></div>
-          </div>
-
-          <div class="stack-sm">
-            <div class="o-section-head" style="margin-bottom:0;">
-              <div class="o-section-head__text"><h3 class="u-card-title">Symbol Atlas</h3><p class="u-caption" id="atlas-count"></p></div>
-              <div class="o-section-head__actions">
-                <div class="o-search" style="min-width: 200px;">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-                  <input class="o-input" id="atlas-search" type="search" placeholder="Search symbols…" aria-label="Search symbols" />
-                </div>
-                <div class="o-tabs" id="atlas-filters" role="tablist" aria-label="Symbol kinds">
-                  <button class="o-tab" role="tab" data-kind="" aria-selected="true">All</button>
-                  <button class="o-tab" role="tab" data-kind="zodiac_sign" aria-selected="false">Signs</button>
-                  <button class="o-tab" role="tab" data-kind="planet" aria-selected="false">Planets</button>
-                  <button class="o-tab" role="tab" data-kind="aspect" aria-selected="false">Aspects</button>
-                </div>
-              </div>
-            </div>
-            <div class="atlas" id="atlas"></div>
-          </div>
-        </section>
-
         <!-- ── My Chart (Swiss Ephemeris) ───────────────────────────── -->
-        <section class="workspace-panel" id="panel-me" role="tabpanel" aria-labelledby="tab-me" hidden>
+        <section class="workspace-panel" id="panel-me" role="region" aria-labelledby="mychart-title" hidden>
           <div class="o-section-head me-page-head">
             <div class="o-section-head__text">
-              <h1 class="u-title">Me</h1>
+              <h1 class="u-title" id="mychart-title">My Chart</h1>
               <p class="u-meta">Your natal chart, key placements, and saved profiles.</p>
               <div class="me-active-line">
                 <span id="mychart-name">No active chart yet</span>
@@ -379,100 +236,54 @@
           </div>
         </section>
 
+        <!-- ── Tools ────────────────────────────────────────────────────
+             One truthful destination for the things Orbit Axis can already do.
+             Nothing here is a placeholder: each card opens a working page.
+             Planned work is stated as a sentence, not as a button that does
+             nothing — a dead control reads as a bug, a sentence reads as a
+             roadmap. -->
+        <section class="workspace-panel" id="panel-tools" role="region" aria-labelledby="tools-title" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title" id="tools-title">Tools</h1>
+              <p class="u-caption">Everything Orbit Axis can do beyond your daily reading.</p>
+            </div>
+          </div>
+
+          <div class="tools-grid">
+            <article class="tool-card">
+              <h2>History</h2>
+              <p>Every daily reading Orbit Axis has written for you, newest first.</p>
+              <button class="o-btn o-btn--primary" type="button" data-goto="history">Open History</button>
+            </article>
+
+            <article class="tool-card">
+              <h2>Symbol Atlas</h2>
+              <p>What every glyph, sign, planet, and aspect in Orbit Axis means, in plain language.</p>
+              <button class="o-btn o-btn--primary" type="button" data-goto="symbol-atlas">Open Symbol Atlas</button>
+            </article>
+
+            <article class="tool-card">
+              <h2>Saved Charts</h2>
+              <p>Add, edit, and switch between the charts Orbit Axis remembers for you.</p>
+              <button class="o-btn o-btn--primary" type="button" data-goto="me">Open My Chart</button>
+            </article>
+
+            <article class="tool-card tool-card--planned">
+              <h2>More tools are on the way</h2>
+              <p>
+                Compatibility between two charts, a gratitude and dream journal, and
+                reminders for the sky events that matter to you are all planned. They
+                are not built yet, so Orbit Axis does not pretend they are.
+              </p>
+            </article>
+          </div>
+        </section>
+
         <!-- ── Tarot ────────────────────────────────────────────────── -->
         <!-- Tarot panel lives in features/panels/tarot.html and is
              injected at runtime only when ORBIT_FEATURE_TAROT is enabled.
              It is deliberately outside public/ so it cannot ship. -->
-
-        <!-- ── Ask Orbit Axis ───────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-ask" role="tabpanel" aria-labelledby="tab-ask" hidden>
-          <div class="o-section-head">
-            <div class="o-section-head__text">
-              <h1 class="u-title">Ask Orbit</h1>
-              <p class="u-caption">A guided astrology consultation. Answers are grounded in your active chart and the current sky, and every one shows its evidence.</p>
-              <!-- Short on purpose. A wall of warning text on every screen gets
-                   skipped; one clear sentence with a route to the full terms does
-                   not. The serious part — not a substitute for professional help —
-                   is the half worth reading twice. -->
-              <p class="reading-disclaimer">
-                For reflection and entertainment. Orbit Axis is not a substitute for
-                medical, mental-health, legal, or financial advice, and is not an
-                emergency service. <a href="/terms">Read more</a>.
-              </p>
-            </div>
-            <div class="o-section-head__actions">
-              <button class="o-btn o-btn--ghost o-btn--sm" id="ask-history-btn" type="button" aria-haspopup="dialog">History</button>
-              <button class="o-btn o-btn--secondary o-btn--sm" id="ask-new-btn" type="button">New conversation</button>
-            </div>
-          </div>
-
-          <div class="ask-shell">
-            <div class="ask-using" id="ask-using">Using <strong id="ask-active-chart">your active chart</strong></div>
-
-            <!-- Calm, plain-language service status. Hidden entirely when
-                 everything is normal, so there is nothing to explain. -->
-            <p class="ask-service-status" id="ask-service-status" role="status" hidden></p>
-
-            <!-- Distinct failure / gate states (never onboarding). -->
-            <div class="ask-state" id="ask-signedout" hidden>
-              <h2>Sign in to ask Orbit</h2>
-              <p>Ask Orbit reads your saved chart, so it needs you signed in. Head to Home to sign in, then come back.</p>
-              <button class="o-btn o-btn--primary" type="button" data-goto="home">Go to Home</button>
-            </div>
-            <div class="ask-state" id="ask-nochart" hidden>
-              <h2>Add a chart first</h2>
-              <p>Ask Orbit answers from your natal chart. Add one on Home, then ask away.</p>
-              <button class="o-btn o-btn--primary" type="button" data-goto="home">Add a chart</button>
-            </div>
-            <div class="ask-state ask-state--error" id="ask-loaderror" role="alert" hidden>
-              <h2>We couldn’t load Ask Orbit</h2>
-              <p>Something interrupted loading your chart context.</p>
-              <button class="o-btn o-btn--secondary" type="button" id="ask-reload">Try again</button>
-            </div>
-
-            <!-- Empty state: intro + adaptive suggestions. -->
-            <div class="ask-empty" id="ask-empty" hidden>
-              <div class="ask-empty__intro">
-                <h2>What would you like to understand?</h2>
-                <p>Ask in everyday language. Orbit keeps calculated chart facts separate from interpretation, and shows the evidence behind every answer.</p>
-              </div>
-              <div class="ask-suggestions" id="ask-suggestions" aria-label="Suggested questions"></div>
-            </div>
-
-            <!-- Conversation thread. -->
-            <div class="ask-thread" id="ask-thread" aria-live="polite"></div>
-
-            <!-- Question composer. -->
-            <form class="ask-compose" id="ask-form" hidden>
-              <label class="ask-compose__label" for="ask-input">Ask a question</label>
-              <div class="ask-compose__row">
-                <textarea id="ask-input" rows="2" maxlength="2000" placeholder="e.g. What should I pay attention to today?" autocomplete="off" aria-describedby="ask-hint"></textarea>
-                <div class="ask-compose__actions">
-                  <button type="button" id="ask-cancel" class="ask-cancel" hidden aria-label="Stop this answer">Stop</button>
-                  <button type="submit" id="ask-send" class="ask-send">Ask</button>
-                </div>
-              </div>
-              <div class="ask-compose__foot">
-                <span class="ask-hint" id="ask-hint">Enter to send · Shift + Enter for a new line</span>
-                <span class="ask-status" id="ask-status" role="status" aria-live="polite" hidden></span>
-              </div>
-            </form>
-          </div>
-
-          <!-- History drawer (focus-trapped modal). -->
-          <div class="ask-drawer" id="ask-drawer" role="dialog" aria-modal="true" aria-label="Conversation history" hidden>
-            <div class="ask-drawer__scrim" data-ask-drawer-dismiss></div>
-            <div class="ask-drawer__panel">
-              <header class="ask-drawer__head">
-                <h2 class="u-card-title">Recent conversations</h2>
-                <button class="chat-icon-btn" id="ask-drawer-close" type="button" aria-label="Close history">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                </button>
-              </header>
-              <div class="ask-drawer__list" id="ask-drawer-list"></div>
-            </div>
-          </div>
-        </section>
 
         <!-- ── Learn ────────────────────────────────────────────────── -->
         <!-- Learn panel lives in features/panels/learn.html and is
@@ -485,149 +296,103 @@
              It is deliberately outside public/ so it cannot ship. -->
 
         <!-- ── More ─────────────────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-more" role="tabpanel" aria-labelledby="tab-more" hidden>
+        <section class="workspace-panel" id="panel-more" role="region" aria-labelledby="more-title" hidden>
           <div class="o-section-head">
             <div class="o-section-head__text">
-              <h1 class="u-title">More</h1>
-              <p class="u-caption">Advanced tools, history, saved-chart work, compatibility, and settings.</p>
+              <h1 class="u-title" id="more-title">More</h1>
+              <p class="u-caption">Your account, appearance, privacy, and support.</p>
             </div>
           </div>
 
           <div class="more-grid">
-            <article class="more-card">
-              <h2>Advanced Astrology</h2>
-              <p>Full tables, current transits, current sky, and technical calculations.</p>
+            <article class="more-card" id="account-card">
+              <h2>Account</h2>
+              <div class="o-kv"><span class="o-kv__k">Signed in as</span><span class="o-kv__v" id="account-email">Not signed in</span></div>
               <div class="more-actions">
-                <button class="o-btn o-btn--secondary" type="button" data-goto="charts">Chart tools</button>
-                <button class="o-btn o-btn--secondary" type="button" data-goto="transits">Transits</button>
-                <button class="o-btn o-btn--secondary" type="button" data-goto="research">Symbol atlas</button>
+                <button class="o-btn o-btn--secondary" type="button" id="account-export">Export my data</button>
+                <button class="o-btn o-btn--secondary" type="button" id="account-password-reset">Reset password</button>
+                <button class="o-btn o-btn--secondary" type="button" id="account-signout">Sign out</button>
+              </div>
+              <div class="auth-message" id="account-export-message" role="status" aria-live="polite" aria-atomic="true"></div>
+            </article>
+
+            <article class="more-card">
+              <h2>Appearance</h2>
+              <p>Choose light, dark, or match your device. Text size, contrast, and motion live here too.</p>
+              <div class="more-actions">
+                <button class="o-btn o-btn--primary" type="button" data-goto="settings">Open Settings</button>
               </div>
             </article>
+
             <article class="more-card">
-              <h2>Saved Charts</h2>
-              <p>Saved-chart management now lives on Me with your natal overview, Big Three, and active profile.</p>
-              <button class="o-btn o-btn--primary" type="button" data-goto="me">Open Me</button>
+              <h2>Your data</h2>
+              <!-- What is collected, why, where it lives, who can see it, and how
+                   to leave. Stated here as well as at the gate, because this is
+                   where someone comes looking for it. -->
+              <p class="more-note">
+                Orbit Axis stores your email, your birth date, birth time, and
+                birthplace, your saved charts, your active chart, your daily
+                readings and their history, and your display preferences.
+              </p>
+              <p class="more-note">
+                Birth details are needed to calculate your chart — the date places
+                the planets, the time places the houses and angles, and the
+                birthplace supplies the coordinates and timezone. Without a
+                reliable time, Orbit Axis leaves houses and angles out rather than
+                guessing at them.
+              </p>
+              <p class="more-note">
+                Your information is private to your account. It is not sold, and it
+                is not shared with advertisers or other users.
+              </p>
+              <p class="more-note">
+                Your chart, transits, moon phases, and daily readings are calculated
+                by Orbit Axis's own astronomy engine. They do not depend on
+                generative AI, and they keep working when AI is unavailable.
+              </p>
+              <p class="more-note">
+                You can download everything at any time, and deleting your account
+                removes all of it permanently.
+              </p>
             </article>
+
             <article class="more-card">
-              <h2>Compatibility</h2>
-              <p>Deterministic synastry and saved comparisons are planned. The current sign geometry tool remains available.</p>
-              <button class="o-btn o-btn--secondary" type="button" data-goto="charts">Open comparison tool</button>
+              <h2>Privacy, terms, and support</h2>
+              <p>The full policies, how to get help, and where the source code lives.</p>
+              <p class="more-note legal-links">
+                <a href="/privacy">Privacy Policy</a> ·
+                <a href="/terms">Terms of Use</a> ·
+                <a href="/support">Support</a> ·
+                <a href="/source">Source code</a> ·
+                <a href="/account-deletion">About deletion</a>
+              </p>
             </article>
-            <article class="more-card">
-              <h2>History</h2>
-              <p>Past daily fortunes now live here instead of primary navigation.</p>
-              <button class="o-btn o-btn--primary" type="button" data-goto="history">Open history</button>
-            </article>
-            <article class="more-card">
-              <h2>Settings</h2>
-              <p>Appearance, detail level, timezone, privacy, account, export, and local intelligence settings belong here as the app grows.</p>
-              <div class="more-actions">
-                <button class="o-btn o-btn--secondary" type="button" data-goto="settings">Open appearance settings</button>
+
+            <article class="more-card more-card--danger">
+              <!-- Destructive actions are separated from ordinary ones so
+                   "Delete account" is never adjacent to something harmless a
+                   person might be aiming for. -->
+              <div class="danger-zone" id="danger-zone">
+                <h2 class="danger-zone__title">Delete your account</h2>
+                <p class="danger-zone__body">
+                  This permanently removes your saved charts, birth details, daily
+                  readings, reading history, saved conversations, and preferences,
+                  and closes your account. It cannot be undone, and Orbit Axis
+                  cannot recover it for you.
+                </p>
+                <button class="o-btn o-btn--danger" type="button" id="account-delete-open">
+                  Delete account
+                </button>
               </div>
-              <details class="more-settings local-intel">
-                <summary>Local Intelligence</summary>
-                <div class="intel-head">
-                  <div>
-                    <h3>Local Intelligence Diagnostics</h3>
-                    <p>Technical Ollama details live here, away from the normal chat header.</p>
-                  </div>
-                  <span class="local-pill">Local only</span>
-                </div>
-                <div class="intel-grid">
-                  <div><div class="intel-label">Connection</div><div id="llm-status" class="intel-value">Checking…</div></div>
-                  <div><div class="intel-label">Provider</div><div id="llm-provider" class="intel-value">—</div></div>
-                  <div><div class="intel-label">Selected model</div><div id="llm-model" class="intel-value">—</div></div>
-                  <div><div class="intel-label">Installed</div><div id="llm-installed" class="intel-value">—</div></div>
-                  <div><div class="intel-label">Fallback</div><div id="llm-fallback" class="intel-value">—</div></div>
-                  <div><div class="intel-label">Context</div><div id="llm-context" class="intel-value">—</div></div>
-                  <div><div class="intel-label">Prompt</div><div id="llm-prompt-version" class="intel-value">—</div></div>
-                </div>
-                <form id="intel-form" class="intel-form">
-                  <input type="text" id="intel-prompt" value="Summarize the Orbit Axis roadmap." />
-                  <button type="submit">Generate</button>
-                  <button type="button" id="proposal-button">Propose note</button>
-                </form>
-                <div class="intel-output" id="intel-output"></div>
-                <div class="intel-run-meta" id="intel-run-meta"></div>
-                <div class="intel-sources" id="intel-sources"></div>
-                <div class="proposal-panel" id="proposal-panel"></div>
-              </details>
-              <details class="more-settings" id="account-settings">
-                <summary>Account</summary>
-                <div class="account-panel">
-                  <div class="o-kv"><span class="o-kv__k">Signed in as</span><span class="o-kv__v" id="account-email">Not signed in</span></div>
-
-                  <!-- What is collected, why, where it lives, who can see it,
-                       and how to leave. Stated here as well as at the gate,
-                       because this is where someone comes looking for it. -->
-                  <h3 class="account-panel__heading">Your data</h3>
-                  <p class="more-note">
-                    Orbit Axis stores your email, your birth date, birth time, and
-                    birthplace, your saved charts, your active chart, your daily
-                    readings and their history, and your display preferences.
-                  </p>
-                  <p class="more-note">
-                    Birth details are needed to calculate your chart — the date
-                    places the planets, the time places the houses and angles, and
-                    the birthplace supplies the coordinates and timezone. Without a
-                    reliable time, Orbit leaves houses and angles out rather than
-                    guessing at them.
-                  </p>
-                  <p class="more-note">
-                    It is stored in Orbit's Supabase database, protected by
-                    row-level security so that only your account can read it. It is
-                    not sold, and it is not shared with advertisers or other users.
-                  </p>
-                  <p class="more-note">
-                    Your chart, transits, moon phases, and daily readings are
-                    calculated by Orbit's own astronomy engine. They do not depend
-                    on generative AI, and they keep working when AI is unavailable.
-                  </p>
-                  <p class="more-note">
-                    You can download everything at any time, and deleting your
-                    account removes all of it permanently.
-                  </p>
-
-                  <div class="more-actions">
-                    <button class="o-btn o-btn--secondary" type="button" id="account-export">Export my data</button>
-                    <button class="o-btn o-btn--secondary" type="button" id="account-password-reset">Reset password</button>
-                    <button class="o-btn o-btn--secondary" type="button" id="account-signout">Sign out</button>
-                  </div>
-                  <div class="auth-message" id="account-export-message" role="status" aria-live="polite" aria-atomic="true"></div>
-
-                  <p class="more-note legal-links">
-                    <a href="/privacy">Privacy Policy</a> ·
-                    <a href="/terms">Terms of Use</a> ·
-                    <a href="/support">Support</a> ·
-                    <a href="/source">Source code</a> ·
-                    <a href="/account-deletion">About deletion</a>
-                  </p>
-
-                  <!-- Destructive actions are separated from ordinary ones so
-                       "Delete account" is never adjacent to something harmless
-                       a person might be aiming for. -->
-                  <div class="danger-zone" id="danger-zone">
-                    <h3 class="danger-zone__title">Delete your account</h3>
-                    <p class="danger-zone__body">
-                      This permanently removes your saved charts, birth details, daily readings,
-                      reading history, Ask Orbit conversations, and preferences, and closes your
-                      account. It cannot be undone, and Orbit cannot recover it for you.
-                    </p>
-                    <button class="o-btn o-btn--danger" type="button" id="account-delete-open">
-                      Delete account
-                    </button>
-                  </div>
-                </div>
-              </details>
             </article>
           </div>
         </section>
 
         <!-- ── History (fortune log) ────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+        <section class="workspace-panel" id="panel-history" role="region" aria-labelledby="history-title" hidden>
           <div class="o-section-head">
             <div class="o-section-head__text">
-              <h1 class="u-title">Fortune History</h1>
+              <h1 class="u-title" id="history-title">History</h1>
               <p class="u-meta">Your recent daily readings — the latest 30.</p>
             </div>
           </div>
@@ -642,38 +407,83 @@
         </section>
 
         <!-- ── Settings ─────────────────────────────────────────────── -->
-        <section class="workspace-panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <section class="workspace-panel" id="panel-settings" role="region" aria-labelledby="settings-title" hidden>
           <div class="o-section-head">
             <div class="o-section-head__text">
-              <h1 class="u-title">Settings</h1>
-              <p class="u-caption">Tune Orbit's presentation. Preferences are saved on this device.</p>
+              <h1 class="u-title" id="settings-title">Settings</h1>
+              <p class="u-caption">How Orbit Axis looks and moves. Saved on this device.</p>
             </div>
           </div>
 
           <div class="grid-2">
             <div class="o-card">
-              <div class="o-card-head"><h3 class="u-card-title">Appearance</h3></div>
+              <div class="o-card-head"><h2 class="u-card-title">Appearance</h2></div>
               <div class="o-panel">
-                <div class="o-kv"><span class="o-kv__k">Theme</span><span class="o-kv__v"><div class="o-segment" id="set-theme"><button data-value="dark" aria-pressed="true">Dark</button><button data-value="light" aria-pressed="false">Light</button></div></span></div>
-                <div class="o-kv"><span class="o-kv__k">Density</span><span class="o-kv__v"><div class="o-segment" id="set-density"><button data-value="comfortable" aria-pressed="true">Comfortable</button><button data-value="compact" aria-pressed="false">Compact</button></div></span></div>
-                <div class="o-kv"><span class="o-kv__k">Text size</span><span class="o-kv__v"><div class="o-segment" id="set-text"><button data-value="default" aria-pressed="true">Default</button><button data-value="large" aria-pressed="false">Large</button></div></span></div>
-                <div class="o-kv"><span class="o-kv__k">High contrast</span><span class="o-kv__v"><div class="o-segment" id="set-contrast"><button data-value="normal" aria-pressed="true">Off</button><button data-value="high" aria-pressed="false">On</button></div></span></div>
-                <div class="o-kv"><span class="o-kv__k">Motion</span><span class="o-kv__v"><div class="o-segment" id="set-motion"><button data-value="full" aria-pressed="true">Full</button><button data-value="reduced" aria-pressed="false">Reduced</button></div></span></div>
+                <!-- Theme: three explicit choices with visible text labels. The
+                     icons are decorative; the words are what is announced, and
+                     what stays readable in forced-colors mode. System is the
+                     default and follows the device. -->
+                <div class="setting-row">
+                  <span class="setting-row__label" id="set-theme-label">Theme</span>
+                  <div class="o-segment o-segment--theme" id="set-theme" role="group" aria-labelledby="set-theme-label">
+                    <button type="button" data-value="system" aria-pressed="true">
+                      <svg class="segment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                      <span>System</span>
+                    </button>
+                    <button type="button" data-value="light" aria-pressed="false">
+                      <svg class="segment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                      <span>Light</span>
+                    </button>
+                    <button type="button" data-value="dark" aria-pressed="false">
+                      <svg class="segment-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                      <span>Dark</span>
+                    </button>
+                  </div>
+                </div>
+                <p class="setting-help" id="set-theme-help">System follows your device's light or dark setting.</p>
+
+                <div class="setting-row">
+                  <span class="setting-row__label" id="set-density-label">Density</span>
+                  <div class="o-segment" id="set-density" role="group" aria-labelledby="set-density-label">
+                    <button type="button" data-value="comfortable" aria-pressed="true">Comfortable</button>
+                    <button type="button" data-value="compact" aria-pressed="false">Compact</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <span class="setting-row__label" id="set-text-label">Text size</span>
+                  <div class="o-segment" id="set-text" role="group" aria-labelledby="set-text-label">
+                    <button type="button" data-value="default" aria-pressed="true">Default</button>
+                    <button type="button" data-value="large" aria-pressed="false">Large</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <span class="setting-row__label" id="set-contrast-label">High contrast</span>
+                  <div class="o-segment" id="set-contrast" role="group" aria-labelledby="set-contrast-label">
+                    <button type="button" data-value="normal" aria-pressed="true">Off</button>
+                    <button type="button" data-value="high" aria-pressed="false">On</button>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <span class="setting-row__label" id="set-motion-label">Motion</span>
+                  <div class="o-segment" id="set-motion" role="group" aria-labelledby="set-motion-label">
+                    <button type="button" data-value="full" aria-pressed="true">Full</button>
+                    <button type="button" data-value="reduced" aria-pressed="false">Reduced</button>
+                  </div>
+                </div>
               </div>
             </div>
 
             <div class="stack-sm">
               <div class="o-card">
-                <div class="o-card-head"><h3 class="u-card-title">System</h3></div>
-                <div class="o-panel" id="settings-system">
-                  <div class="o-kv"><span class="o-kv__k">Service</span><span class="o-kv__v" id="set-service">—</span></div>
-                  <div class="o-kv"><span class="o-kv__k">Symbols loaded</span><span class="o-kv__v" id="set-symbols">—</span></div>
-                  <div class="o-kv"><span class="o-kv__k">Engine</span><span class="o-kv__v">Deterministic + local fallback</span></div>
-                </div>
-              </div>
-              <div class="o-card">
-                <div class="o-card-head"><h3 class="u-card-title">About Orbit</h3></div>
-                <p class="o-body u-muted" id="settings-disclaimer">Orbit is symbolic reflection for creative and brand work — never prediction, medical, financial, or relationship advice.</p>
+                <div class="o-card-head"><h2 class="u-card-title">About Orbit Axis</h2></div>
+                <p class="o-body u-muted" id="settings-disclaimer">Orbit Axis offers symbolic reflection — never prediction, and never medical, financial, or relationship advice.</p>
+                <p class="o-body u-muted">Your chart, transits, and daily readings are calculated from real astronomy, not guessed.</p>
+                <p class="more-note legal-links">
+                  <a href="/privacy">Privacy Policy</a> ·
+                  <a href="/terms">Terms of Use</a> ·
+                  <a href="/support">Support</a> ·
+                  <a href="/source">Source code</a>
+                </p>
               </div>
             </div>
           </div>
@@ -821,7 +631,7 @@
           <li>Your account and sign-in</li>
           <li>Saved charts and birth details</li>
           <li>Daily readings and reading history</li>
-          <li>Ask Orbit conversations</li>
+          <li>Saved Ask Orbit conversations</li>
           <li>Preferences and detail level</li>
         </ul>
         <form id="delete-account-form" novalidate>
@@ -923,17 +733,6 @@
         </button>
       </header>
       <div id="placement-detail-body" class="placement-detail-body"></div>
-    </div>
-  </div>
-
-  <!-- ── Command palette ──────────────────────────────────────────────── -->
-  <div class="o-overlay" id="cmd-overlay" data-open="false" role="dialog" aria-modal="true" aria-label="Command palette">
-    <div class="o-cmd" role="none">
-      <div class="o-cmd__input-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input class="o-cmd__input" id="cmd-input" type="text" placeholder="Search workspaces and actions…" aria-label="Command palette input" aria-controls="cmd-list" role="combobox" aria-expanded="true" autocomplete="off" />
-      </div>
-      <div class="o-cmd__list" id="cmd-list" role="listbox"></div>
     </div>
   </div>
 

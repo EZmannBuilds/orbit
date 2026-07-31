@@ -20,9 +20,17 @@ test("the global search bar is gone from the top nav", () => {
   assert.ok(!appJs.includes("topnav-search"), "no leftover topnav-search listener");
 });
 
-test("the command palette (distinct from the removed search bar) still exists", () => {
-  assert.ok(html.includes('id="cmd-overlay"'), "command palette overlay should remain");
-  assert.ok(html.includes('id="rail-command"'), "rail Command launcher should remain");
+test("the command palette is gone, DOM and listeners together", () => {
+  // Dev Update 1.3 retired it. Hidden DOM is not removal: an overlay left in
+  // the page is still focusable, still readable to anyone inspecting it, and
+  // still a maintenance cost for a feature nobody can reach.
+  for (const relic of ['id="cmd-overlay"', 'id="cmd-input"', 'id="cmd-list"', 'id="rail-command"']) {
+    assert.ok(!html.includes(relic), `${relic} should be gone from the markup`);
+  }
+  for (const relic of ["openCommand", "closeCommand", "renderCommand", "runCommand", "commandItems"]) {
+    assert.ok(!appJs.includes(relic), `${relic} should be gone from the controller`);
+  }
+  assert.ok(!/metaKey \|\| e\.ctrlKey/.test(appJs), "the Cmd+K listener should be gone");
 });
 
 test("birthplace autocomplete still exists on the shared chart modal and onboarding forms", () => {
@@ -52,7 +60,7 @@ test("Me is the dedicated natal chart and saved-chart management page", () => {
   assert.ok(html.includes('id="me-add-chart"') && html.includes('id="me-saved-chart-add"'), "Me add chart actions exist");
   assert.ok(!html.includes('id="chart-form"'), "old Me chart form should not be the primary surface");
   assert.ok(!html.includes('id="saved-chart-form"'), "old More saved-chart form should be removed");
-  assert.ok(html.includes('data-goto="me"'), "More routes saved-chart management to Me");
+  assert.ok(html.includes('data-goto="me"'), "Tools routes saved-chart management to My Chart");
 });
 
 test("Me renderer exposes beginner and advanced chart sections", () => {

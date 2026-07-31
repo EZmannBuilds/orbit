@@ -85,18 +85,6 @@
   .current-sky__location { justify-content: center; text-align: center; }
 }
 
-/* Ask Orbit Axis action */
-.axis-ask {
-  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
-}
-.axis-ask__btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: linear-gradient(135deg, var(--axis-blue), var(--axis-indigo));
-  color: #0a0c18; border: 0; border-radius: 12px; padding: 12px 20px;
-  font-size: 16px; font-weight: 600; cursor: pointer; text-decoration: none;
-}
-.axis-ask__hint { color: var(--color-secondary); font-size: 14px; }
-
 /* First-run / setup state */
 .fortune-setup { display: grid; gap: 12px; max-width: 520px; }
 .fortune-setup p { color: var(--color-secondary); font-size: 15px; line-height: 1.5; }

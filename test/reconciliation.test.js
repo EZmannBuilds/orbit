@@ -118,23 +118,38 @@ test("reconciled: Simple keeps all planets; Advanced only adds technical detail"
   assert.ok(appJs.includes("placement-card__tech advanced-only"));
 });
 
-// ── Both lines coexist with the new Update 4.0 surface ───────────────────────
-test("Ask Orbit distinguishes signed-out, no-chart, and chart-load-failure states", () => {
-  // 401 must render the sign-in state, not a generic error.
-  assert.match(appJs, /error\.status === 401 \? "signedout" : "loaderror"/, "401 maps to the signed-out state");
-  // A failed chart lookup must never be shown as "you have no chart".
-  assert.match(appJs, /res\.chart_status === "error"[\s\S]{0,80}showAskState\("loaderror"\)/, "chart_status=error maps to load error");
-  assert.match(appJs, /!res\.active_chart[\s\S]{0,60}showAskState\("nochart"\)/, "only a genuine zero-chart result shows no-chart");
-  // The shared request helper exposes the status the branching depends on.
-  // Asserted on behaviour rather than on the exact right-hand expression: the
-  // variable was renamed during the Update 5.1.1 parsing repair while the
-  // behaviour was unchanged, and a test that fails on a rename without any
-  // behaviour changing is testing the wrong thing.
-  assert.match(appJs, /error\.status = (response|result)\.status/, "request() exposes HTTP status to callers");
+// ── Dev Update 1.3 :: Ask Orbit retired from the interface ───────────────────
+//
+// Ask Orbit was removed from the product, not from the database. These two
+// tests pin the halves of that separately, because getting one right and the
+// other wrong is the actual risk: a leftover entry point sends someone to a
+// page that no longer exists, and an over-eager cleanup deletes conversations
+// people are still entitled to export.
+
+test("Ask Orbit has no entry point left in the interface", () => {
+  for (const relic of ['id="panel-ask"', 'id="ask-input"', 'id="ask-form"', 'id="ask-drawer"', 'href="#ask"']) {
+    assert.ok(!html.includes(relic), `${relic} must be gone from the shipped markup`);
+  }
+  assert.ok(!appJs.includes("function wireAsk"), "the Ask composer wiring must be gone");
+  assert.ok(!appJs.includes("submitAsk"), "the Ask submit path must be gone");
+  assert.ok(!/\{ id: "ask"/.test(appJs), "Ask must not be a navigable workspace");
 });
 
-test("reconciled base also carries the new Ask Orbit surface (no feature lost)", () => {
-  assert.ok(html.includes('id="panel-ask"') && html.includes('id="ask-input"'), "Ask Orbit panel present");
-  assert.ok(html.includes('id="panel-me"'), "Me panel still present");
+test("a legacy Ask Orbit link recovers instead of breaking", () => {
+  // Bookmarks and old notes still carry #ask. It must land somewhere real and
+  // say what happened, rather than falling through to a blank panel.
+  assert.match(appJs, /ask: \{ to: "home", notice:/, "#ask must redirect with an explanation");
+  assert.match(appJs, /RETIRED_ROUTES/, "retired routes must be declared in one place");
+});
+
+test("Ask Orbit conversations are still owned, exportable, and deletable", () => {
+  // The interface is gone; the data is not. Removing these paths would quietly
+  // strand records a person is entitled to take with them.
+  assert.ok(html.includes("Saved Ask Orbit conversations"),
+    "deletion must still name the conversations it removes");
+});
+
+test("reconciled base keeps the surfaces Dev Update 1.3 did not retire", () => {
+  assert.ok(html.includes('id="panel-me"'), "My Chart panel still present");
   assert.ok(html.includes('id="today-chart-picker"'), "Home saved-chart selector still present");
 });

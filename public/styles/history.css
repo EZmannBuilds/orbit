@@ -30,7 +30,9 @@
   font-variant-numeric: tabular-nums; font-weight: 700; color: var(--axis-moon);
   background: var(--color-surface-sunken, #12152a); border-radius: 8px; padding: 3px 10px; font-size: 14px;
 }
-.history-entry__swatch { width: 18px; height: 18px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); }
+/* The swatch IS the lucky colour, so its border cannot be the colour too — it
+   is the only thing separating a pale swatch from a light card. */
+.history-entry__swatch { width: 18px; height: 18px; border-radius: 6px; border: 1px solid var(--color-border-strong); }
 .history-entry__mood { color: var(--color-secondary); font-size: 14px; }
 .history-entry__love { color: var(--color-primary); font-size: 14px; opacity: 0.85; }
 

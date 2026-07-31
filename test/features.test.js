@@ -153,13 +153,12 @@ test("the client only accepts a strict true from the server", () => {
   assert.match(APP_JS, /data\?\.features\?\.\[key\] === true/);
 });
 
-test("navigation, routing, palette, and shortcuts all use the gated list", () => {
-  // Gating the rail alone would leave the feature reachable by hash, by the
-  // command palette, and by a number-key shortcut.
+test("both navigation and routing use the gated list", () => {
+  // Gating the rail alone would leave the feature reachable by hash. Dev Update
+  // 1.3 removed the command palette and the number-key shortcuts, which were
+  // the other two ways in; what remains must still consult the gate.
   assert.match(APP_JS, /availableWorkspaces\(\)\.filter\(ws => ws\.primary\)/, "rail");
   assert.match(APP_JS, /workspaceAvailable\(hash\)/, "hash routing");
-  assert.match(APP_JS, /const nav = availableWorkspaces\(\)/, "command palette");
-  assert.match(APP_JS, /const visible = availableWorkspaces\(\)/, "keyboard shortcuts");
 });
 
 test("a disabled panel is removed from the document, not merely hidden", () => {

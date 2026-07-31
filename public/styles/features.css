@@ -10,49 +10,25 @@
  * there too. Without this, `.chart-form button` computes to a transparent
  * background with near-black text, which made the onboarding "Save My Chart"
  * CTA effectively invisible. */
-#panel-me, #panel-more, .auth-gate, .o-modal {
+#panel-me, #panel-more, #panel-tools, .auth-gate, .o-modal {
   --bg: #0a0c18; --surface: #12152a; --surface-2: #1a1e3a; --border: #262b52;
   --text: #e6e9ff; --muted: #9aa3d0; --dim: #626b9e; --accent: #7c9aff;
   --gold: #f0c674; --violet: #a78bfa;
 }
 
-/* ── Local Intelligence ─────────────────────────────────────────────────── */
-.local-intel { display: grid; gap: 14px; }
-.intel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.local-pill {
-  border: 1px solid #2b5e3d; color: #6ee7a0; background: #16321f;
-  border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700;
+/* These legacy variables are hardcoded dark, which was correct while dark was
+   the only theme. Light mode needs its own values or every carried-over surface
+   — the chart form, the auth gate, every modal — stays a dark box on a light
+   page. Same variables, light values; no rule below has to change. */
+:root[data-theme="light"] #panel-me,
+:root[data-theme="light"] #panel-more,
+:root[data-theme="light"] #panel-tools,
+:root[data-theme="light"] .auth-gate,
+:root[data-theme="light"] .o-modal {
+  --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eef0f6; --border: #d3d8e8;
+  --text: #12161c; --muted: #4d566b; --dim: #6b7488; --accent: #2f6bff;
+  --gold: #9a6b12; --violet: #6b46d6;
 }
-.intel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-.intel-label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; }
-.intel-value { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
-.intel-form { display: flex; flex-wrap: wrap; gap: 8px; }
-.intel-form input {
-  flex: 1; min-width: 240px;
-  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
-  color: var(--text); padding: 9px 11px; font-size: 13px; font-family: inherit;
-}
-.intel-form button, .proposal-actions button {
-  background: var(--surface-2); border: 1px solid var(--accent); color: var(--text);
-  border-radius: 8px; padding: 9px 13px; cursor: pointer; font-size: 12.5px; font-family: inherit;
-}
-.intel-output, .intel-sources, .intel-run-meta, .proposal-meta {
-  font-size: 12.5px; color: var(--muted); line-height: 1.6;
-}
-.intel-output strong, .intel-sources strong, .proposal-meta strong { color: var(--text); }
-.intel-sources ul { margin: 6px 0 0 18px; }
-.intel-run-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; }
-.intel-run-meta strong { color: var(--text); }
-.proposal-panel { display: grid; gap: 10px; }
-.proposal-panel:empty { display: none; }
-.proposal-panel pre {
-  max-height: 340px; overflow: auto; white-space: pre-wrap;
-  background: #070915; border: 1px solid var(--border); border-radius: 8px;
-  padding: 12px; font-size: 11.5px; color: #cbd5ff;
-}
-.proposal-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.proposal-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
-.proposal-preview section { min-width: 0; }
 
 /* ── My Chart ─────────────────────────────────────────────────────────────── */
 .mychart-card { position: relative; z-index: 1; }

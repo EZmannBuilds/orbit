@@ -254,10 +254,9 @@ const ICONS = {
   learn: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
   news: '<path d="M4 5h13a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h7M8 13h8M8 17h5"/>',
   more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
-  dashboard: '<path d="M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z"/>',
-  charts: '<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 3"/>',
+  tools: '<path d="M3 7h7M3 12h4M3 17h9"/><circle cx="14" cy="7" r="2.5"/><circle cx="11" cy="17" r="2.5"/><path d="M17 12h4M16.5 12a2.5 2.5 0 1 1 5 0 2.5 2.5 0 0 1-5 0z"/>',
   transits: '<path d="M12 3a9 9 0 1 0 9 9"/><circle cx="12" cy="12" r="3"/><path d="M20 4l-6 6"/>',
-  research: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  atlas: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
   mychart: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
   today: '<circle cx="12" cy="13" r="4"/><path d="M12 3v2M5.5 6.5l1.4 1.4M18.5 6.5l-1.4 1.4M3 13h2M19 13h2M4 20h16"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/>',
@@ -267,27 +266,54 @@ const ICONS = {
 const icon = (name, cls = "rail__icon") =>
   `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] ?? ""}</svg>`;
 
-/* ── Workspace registry — the single source of the navigation model ────── */
-// `primary` workspaces show in the simple rail; the rest stay reachable via the
-// command palette + direct hash (no workspace is removed). Today is the default.
+/* ── Workspace registry — the single source of the navigation model ──────
+   Dev Update 1.3 made this canonical. Five primary destinations, in this order,
+   with ONE name each. Phone bottom bar, desktop sidebar, page heading, document
+   title, and screen-reader name all read from these entries, so they cannot
+   disagree with each other.
+
+     Home · My Chart · Today's Transits · Tools · More
+
+   Everything else is a secondary destination reached from one of those five.
+   `mobileLabel` exists only where the full name will not fit a phone tab; it is
+   an abbreviation of the same name, never a different word. */
 const WORKSPACES = [
   { id: "home", label: "Home", crumb: "Your day", icon: "home", primary: true },
-  { id: "me", label: "Me", crumb: "Your chart", icon: "me", primary: true },
-  { id: "tarot", label: "Tarot", crumb: "Daily cards", icon: "tarot", primary: true, feature: "tarot" },
-  { id: "ask", label: "Ask", desktopLabel: "Ask Orbit", crumb: "Astrology consultation", icon: "ask", primary: true, central: true },
-  { id: "learn", label: "Learn", crumb: "Courses", icon: "learn", primary: true, feature: "learn" },
-  { id: "news", label: "News", crumb: "Verified articles", icon: "news", primary: true, feature: "news" },
-  { id: "more", label: "More", crumb: "Tools & settings", icon: "more", primary: true },
+  { id: "me", label: "My Chart", crumb: "Your chart", icon: "mychart", primary: true },
+  { id: "transits", label: "Today’s Transits", mobileLabel: "Transits", crumb: "Your moving sky", icon: "transits", primary: true },
+  { id: "tools", label: "Tools", crumb: "What Orbit Axis can do", icon: "tools", primary: true },
+  { id: "more", label: "More", crumb: "Account & settings", icon: "more", primary: true },
+
+  // Secondary destinations. Reached from Tools, More, or Technical Sky — they
+  // are real pages with real headings, they simply do not earn a sixth tab.
   { id: "history", label: "History", crumb: "Past readings", icon: "history", primary: false },
-  { id: "settings", label: "Settings", crumb: "Preferences", icon: "settings", primary: false },
-  { id: "dashboard", label: "Overview", crumb: "Overview", icon: "dashboard", primary: false },
-  // Secondary destinations reached from Home's Technical Sky, deliberately NOT
-  // primary navigation: adding a fifth and sixth tab would dilute Home, Me, Ask
-  // Orbit, and More for two pages people visit occasionally.
-  { id: "transits", label: "Transits", crumb: "Your moving sky", icon: "transits", primary: false },
-  { id: "symbol-atlas", label: "Symbol Atlas", crumb: "What the symbols mean", icon: "research", primary: false },
-  { id: "research", label: "Research", crumb: "Atlas & queries", icon: "research", primary: false },
+  { id: "symbol-atlas", label: "Symbol Atlas", crumb: "What the symbols mean", icon: "atlas", primary: false },
+  { id: "settings", label: "Settings", crumb: "Appearance", icon: "settings", primary: false },
+
+  // Unfinished features. Absent from production entirely; a flag alone is not
+  // enough, the markup has to be present too (see availableWorkspaces).
+  { id: "tarot", label: "Tarot", crumb: "Daily cards", icon: "tarot", primary: false, feature: "tarot" },
+  { id: "learn", label: "Learn", crumb: "Courses", icon: "learn", primary: false, feature: "learn" },
+  { id: "news", label: "News", crumb: "Verified articles", icon: "news", primary: false, feature: "news" },
 ];
+
+/**
+ * Retired routes, and where someone holding one should land instead.
+ *
+ * These hashes were real destinations in earlier versions, so bookmarks, notes,
+ * and old links still carry them. Silently dropping someone on Home would look
+ * like the app forgot the page; a redirect plus one plain sentence explains it
+ * without an error page. The destination is always a working page that does the
+ * nearest equivalent thing.
+ */
+const RETIRED_ROUTES = Object.freeze({
+  ask: { to: "home", notice: "Ask Orbit has been retired. Your saved conversations are still yours — you can export or delete them from More." },
+  dashboard: { to: "home", notice: "Overview is now simply Home." },
+  research: { to: "symbol-atlas", notice: "Research is now the Symbol Atlas." },
+  charts: { to: "tools", notice: "Chart tools now live under Tools." },
+  chat: { to: "home", notice: "That page has been retired." },
+  intelligence: { to: "more", notice: "That page has been retired." },
+});
 
 /* ── Personal Transits (Update 5.2b) ───────────────────────────────────────
    The moving sky measured against the active saved chart.
@@ -658,17 +684,28 @@ function workspaceAvailable(id) {
   return availableWorkspaces().some(ws => ws.id === id);
 }
 
-/* ── Router ────────────────────────────────────────────────────────────── */
+/* ── Router ──────────────────────────────────────────────────────────────
+   One registry, one rail builder, one render pass. The mobile bar and the
+   desktop sidebar are the same DOM in different CSS, which is what guarantees
+   they list the same destinations in the same order.
+
+   The links are ordinary anchors with real hrefs, not tabs. Back, forward,
+   refresh, open-in-new-tab, and copy-link all work because the hash IS the
+   route rather than a side effect of a click handler. */
 function buildRail() {
   $("#rail-nav").innerHTML = availableWorkspaces().filter(ws => ws.primary).map(ws => `
-    <a class="rail__link ${ws.central ? "rail__link--ask" : ""}" id="tab-${ws.id}" role="tab" href="#${ws.id}" data-ws="${ws.id}"
-       aria-controls="panel-${ws.id}" aria-selected="false" aria-label="${esc(ws.desktopLabel || ws.label)}">
-      ${icon(ws.icon)}<span class="rail__label" data-mobile-label="${esc(ws.label)}">${esc(ws.desktopLabel || ws.label)}</span>
+    <a class="rail__link" id="tab-${ws.id}" href="#${ws.id}" data-ws="${ws.id}">
+      ${icon(ws.icon)}<span class="rail__label" data-mobile-label="${esc(ws.mobileLabel || ws.label)}">${esc(ws.label)}</span>
     </a>`).join("");
 }
 
+/** The hash as written, with the leading "#" and any query junk removed. */
+function requestedRoute() {
+  return location.hash.replace(/^#/, "").split("?")[0].trim();
+}
+
 function currentWorkspace() {
-  const hash = location.hash.replace("#", "");
+  const hash = requestedRoute();
   // A disabled feature's hash falls back to Home rather than rendering a panel
   // that navigation deliberately hides. Someone with an old bookmark, or a
   // guessed URL, gets the working app instead of an unfinished shell.
@@ -676,16 +713,53 @@ function currentWorkspace() {
 }
 
 function navigate(id) {
-  if (location.hash.replace("#", "") !== id) { location.hash = id; return; }
+  if (requestedRoute() !== id) { location.hash = id; return; }
   renderRoute();
 }
 
+/**
+ * Resolve a retired or unknown hash before anything renders.
+ *
+ * Returns true when it redirected, in which case the hashchange it caused will
+ * render the real destination and this pass should stop. An empty hash is not a
+ * redirect — it is simply Home, and rewriting it would push a history entry for
+ * opening the app.
+ */
+function resolveLegacyRoute() {
+  const hash = requestedRoute();
+  if (!hash) return false;
+  if (workspaceAvailable(hash)) return false;
+
+  const retired = RETIRED_ROUTES[hash];
+  const target = retired?.to ?? "home";
+  // replaceState-style: retired routes must not accumulate in history, or Back
+  // walks someone through pages that no longer exist.
+  location.replace(`${location.pathname}${location.search}#${target}`);
+  routeNotice = retired
+    ? retired.notice
+    : "That page isn't part of Orbit Axis. Here's your day instead.";
+  return true;
+}
+
+// Set by resolveLegacyRoute(), shown once by renderRoute() on arrival.
+let routeNotice = "";
+
+function showRouteNotice() {
+  if (!routeNotice) return;
+  const message = routeNotice;
+  routeNotice = "";
+  toast(message);
+}
+
 function renderRoute() {
+  if (resolveLegacyRoute()) return;
+
   const id = currentWorkspace();
   // Secondary destinations load their own data on arrival, so a direct link or
   // a refresh lands on a populated page rather than an empty one.
   if (id === "symbol-atlas") { wireSymbolAtlas(); loadSymbolAtlas(); }
   if (id === "transits") { wireTransits(); renderTransits(); }
+  if (id === "history") axisLoadHistory($("#history-scope")?.value || "active");
   const ws = WORKSPACES.find(w => w.id === id);
 
   // A disabled feature's panel is normally never in the document at all: the
@@ -702,7 +776,13 @@ function renderRoute() {
     const link = $(`#tab-${w.id}`);
     const active = w.id === id;
     if (panel) panel.hidden = !active;
-    if (link) { link.setAttribute("aria-current", active ? "page" : "false"); link.setAttribute("aria-selected", String(active)); }
+    // aria-current is the whole current-page story for a list of links. It is
+    // removed rather than set to "false" when inactive, because "false" is
+    // still an announced value in some screen readers.
+    if (link) {
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
+    }
   });
 
   $("#workspace-title").textContent = ws.label;
@@ -710,124 +790,10 @@ function renderRoute() {
   document.title = `Orbit Axis — ${ws.label}`;
   $("#workspace").scrollTo?.({ top: 0 });
   window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
+  showRouteNotice();
 }
 
-/* ── Today's sky → metric tiles (Dashboard) ────────────────────────────── */
-function renderSky(chart) {
-  const { sun, moon, mercury, symbol_of_the_day: daySymbol } = chart;
-  $("#sky-updated").textContent = "Updated just now";
-
-  const tile = (glyph, eyebrow, value, sub, extra = "") => `
-    <div class="o-tile o-rise-in">
-      <div class="o-tile__head"><span class="u-eyebrow">${esc(eyebrow)}</span><span class="o-tile__glyph">${esc(glyph)}</span></div>
-      <div class="o-tile__value">${esc(value)}</div>
-      <div class="o-tile__sub">${sub}</div>
-      ${extra}
-    </div>`;
-
-  $("#sky-tiles").innerHTML = [
-    tile(sun.glyph, "Sun Season", sun.name,
-      `${esc(sun.element)} · ${esc(sun.modality)} · ${esc(sun.ruling_planet)}`,
-      `<div class="tile-progress"><div class="o-progress"><div class="o-progress__bar" style="width:${sun.progress_pct}%"></div></div><span class="u-meta">${sun.progress_pct}% through the season · ${esc(sun.next_sign)} begins ${esc(sun.season_ends)}</span></div>`),
-    tile(moon.glyph, "Moon", moon.phase,
-      `${moon.illumination_pct}% illuminated · ${moon.waxing ? "waxing" : "waning"}`,
-      `<span class="u-meta">Next full ${esc(moon.next_full_moon)} · next new ${esc(moon.next_new_moon)}</span>`),
-    tile("☿", "Mercury", mercury.retrograde ? "Retrograde" : "Direct",
-      `<span class="o-pill ${mercury.retrograde ? "o-pill--warning" : "o-pill--success"}">${mercury.retrograde ? "℞ review mode" : "clear lanes"}</span>`,
-      `<span class="u-meta">${esc(mercury.message)}</span>`),
-    tile(daySymbol.glyph, "Symbol of the Day", daySymbol.name,
-      `<span class="o-badge">${esc(daySymbol.kind.replace("_", " "))}</span>`,
-      `<span class="u-meta">${esc(daySymbol.interpretation)}</span>`),
-  ].join("");
-}
-
-/* ── Zodiac wheel (Charts workspace) ───────────────────────────────────── */
-function polar(cx, cy, r, angleDeg) {
-  const rad = ((angleDeg - 90) * Math.PI) / 180;
-  return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
-}
-function segmentPath(cx, cy, rOuter, rInner, startAngle, endAngle) {
-  const [x1, y1] = polar(cx, cy, rOuter, startAngle);
-  const [x2, y2] = polar(cx, cy, rOuter, endAngle);
-  const [x3, y3] = polar(cx, cy, rInner, endAngle);
-  const [x4, y4] = polar(cx, cy, rInner, startAngle);
-  return `M ${x1} ${y1} A ${rOuter} ${rOuter} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${rInner} ${rInner} 0 0 0 ${x4} ${y4} Z`;
-}
-function renderWheel() {
-  const signs = state.symbols.filter(s => s.kind === "zodiac_sign");
-  const svg = $("#zodiac-wheel");
-  const cx = 160, cy = 160, rOuter = 150, rInner = 92;
-  let markup = "";
-
-  signs.forEach((sign, i) => {
-    const start = i * 30;
-    markup += `<path class="seg" data-slug="${sign.slug}" d="${segmentPath(cx, cy, rOuter, rInner, start, start + 30)}"><title>${esc(sign.name)}</title></path>`;
-    const [gx, gy] = polar(cx, cy, (rOuter + rInner) / 2, start + 15);
-    markup += `<text class="seg-glyph" x="${gx}" y="${gy}" text-anchor="middle" dominant-baseline="central">${sign.glyph}</text>`;
-  });
-
-  const sunGlyph = state.chart?.sun?.glyph ?? "☉";
-  markup += `<circle class="hub" cx="${cx}" cy="${cy}" r="${rInner - 14}" />`;
-  markup += `<text class="hub-glyph" x="${cx}" y="${cy - 8}" text-anchor="middle" dominant-baseline="central">${sunGlyph}</text>`;
-  markup += `<text class="hub-now" x="${cx}" y="${cy + 22}" text-anchor="middle">NOW</text>`;
-  svg.innerHTML = markup;
-
-  svg.querySelectorAll(".seg").forEach(seg => {
-    const select = () => {
-      svg.querySelectorAll(".seg").forEach(o => o.classList.remove("active"));
-      seg.classList.add("active");
-      const sign = signs.find(e => e.slug === seg.dataset.slug);
-      $("#wheel-detail").innerHTML = `
-        <strong>${esc(sign.name)} ${esc(sign.glyph)}</strong> · ${esc(sign.date_range)} ·
-        ${esc(sign.element)} ${esc(sign.modality)}, ruled by ${esc(sign.ruling_planet)}.<br/>
-        ${esc(sign.interpretation)}`;
-    };
-    seg.addEventListener("click", select);
-    seg.setAttribute("tabindex", "0");
-    seg.setAttribute("role", "button");
-    seg.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); } });
-  });
-
-  const currentSlug = state.chart?.sun?.sign;
-  if (currentSlug) svg.querySelector(`.seg[data-slug="${currentSlug}"]`)?.dispatchEvent(new Event("click"));
-}
-
-/* ── Symbol atlas (Research workspace) ─────────────────────────────────── */
-function renderAtlas() {
-  const query = state.atlasQuery.trim().toLowerCase();
-  let symbols = state.activeKind ? state.symbols.filter(s => s.kind === state.activeKind) : state.symbols;
-  if (query) {
-    symbols = symbols.filter(s =>
-      s.name.toLowerCase().includes(query) ||
-      (s.keywords ?? []).some(k => k.toLowerCase().includes(query)) ||
-      (s.interpretation ?? "").toLowerCase().includes(query));
-  }
-
-  $("#atlas-count").textContent = `${symbols.length} of ${state.symbols.length} symbols`;
-
-  if (!symbols.length) {
-    $("#atlas").innerHTML = `<div class="o-empty" style="grid-column:1/-1;">
-      <div class="o-empty__glyph">✦</div>
-      <div class="o-empty__title">No symbols match</div>
-      <div class="o-empty__text">Try a different search term or clear the filter.</div>
-    </div>`;
-    return;
-  }
-
-  $("#atlas").innerHTML = symbols.map(s => `
-    <div class="symbol-card o-fade-in">
-      <div class="symbol-card__top">
-        <span class="symbol-card__glyph">${esc(s.glyph)}</span>
-        <span class="symbol-card__name">${esc(s.name)}</span>
-        <span class="symbol-card__kind o-badge">${esc(s.kind.replace("_", " "))}</span>
-      </div>
-      ${s.date_range ? `<div class="symbol-card__meta">${esc(s.date_range)} · ${esc(s.element)} ${esc(s.modality)} · ${esc(s.ruling_planet)}</div>` : ""}
-      <div class="symbol-card__text">${esc(s.interpretation)}</div>
-      <div class="symbol-card__keywords">${(s.keywords ?? []).map(k => `<span class="o-badge">${esc(k)}</span>`).join("")}</div>
-    </div>`).join("");
-}
-
-/* ── Events → timeline (Transits) + compact list (Dashboard) ───────────── */
+/* ── Upcoming sky events → the Today's Transits timeline ───────────────── */
 function renderEvents(events) {
   $("#events-count").textContent = `${events.length} upcoming`;
   $("#events-timeline").innerHTML = events.map(e => `
@@ -838,140 +804,16 @@ function renderEvents(events) {
         <div class="o-timeline__detail">${esc(e.detail)}</div>
       </div>
     </div>`).join("");
-
-  $("#dash-events").innerHTML = `<div class="o-list">${events.slice(0, 5).map(e => `
-    <div class="o-list__row">
-      <div class="o-list__main">
-        <div class="o-list__title">${esc(e.title)}</div>
-        <div class="o-list__sub">${esc(e.detail)}</div>
-      </div>
-      <span class="o-badge">${esc(formatLocalDateKey(e.date))}</span>
-    </div>`).join("")}</div>`;
 }
 
-/* ── Chart tools ───────────────────────────────────────────────────────── */
-function wireTools() {
-  const signs = state.symbols.filter(s => s.kind === "zodiac_sign");
-  for (const id of ["#compat-a", "#compat-b"]) {
-    $(id).innerHTML = signs.map(s => `<option value="${s.slug}">${s.glyph} ${esc(s.name)}</option>`).join("");
-  }
-  $("#compat-b").selectedIndex = 4;
-
-  $("#birth-form").addEventListener("submit", async e => {
-    e.preventDefault();
-    const value = $("#birth-date").value;
-    if (!value) return;
-    const [, month, day] = value.split("-").map(Number);
-    try {
-      const data = await get(`/api/sign-for-date?month=${month}&day=${day}`);
-      $("#birth-result").innerHTML = `<strong>${esc(data.sign.name)} ${esc(data.sign.glyph)}</strong> — ${esc(data.summary)}`;
-    } catch { $("#birth-result").textContent = "Could not look up that date."; }
-  });
-
-  $("#compat-form").addEventListener("submit", async e => {
-    e.preventDefault();
-    try {
-      const data = await get(`/api/compatibility?a=${$("#compat-a").value}&b=${$("#compat-b").value}`);
-      $("#compat-result").innerHTML = `
-        <span class="score">${data.harmony_score}</span><span class="u-muted"> / 100 symbolic harmony</span><br/>
-        <strong>${esc(data.a.name)} × ${esc(data.b.name)}</strong> — ${esc(data.note)}.
-        ${data.aspect ? `<br/>${esc(data.aspect.name)} ${esc(data.aspect.glyph)}: ${esc(data.aspect.interpretation)}` : ""}`;
-    } catch { $("#compat-result").textContent = "Could not compute that comparison."; }
-  });
-
-  $("#query-form").addEventListener("submit", async e => {
-    e.preventDefault();
-    const prompt = $("#query-input").value.trim();
-    if (!prompt) return;
-    $("#query-result").innerHTML = `<span class="o-spinner" style="display:inline-block;vertical-align:middle;"></span> <span class="u-muted">Consulting the atlas…</span>`;
-    try {
-      const response = await fetch("/api/query", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      const parsed = await readApiResponse(response);
-      if (parsed.kind !== "json") throw new Error(apiTransportMessage(parsed.kind, parsed.status));
-      const data = parsed.data ?? {};
-      $("#query-result").innerHTML = `${esc(data.reply)}<br/><small class="u-meta">algorithm: ${esc(data.algorithm)}</small>`;
-    } catch { $("#query-result").textContent = "Orbit could not answer that right now."; }
-  });
-
-  // Atlas filters (tabs) + search
-  $("#atlas-filters").addEventListener("click", e => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    $$("#atlas-filters button").forEach(o => o.setAttribute("aria-selected", "false"));
-    btn.setAttribute("aria-selected", "true");
-    state.activeKind = btn.dataset.kind;
-    renderAtlas();
-  });
-  $("#atlas-search").addEventListener("input", e => { state.atlasQuery = e.target.value; renderAtlas(); });
-
-  // Charts search filters the wheel highlight by name.
-  $("#charts-search").addEventListener("input", e => {
-    const q = e.target.value.trim().toLowerCase();
-    if (!q) return;
-    const svg = $("#zodiac-wheel");
-    const match = state.symbols.find(s => s.kind === "zodiac_sign" && s.name.toLowerCase().startsWith(q));
-    if (match) svg.querySelector(`.seg[data-slug="${match.slug}"]`)?.dispatchEvent(new Event("click"));
-  });
-
-  $("#transits-refresh").addEventListener("click", () => refreshData(true));
-
-  // Dashboard "go to workspace" buttons.
+/* ── Global actions ──────────────────────────────────────────────────────
+   Every in-page button that changes destination carries data-goto and is
+   delegated from here, so a card action and a navigation link cannot drift
+   apart. Bound once, after the first data load. */
+function wireGlobalActions() {
+  $("#transits-refresh")?.addEventListener("click", () => refreshData(true));
+  $("#history-scope")?.addEventListener("change", (event) => axisLoadHistory(event.target.value));
   $$("[data-goto]").forEach(btn => btn.addEventListener("click", () => navigate(btn.dataset.goto)));
-}
-
-/* ── Command palette ───────────────────────────────────────────────────── */
-const cmd = { open: false, index: 0, items: [] };
-function commandItems() {
-  const nav = availableWorkspaces().map(ws => ({ group: "Go to", label: ws.label, glyph: "→", hint: `#${ws.id}`, run: () => navigate(ws.id) }));
-  const actions = [
-    { group: "Actions", label: "Ask Orbit", glyph: "?", run: () => { navigate("ask"); setTimeout(() => $("#ask-input")?.focus(), 60); } },
-    { group: "Actions", label: "Look up a birth sign", glyph: "☉", run: () => { navigate("charts"); setTimeout(() => $("#birth-date").focus(), 60); } },
-    { group: "Actions", label: "Toggle theme", glyph: "◐", run: () => settings.set("theme", document.documentElement.dataset.theme === "dark" ? "light" : "dark") },
-    { group: "Actions", label: "Toggle density", glyph: "▤", run: () => settings.set("density", document.documentElement.dataset.density === "compact" ? "comfortable" : "compact") },
-  ];
-  return [...nav, ...actions];
-}
-function openCommand() {
-  cmd.open = true; cmd.index = 0;
-  $("#cmd-overlay").dataset.open = "true";
-  $("#cmd-input").value = "";
-  renderCommand("");
-  setTimeout(() => $("#cmd-input").focus(), 20);
-}
-function closeCommand() {
-  cmd.open = false;
-  $("#cmd-overlay").dataset.open = "false";
-}
-function renderCommand(query) {
-  const q = query.trim().toLowerCase();
-  cmd.items = commandItems().filter(i => i.label.toLowerCase().includes(q));
-  cmd.index = Math.min(cmd.index, Math.max(0, cmd.items.length - 1));
-  const list = $("#cmd-list");
-  if (!cmd.items.length) { list.innerHTML = `<div class="o-cmd__empty">No matching commands</div>`; return; }
-  let html = ""; let lastGroup = "";
-  cmd.items.forEach((item, i) => {
-    if (item.group !== lastGroup) { html += `<div class="o-cmd__group-label">${item.group}</div>`; lastGroup = item.group; }
-    html += `<div class="o-cmd__item" role="option" data-i="${i}" aria-selected="${i === cmd.index}">
-      <span class="o-cmd__glyph">${item.glyph}</span><span>${esc(item.label)}</span>
-      ${item.hint ? `<span class="o-cmd__hint">${esc(item.hint)}</span>` : ""}</div>`;
-  });
-  list.innerHTML = html;
-  list.querySelectorAll(".o-cmd__item").forEach(el => {
-    el.addEventListener("mousemove", () => { cmd.index = Number(el.dataset.i); highlightCommand(); });
-    el.addEventListener("click", () => runCommand(Number(el.dataset.i)));
-  });
-}
-function highlightCommand() {
-  $$("#cmd-list .o-cmd__item").forEach(el => el.setAttribute("aria-selected", String(Number(el.dataset.i) === cmd.index)));
-}
-function runCommand(i) {
-  const item = cmd.items[i];
-  if (!item) return;
-  closeCommand();
-  item.run();
 }
 
 /* ── Auth + saved charts ───────────────────────────────────────────────── */
@@ -1364,7 +1206,6 @@ function clearPrivateState({ purgeLocalData = false } = {}) {
   if (!$("#chart-modal").hidden) closeModal($("#chart-modal"));
   $("#today-chart-error").hidden = true;
   showAuthGate();
-  resetAskForAuthChange(); // never leave one account's conversation on screen
 }
 
 /* ── Permanent account deletion ────────────────────────────────────────────
@@ -1523,7 +1364,6 @@ async function applySignedIn(user, { quiet = false } = {}) {
   setStartupStatus("Loading your charts…");
   await loadSavedCharts();
   await resolveChartState();
-  resetAskForAuthChange(); // Ask Orbit must re-resolve for the new session
   if (!quiet) toast("Signed in");
 }
 
@@ -1591,7 +1431,7 @@ function renderAccount() {
 
 function chartFormPayload(prefix, { forceMyChart = false, allowExistingPlace = false } = {}) {
   const accuracy = $(`#${prefix}-accuracy`).value;
-  const allowExisting = allowExistingPlace || (prefix === "sc" && !!$("#sc-id")?.value);
+  const allowExisting = allowExistingPlace;
   const placePayload = requireSelectedPlace(prefix, { allowExisting });
   const payload = {
     nickname: forceMyChart ? "My Chart" : ($(`#${prefix}-nickname`)?.value.trim() || undefined),
@@ -1704,23 +1544,6 @@ function wireOnboarding() {
 }
 
 function wireSavedCharts() {
-  $("#saved-chart-form")?.addEventListener("submit", async event => {
-    event.preventDefault();
-    const id = $("#sc-id").value;
-    const hint = $("#saved-chart-hint");
-    hint.textContent = id ? "Updating chart…" : "Saving chart…";
-    try {
-      if (id) await patch(`/api/charts/${id}`, chartFormPayload("sc"));
-      else await post("/api/charts", chartFormPayload("sc"));
-      hint.textContent = "Saved.";
-      clearSavedChartForm();
-      await loadSavedCharts();
-      await refreshActiveExperience();
-    } catch (error) {
-      hint.textContent = error.message;
-    }
-  });
-  $("#saved-chart-cancel")?.addEventListener("click", clearSavedChartForm);
   const routeChartClick = async event => {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
@@ -1737,7 +1560,6 @@ function wireSavedCharts() {
     if (!chart) return;
     await handleSavedChartAction(button, chart);
   };
-  $("#saved-charts-list")?.addEventListener("click", routeChartClick);
   $("#me-saved-charts-list")?.addEventListener("click", routeChartClick);
   $("#me-overview")?.addEventListener("click", routeChartClick);
   $("#me-add-chart")?.addEventListener("click", () => openChartModal(null));
@@ -1794,29 +1616,6 @@ async function handleSavedChartAction(button, chart) {
   }
 }
 
-function clearSavedChartForm() {
-  $("#saved-chart-form")?.reset();
-  $("#sc-id").value = "";
-  clearPlaceSelection("sc");
-  $("#saved-chart-hint").textContent = "";
-}
-
-function fillSavedChartForm(chart) {
-  $("#saved-chart-editor").open = true;
-  $("#sc-id").value = chart.id;
-  $("#sc-nickname").value = chart.nickname || "";
-  $("#sc-first").value = chart.first_name || "";
-  $("#sc-last").value = chart.last_name || "";
-  $("#sc-relationship").value = chart.relationship_type || "other";
-  $("#sc-date").value = chart.birth_date || "";
-  $("#sc-time").value = chart.birth_time ? String(chart.birth_time).slice(0, 5) : "";
-  $("#sc-accuracy").value = chart.time_accuracy || "unknown";
-  const place = chartPlace(chart);
-  if (place) setPlaceSelection("sc", place, { existing: true });
-  else clearPlaceSelection("sc");
-  $("#saved-chart-hint").textContent = `Editing ${chart.nickname}`;
-}
-
 // Supabase (owner-scoped) is the source of truth for a signed-in user's charts.
 // Critically, a failed request sets status "error" and leaves the previously
 // known charts intact — it must never look like "this account has no charts",
@@ -1844,8 +1643,6 @@ async function loadSavedCharts() {
     renderSavedCharts();
   } catch {
     state.chartsStatus = "error";
-    const status = $("#saved-charts-status");
-    if (status) status.textContent = "We couldn't load your saved charts. Check your connection and try again.";
     renderSavedCharts();
   }
   return state.chartsStatus;
@@ -1903,8 +1700,8 @@ function axisRenderChartPicker() {
 }
 
 function renderSavedCharts() {
-  const statusTargets = [$("#saved-charts-status"), $("#me-saved-charts-status")].filter(Boolean);
-  const listTargets = [$("#saved-charts-list"), $("#me-saved-charts-list")].filter(Boolean);
+  const statusTargets = [$("#me-saved-charts-status")].filter(Boolean);
+  const listTargets = [$("#me-saved-charts-list")].filter(Boolean);
   axisRenderChartPicker();
   if (!statusTargets.length || !listTargets.length) return;
   const setStatus = (text) => statusTargets.forEach((status) => { status.textContent = text; });
@@ -1975,7 +1772,6 @@ async function refreshActiveExperience() {
     try {
       const data = await get(`/api/charts/${active.id}`);
       renderChart(data.chart, data.profile?.nickname || active.nickname, data.profile);
-      fillMyChartForm(data.profile);
     } catch { /* Home still owns the failure state */ }
   } else {
     renderMeOverview(null, null, "");
@@ -1994,37 +1790,96 @@ function toast(message) {
   setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 220); }, 2400);
 }
 
+/* ── Theme ───────────────────────────────────────────────────────────────
+   Three choices — System, Light, Dark — with System as the default.
+
+   PREFERENCE vs RESOLVED THEME. The stored preference is what the person chose;
+   the resolved theme is what the pixels do. They differ only under "system",
+   where the device decides. Both are on <html>: data-theme-preference records the
+   choice (so the control can show it), data-theme drives every token in the
+   stylesheets. Conflating the two is how a "System" selection silently becomes
+   a hard "Dark" the first time it is written back.
+
+   The FIRST resolution does not happen here. It happens in a tiny inline script
+   in index.html, before the stylesheets paint, because a theme applied after
+   first paint is a white flash for every dark-mode user (and vice versa). This
+   module takes over afterwards, and must agree with it exactly. */
+const THEME_CHOICES = ["system", "light", "dark"];
+const THEME_STORAGE_KEY = "orbit.theme";
+const THEME_COLORS = { light: "#f5f6f8", dark: "#0a0c0f" };
+
+/** Storage can throw in private mode. A theme is never worth an exception. */
+function readStoredTheme() {
+  try {
+    const raw = localStorage.getItem(THEME_STORAGE_KEY);
+    return THEME_CHOICES.includes(raw) ? raw : "system";
+  } catch { return "system"; }
+}
+
+function storeTheme(choice) {
+  try { localStorage.setItem(THEME_STORAGE_KEY, choice); } catch { /* session-only */ }
+}
+
+const lightMediaQuery = window.matchMedia?.("(prefers-color-scheme: light)") ?? null;
+
+function systemTheme() {
+  return lightMediaQuery?.matches ? "light" : "dark";
+}
+
+function resolveTheme(choice) {
+  return choice === "system" ? systemTheme() : choice;
+}
+
+/** Paint a resolved theme. Also updates the browser chrome colour. */
+function applyResolvedTheme(choice) {
+  const resolved = resolveTheme(choice);
+  const root = document.documentElement;
+  root.dataset.theme = resolved;
+  root.dataset.themePreference = choice;
+  const meta = document.getElementById("meta-theme-color");
+  if (meta) meta.setAttribute("content", THEME_COLORS[resolved] || THEME_COLORS.dark);
+  return resolved;
+}
+
 /* ── Persisted appearance settings ─────────────────────────────────────── */
 const settings = {
   keys: {
-    theme: { attr: "data-theme", default: "dark" },
+    theme: { attr: "data-theme", default: "system" },
     density: { attr: "data-density", default: "comfortable" },
     text: { attr: "data-text", default: "default" },
     contrast: { attr: "data-contrast", default: "normal" },
     motion: { attr: "data-motion", default: "full" },
   },
   load() {
+    this.apply("theme", readStoredTheme());
     for (const [key, cfg] of Object.entries(this.keys)) {
-      const val = localStorage.getItem(`orbit.${key}`) ?? cfg.default;
+      if (key === "theme") continue;
+      let val = cfg.default;
+      try { val = localStorage.getItem(`orbit.${key}`) ?? cfg.default; } catch { /* private mode */ }
       this.apply(key, val);
     }
   },
   apply(key, val) {
     const cfg = this.keys[key];
-    if (val === cfg.default && (key === "text" || key === "contrast" || key === "motion")) {
+    if (key === "theme") {
+      applyResolvedTheme(THEME_CHOICES.includes(val) ? val : "system");
+    } else if (val === cfg.default && (key === "text" || key === "contrast" || key === "motion")) {
       document.documentElement.removeAttribute(cfg.attr);
     } else {
       document.documentElement.setAttribute(cfg.attr, val);
     }
-    // reflect into segmented controls
+    // Reflect into the segmented control, so the selected state is visible,
+    // announced, and never communicated by colour alone.
     const seg = { theme: "#set-theme", density: "#set-density", text: "#set-text", contrast: "#set-contrast", motion: "#set-motion" }[key];
     if (seg) $$(`${seg} button`).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.value === val)));
   },
   set(key, val) {
-    localStorage.setItem(`orbit.${key}`, val);
+    if (key === "theme") storeTheme(THEME_CHOICES.includes(val) ? val : "system");
+    else { try { localStorage.setItem(`orbit.${key}`, val); } catch { /* session-only */ } }
     this.apply(key, val);
   },
 };
+
 function wireSettings() {
   const map = { "#set-theme": "theme", "#set-density": "density", "#set-text": "text", "#set-contrast": "contrast", "#set-motion": "motion" };
   for (const [sel, key] of Object.entries(map)) {
@@ -2034,430 +1889,42 @@ function wireSettings() {
       settings.set(key, btn.dataset.value);
     });
   }
+
+  // While the choice is "system", a device switching to dark at sunset must be
+  // followed live. Once someone picks Light or Dark explicitly, the device no
+  // longer gets a vote — that is what "override" means.
+  const onSystemChange = () => {
+    if (readStoredTheme() === "system") applyResolvedTheme("system");
+  };
+  lightMediaQuery?.addEventListener?.("change", onSystemChange);
 }
 
-/* ── Global keyboard shortcuts ─────────────────────────────────────────── */
-function wireKeyboard() {
-  document.addEventListener("keydown", e => {
-    const meta = e.metaKey || e.ctrlKey;
-    if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); cmd.open ? closeCommand() : openCommand(); return; }
-
-    if (cmd.open) {
-      if (e.key === "Escape") { e.preventDefault(); closeCommand(); }
-      else if (e.key === "ArrowDown") { e.preventDefault(); cmd.index = Math.min(cmd.index + 1, cmd.items.length - 1); highlightCommand(); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); cmd.index = Math.max(cmd.index - 1, 0); highlightCommand(); }
-      else if (e.key === "Enter") { e.preventDefault(); runCommand(cmd.index); }
-      return;
-    }
-
-    // Number keys jump between workspaces when not typing.
-    const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
-    if (!typing && !meta && /^[1-7]$/.test(e.key)) {
-      // Indexes the VISIBLE rail, so the numbers always match what is on
-      // screen rather than jumping to a hidden feature.
-      const visible = availableWorkspaces().filter(ws => ws.primary);
-      const target = visible[Number(e.key) - 1];
-      if (target) navigate(target.id);
-    }
-  });
-
-  $("#rail-command").addEventListener("click", openCommand);
-  $("#cmd-input").addEventListener("input", e => renderCommand(e.target.value));
-  $("#cmd-overlay").addEventListener("click", e => { if (e.target === $("#cmd-overlay")) closeCommand(); });
-}
-
-/* ── Ask Orbit — guided astrology consultation (Update 4.0) ──────────────── */
-// A focused astrology advisor. Every answer is grounded in the deterministic
-// astrology engine and shows its evidence ("Why Orbit Said This"). One request
-// per question (not streamed); the deterministic engine answers even if the
-// optional local model is offline. Session state holds the active conversation
-// so follow-ups thread together; a refresh starts a fresh view.
-const askState = { conversationId: null, submitting: false, controller: null, loaded: false, view: null, lastQuestion: "" };
-
-function setActiveChartName(name) {
-  state.activeChartName = name || "My Chart";
-  const el = $("#ask-active-chart");
-  if (el) el.textContent = state.activeChartName;
-}
-
-// Short, non-technical status copy under the composer.
-function setAskStatus(stateName, text = "") {
-  const el = $("#ask-status");
-  if (!el) return;
-  if (!text) { el.hidden = true; el.textContent = ""; el.dataset.state = ""; return; }
-  el.hidden = false;
-  el.dataset.state = stateName;
-  el.textContent = text;
-}
-
-// Toggle the composer between idle and submitting (Stop visible) modes.
-function setAskSubmitting(on) {
-  askState.submitting = on;
-  const send = $("#ask-send");
-  const cancel = $("#ask-cancel");
-  const input = $("#ask-input");
-  if (send) { send.disabled = on; send.setAttribute("aria-busy", String(on)); }
-  if (cancel) cancel.hidden = !on;
-  if (input) input.setAttribute("aria-busy", String(on));
-}
-
-// Minimal, safe Markdown for answer prose: escape first, then re-introduce a
-// small fixed set of inline formatting. No raw HTML, scripts, or links survive.
-function renderMarkdownSafe(text) {
-  let html = esc(String(text ?? ""));
-  html = html.replace(/`([^`\n]+)`/g, "<code>$1</code>");
-  html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
-  return html.replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>");
-}
-
-// Show exactly one of the Ask panel's mutually-exclusive states.
-function showAskState(which) {
-  askState.view = which;
-  const states = { signedout: "#ask-signedout", nochart: "#ask-nochart", loaderror: "#ask-loaderror", empty: "#ask-empty" };
-  for (const [key, sel] of Object.entries(states)) {
-    const el = $(sel);
-    if (el) el.hidden = key !== which;
-  }
-  // The composer is usable only when we have a chart to talk about.
-  const form = $("#ask-form");
-  if (form) form.hidden = !(which === "empty" || which === "thread");
-  if (which === "thread") { const e = $("#ask-empty"); if (e) e.hidden = true; }
-}
-
-function askEvidenceHtml(evidence = []) {
-  if (!evidence.length) return "";
-  const items = evidence.map((e) => {
-    const kind = String(e.type || "").startsWith("limitation")
-      ? "ask-evidence__item ask-evidence__item--limit"
-      : "ask-evidence__item";
-    return `<li class="${kind}">${esc(e.label)}</li>`;
-  }).join("");
-  return `<details class="ask-why">
-    <summary>Why Orbit Said This</summary>
-    <ul class="ask-evidence">${items}</ul>
-  </details>`;
-}
-
-function askTurnHtml(id, question) {
-  return `<article class="ask-turn" id="${id}">
-    <div class="ask-q"><span class="ask-q__label">You asked</span><p class="ask-q__text">${esc(question)}</p></div>
-    <div class="ask-a" data-answer aria-live="polite">
-      <span class="ask-thinking" aria-label="Orbit is consulting your chart"><span></span><span></span><span></span></span>
-    </div>
-  </article>`;
-}
-
-function answerBodyHtml(data) {
-  const a = data.answer || {};
-  const parts = [];
-  if (a.direct) parts.push(`<p class="ask-a__direct">${renderMarkdownSafe(a.direct)}</p>`);
-  if (a.interpretation) parts.push(`<p class="ask-a__interp">${renderMarkdownSafe(a.interpretation)}</p>`);
-  if (a.reflection) parts.push(`<p class="ask-a__reflect">${renderMarkdownSafe(a.reflection)}</p>`);
-  const rel = data.birth_time_reliability;
-  const relNote = (rel === "unknown" || rel === "approximate")
-    ? `<p class="ask-a__reliability">Birth-time reliability: ${esc(rel)}.</p>` : "";
-  // Never let a silent storage failure look like a saved answer.
-  const saveNote = data.persisted === false
-    ? `<p class="ask-a__savenote">${esc(data.storage_note || "This answer couldn't be saved to your history.")}</p>` : "";
-  return `${parts.join("")}${relNote}${saveNote}${askEvidenceHtml(data.evidence)}
-    <p class="ask-a__disclaimer">${esc(data.disclaimer || "Orbit offers symbolic reflection, not prediction or medical, legal, or financial advice.")}</p>`;
-}
-
-function askErrorHtml(message, question) {
-  return `<div class="ask-a__error" role="alert">${esc(message)}</div>
-    <button type="button" class="o-btn o-btn--secondary o-btn--sm ask-retry" data-retry="${esc(question)}">Try again</button>`;
-}
-
-// Plain-language service status. Says nothing when everything is normal — a
-// user should never have to think about databases or model processes. Only two
-// situations are worth a sentence: history that won't be kept, and history we
-// temporarily can't read. Announced once via role="status" (not aria-live
-// spam), and re-rendered only when the message actually changes.
-let lastAskStatusMessage = "";
-function renderAskServiceStatus(res = {}) {
-  const el = $("#ask-service-status");
-  if (!el) return;
-  const storage = res.storage || {};
-  let message = "";
-  if (storage.persistent === false) {
-    message = "Heads up: in this environment your conversations aren't saved — they'll clear when the app restarts.";
-  } else if (storage.history_available === false) {
-    message = "Your past conversations can't be loaded right now. You can still ask questions.";
-  }
-  if (message === lastAskStatusMessage) return; // never re-announce the same thing
-  lastAskStatusMessage = message;
-  if (!message) { el.hidden = true; el.textContent = ""; return; }
-  el.hidden = false;
-  el.textContent = message;
-}
-
-// Populate the empty-state suggestion chips (context-adaptive, from the server).
-function renderAskSuggestions(list = []) {
-  const wrap = $("#ask-suggestions");
-  if (!wrap) return;
-  if (!list.length) { wrap.innerHTML = ""; return; }
-  wrap.innerHTML = list.map((s) =>
-    `<button type="button" class="ask-chip" data-ask-suggestion="${esc(s.text)}">${esc(s.text)}</button>`
-  ).join("");
-}
-
-// Load the empty-state context: active chart + adaptive suggestions, plus the
-// distinct not-signed-in / no-chart / load-error states.
-async function loadAskEmptyState({ force = false } = {}) {
-  if (askState.loaded && !force) return;
-  askState.loaded = true;
-  let res;
-  try {
-    res = await get("/api/ask/suggestions");
-  } catch (error) {
-    // Distinct states: not signed in vs. a genuine load/network failure.
-    showAskState(error.status === 401 ? "signedout" : "loaderror");
-    return;
-  }
-  // A failed chart lookup must never be reported as "you have no chart".
-  if (res.chart_status === "error") { showAskState("loaderror"); return; }
-  renderAskServiceStatus(res);
-  if (!res.active_chart) { showAskState("nochart"); return; }
-  setActiveChartName(res.active_chart.nickname || "My Chart");
-  renderAskSuggestions(res.suggestions || []);
-  // Only reset to the empty state if no conversation is in progress.
-  if (!askState.conversationId && !$("#ask-thread")?.children.length) showAskState("empty");
-}
-
-function onAskShown() {
-  if (currentWorkspace() !== "ask") return;
-  // A gate state (signed out / no chart / load error) can be resolved elsewhere
-  // in the app, so re-check it on every visit rather than trusting the first
-  // answer. A live conversation or a ready empty state is left alone.
-  const transient = askState.view !== "empty" && askState.view !== "thread";
-  loadAskEmptyState({ force: transient });
-  setTimeout(() => $("#ask-input")?.focus(), 60);
-}
-
-// Auth changes invalidate everything Ask Orbit resolved for the previous user.
-function resetAskForAuthChange() {
-  askState.loaded = false;
-  askState.view = null;
-  askState.conversationId = null;
-  lastAskStatusMessage = "";
-  const thread = $("#ask-thread");
-  if (thread) thread.innerHTML = "";
-  if (currentWorkspace() === "ask") loadAskEmptyState({ force: true });
-}
-
-// Submit a question. Keeps the user's text until the request is accepted; on
-// failure the question card stays with a Retry. Never reports success on error.
-async function submitAsk(question, { isRetry = false, retryCard = null } = {}) {
-  const text = String(question || "").trim();
-  if (!text) { setAskStatus("error", "Enter a question first."); return; }
-  if (text.length > 2000) { setAskStatus("error", "That question is too long (2000 characters max)."); return; }
-  if (askState.submitting) return;
-
-  showAskState("thread");
-  const thread = $("#ask-thread");
-  const input = $("#ask-input");
-  askState.lastQuestion = text;
-
-  const id = `ask-${Date.now()}`;
-  if (retryCard) retryCard.remove();
-  thread.insertAdjacentHTML("beforeend", askTurnHtml(id, text));
-  const card = $(`#${id}`);
-  const answerEl = card.querySelector("[data-answer]");
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  card.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-  setAskSubmitting(true);
-  setAskStatus("thinking", "Orbit is consulting your chart…");
-
-  const controller = new AbortController();
-  askState.controller = controller;
-
-  try {
-    const res = await fetch("/api/ask", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ question: text, conversation_id: askState.conversationId }),
-      signal: controller.signal,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      // Distinct, honest failure states — never fall back to onboarding.
-      if (res.status === 401) { answerEl.innerHTML = askErrorHtml("Please sign in to ask Orbit.", text); }
-      else if (data.code === "no_active_chart") { answerEl.innerHTML = askErrorHtml("Add a chart first, then ask Orbit about it.", text); }
-      else if (data.code === "chart_load_failed") { answerEl.innerHTML = askErrorHtml("We couldn't load your chart just now.", text); }
-      else if (data.code === "question_too_long") { answerEl.innerHTML = askErrorHtml("That question is too long.", text); }
-      else if (data.code === "generation_failed") { answerEl.innerHTML = askErrorHtml("Orbit couldn't generate an answer just now. Your question was saved.", text); }
-      else { answerEl.innerHTML = askErrorHtml(data.error || `Request failed (${res.status}).`, text); }
-      setAskStatus("error", "Couldn't complete that. You can try again.");
-      return;
-    }
-    // Success: render answer + evidence, thread the conversation, clear input.
-    askState.conversationId = data.conversation?.id || askState.conversationId;
-    if (data.active_chart?.nickname) setActiveChartName(data.active_chart.nickname);
-    answerEl.innerHTML = answerBodyHtml(data);
-    if (input && !isRetry) input.value = "";
-    const note = data.provider === "ollama" ? "" : (data.provider_note ? "Answered from your chart’s calculated evidence." : "");
-    setAskStatus("complete", note);
-    if (!note) setTimeout(() => setAskStatus("ready", ""), 1000);
-  } catch (error) {
-    if (controller.signal.aborted) {
-      answerEl.innerHTML = `<div class="ask-a__cancelled">Cancelled.</div>` + askErrorHtml("You stopped this answer.", text).replace(/^<div[^>]*>.*?<\/div>/, "");
-      setAskStatus("ready", "");
-    } else {
-      answerEl.innerHTML = askErrorHtml("Something interrupted the request. Check your connection and try again.", text);
-      setAskStatus("error", "Network problem. You can try again.");
-    }
-  } finally {
-    askState.controller = null;
-    setAskSubmitting(false);
-  }
-}
-
-function startNewConversation() {
-  if (askState.submitting) askState.controller?.abort();
-  askState.conversationId = null;
-  const thread = $("#ask-thread");
-  if (thread) thread.innerHTML = "";
-  setAskStatus("ready", "");
-  showAskState("empty");
-  const input = $("#ask-input");
-  if (input) { input.value = ""; input.focus(); }
-}
-
-// ── History drawer (owner-scoped conversations) ──────────────────────────────
-async function openAskHistory() {
-  const drawer = $("#ask-drawer");
-  const listEl = $("#ask-drawer-list");
-  if (!drawer || !listEl) return;
-  listEl.innerHTML = `<p class="ask-drawer__empty">Loading…</p>`;
-  openModal(drawer, { initialFocus: $("#ask-drawer-close") });
-  const res = await get("/api/ask/conversations").catch(() => ({ ok: false }));
-  const conversations = (res && res.ok && res.conversations) || [];
-  if (!conversations.length) {
-    listEl.innerHTML = `<p class="ask-drawer__empty">No saved conversations yet. Your questions will collect here.</p>`;
-    return;
-  }
-  listEl.innerHTML = conversations.map((c) =>
-    `<button type="button" class="ask-history-item" data-conversation="${esc(c.id)}">
-      <span class="ask-history-item__title">${esc(c.title || "Conversation")}</span>
-    </button>`
-  ).join("");
-}
-
-async function reopenConversation(id) {
-  const res = await get(`/api/ask/conversations/${encodeURIComponent(id)}`).catch(() => ({ ok: false }));
-  if (!res || !res.ok) { toast("Couldn't open that conversation."); return; }
-  closeModal($("#ask-drawer"));
-  askState.conversationId = id;
-  const thread = $("#ask-thread");
-  thread.innerHTML = "";
-  showAskState("thread");
-  for (const m of res.messages || []) {
-    const turnId = `ask-${m.id}`;
-    thread.insertAdjacentHTML("beforeend", askTurnHtml(turnId, m.question));
-    const answerEl = $(`#${turnId}`).querySelector("[data-answer]");
-    if (m.status === "failed" || !m.answer) {
-      answerEl.innerHTML = askErrorHtml("This answer didn't complete. You can ask again.", m.question);
-    } else {
-      answerEl.innerHTML = answerBodyHtml({
-        answer: m.answer_parts && Object.keys(m.answer_parts).length ? m.answer_parts : { direct: m.answer, interpretation: "", reflection: "" },
-        evidence: m.evidence || [],
-        birth_time_reliability: m.birth_time_reliability,
-        disclaimer: "Orbit offers symbolic reflection, not prediction or medical, legal, or financial advice.",
-      });
-    }
-  }
-  navigate("ask");
-}
-
-function wireAsk() {
-  const form = $("#ask-form");
-  if (!form) return;
-  const input = $("#ask-input");
-
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    submitAsk(input.value);
-  });
-
-  // Enter submits; Shift+Enter inserts a newline.
-  input?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      form.requestSubmit();
-    }
-  });
-
-  $("#ask-cancel")?.addEventListener("click", () => askState.controller?.abort());
-  $("#ask-new-btn")?.addEventListener("click", startNewConversation);
-  $("#ask-history-btn")?.addEventListener("click", openAskHistory);
-  $("#ask-drawer-close")?.addEventListener("click", () => closeModal($("#ask-drawer")));
-  $("#ask-reload")?.addEventListener("click", () => loadAskEmptyState({ force: true }));
-  $("[data-ask-drawer-dismiss]")?.addEventListener("click", () => closeModal($("#ask-drawer")));
-
-  // Suggested-question chips populate + submit predictably.
-  $("#ask-suggestions")?.addEventListener("click", (event) => {
-    const chip = event.target.closest("[data-ask-suggestion]");
-    if (!chip) return;
-    if (input) input.value = chip.dataset.askSuggestion;
-    submitAsk(chip.dataset.askSuggestion);
-  });
-
-  // Retry (delegated), reusing the original question without duplicating it.
-  $("#ask-thread")?.addEventListener("click", (event) => {
-    const retry = event.target.closest("[data-retry]");
-    if (!retry || askState.submitting) return;
-    submitAsk(retry.dataset.retry, { isRetry: true, retryCard: retry.closest(".ask-turn") });
-  });
-
-  // History drawer list (delegated).
-  $("#ask-drawer-list")?.addEventListener("click", (event) => {
-    const item = event.target.closest("[data-conversation]");
-    if (item) reopenConversation(item.dataset.conversation);
-  });
-
-  // Compatibility: existing [data-chat-prompt] buttons across the app prefill
-  // the Ask composer and jump here.
-  $$("[data-chat-prompt]").forEach((button) => {
-    button.addEventListener("click", () => {
-      navigate("ask");
-      setTimeout(() => { if (input) { input.value = button.dataset.chatPrompt; input.focus(); } }, 80);
-    });
-  });
-
-  // Load the empty state when the Ask panel is shown.
-  window.addEventListener("hashchange", onAskShown);
-  onAskShown();
-}
+/* ── Global keyboard behaviour ──────────────────────────────────────────
+   Dev Update 1.3 removed the command palette and its Cmd+K / number-key
+   shortcuts. Nothing replaced them because nothing needed to: every
+   destination is a real link in a real navigation landmark, reachable by Tab
+   and by the skip link, which is the accessible path the shortcuts were
+   shadowing rather than providing. */
 
 /* ── Data ──────────────────────────────────────────────────────────────── */
 async function refreshData(notify = false) {
   const timezone = axisResolveTimezone();
-  const [chart, symbolsData, eventsData, health] = await Promise.all([
+  const [chart, symbolsData, eventsData] = await Promise.all([
     get(`/api/chart/now?tz=${encodeURIComponent(timezone)}`),
     get("/api/symbols"),
     get(`/api/events?count=9&tz=${encodeURIComponent(timezone)}`),
-    get("/api/health").catch(() => ({ ok: false })),
   ]);
 
   state.chart = chart;
   state.symbols = symbolsData.symbols;
   state.events = eventsData.events;
 
-  renderSky(chart);
   renderEvents(state.events);
-  if (!state.ready) { renderWheel(); wireTools(); state.ready = true; } else { renderWheel(); }
-  renderAtlas();
+  if (!state.ready) { wireGlobalActions(); state.ready = true; }
 
-  // Status panels
-  $("#status-symbols").textContent = `${state.symbols.length} loaded`;
-  $("#set-symbols").textContent = `${state.symbols.length}`;
-  $("#set-service").textContent = health.ok ? `orbit · port ${health.port}` : "unavailable";
   $("#settings-disclaimer").textContent = chart.disclaimer
     ? `${chart.disclaimer} Sky timing is computed from mean cycles and is approximate.`
     : $("#settings-disclaimer").textContent;
-  $("#rail-status").textContent = health.ok ? "Systems nominal" : "Engine offline";
-  $("#rail-status").className = health.ok ? "o-pill o-pill--success" : "o-pill o-pill--error";
 
   if (notify) toast("Transits refreshed");
 }
@@ -2472,8 +1939,6 @@ async function boot() {
   buildRail();
   wireSettings();
   wireAuth();
-  setupPlaceSearch("cf");
-  setupPlaceSearch("sc");
   setupPlaceSearch("ob");
   setupPlaceSearch("cm");
   wireOnboarding();
@@ -2481,8 +1946,6 @@ async function boot() {
   wireChartModal();
   wirePlacementDetails();
   wireHomeChartActions();
-  wireKeyboard();
-  wireAsk();
 
   $("#topnav-date").textContent = new Date().toLocaleDateString("en-US", {
     weekday: "short", month: "short", day: "numeric",
@@ -2500,120 +1963,10 @@ async function boot() {
     finishStartup();
   }
 
-  // Feature panels carried over during branch integration (defensive: each
-  // no-ops if its DOM/backing service is absent, so the app never blocks).
-  wireMyChart();
-  loadMoonTonight();
-  loadLocalIntelligence();
-
   // Orbit Axis daily experience (Today + History + detail levels).
   await axisInit();
 
   await refreshData();
-}
-
-
-// ══ Carried-over feature logic (branch integration) ═════════════════════════
-// Local Intelligence + My Chart, grafted onto the design-system shell. These
-// bind to the More diagnostics and Me workspaces.
-
-// ── Local Intelligence ──────────────────────────────────────────────────────
-async function loadLocalIntelligence() {
-  try {
-    const data = await get("/api/local-llm/status");
-    $("#llm-status").textContent = data.reachable ? "Connected" : (data.message || "Unavailable");
-    $("#llm-provider").textContent = data.provider || "—";
-    $("#llm-model").textContent = data.selected_model || data.configured_model || "No model selected";
-    $("#llm-installed").textContent = data.installed_model ? "Yes" : "No";
-    $("#llm-fallback").textContent = data.fallback_active ? "Active" : "Inactive";
-    $("#llm-context").textContent = data.context_length ? `${data.context_length} tokens` : "—";
-    $("#llm-prompt-version").textContent = data.prompt_version || "—";
-  } catch (error) {
-    $("#llm-status").textContent = `Unavailable: ${error.message}`;
-    $("#llm-model").textContent = "—";
-  }
-
-  $("#intel-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await runIntelGenerate(false);
-  });
-  $("#proposal-button").addEventListener("click", async () => runIntelGenerate(true));
-}
-
-async function runIntelGenerate(propose) {
-  const prompt = $("#intel-prompt").value.trim();
-  if (!prompt) return;
-  $("#intel-output").textContent = "Retrieving approved project context…";
-  $("#proposal-panel").innerHTML = "";
-  try {
-    const data = propose
-      ? await post("/api/vault/edit-proposals", {
-          prompt,
-          query: "Orbit Axis roadmap",
-          operation: "create",
-          path: "07 Orbit App/Updates/Local LLM Integration Test.md",
-          title: "Local LLM Integration Test",
-          type: "app_update",
-          reason: "Local Intelligence UI proposal test",
-        })
-      : await post("/api/local-llm/generate", { prompt, query: prompt });
-    renderIntelResult(data);
-  } catch (error) {
-    $("#intel-output").textContent = `Local Intelligence failed: ${error.message}`;
-    if (error.data?.proposal) renderProposal(error.data.proposal);
-  }
-}
-
-function renderIntelResult(data) {
-  const response = data.response || {};
-  $("#intel-output").innerHTML = `<strong>${esc(data.generation_label || "Local generation")}</strong><br/>${esc(response.answer || "No answer returned.")}`;
-  $("#intel-run-meta").innerHTML = `
-    <span><strong>Validation</strong> ${data.validation?.ok ? "passed" : "failed"}</span>
-    <span><strong>Duration</strong> ${Number(data.duration_ms || 0).toLocaleString()} ms</span>
-    <span><strong>Context</strong> ${esc(data.context_length || "—")}</span>
-    <span><strong>Prompt</strong> ${esc(data.prompt_version || "—")}</span>`;
-  $("#intel-sources").innerHTML = `
-    <strong>Sources used</strong>
-    <ul>${(data.sources || response.sources || []).map(source => `<li>${esc(source.path)}${source.title ? ` — ${esc(source.title)}` : ""}</li>`).join("")}</ul>`;
-  if (data.proposal) renderProposal(data.proposal);
-}
-
-function renderProposal(proposal) {
-  state.proposal = proposal;
-  $("#proposal-panel").innerHTML = `
-    <div class="proposal-meta">
-      <strong>Target path</strong><br/>${esc(proposal.path)}<br/>
-      <strong>Reason</strong><br/>${esc(proposal.reason)}<br/>
-      <strong>Status</strong><br/><span id="proposal-status">${esc(proposal.status)}</span>
-      ${proposal.status === "stale" ? '<div class="stale-warning">Target changed after proposal creation. Generate a fresh proposal.</div>' : ""}<br/>
-      <strong>Model</strong><br/>${esc(proposal.model || "—")}<br/>
-      <strong>Prompt</strong><br/>${esc(proposal.prompt_version || "—")}<br/>
-      <strong>Validation</strong><br/>${proposal.validation?.ok ? "Passed" : esc((proposal.validation?.errors || []).join("; "))}
-    </div>
-    <div class="proposal-preview">
-      <section><strong>Current</strong><pre>${esc(proposal.current_content || "New note")}</pre></section>
-      <section><strong>Proposed</strong><pre>${esc(proposal.proposed_content || "")}</pre></section>
-    </div>
-    <section><strong>Unified diff</strong><pre>${esc(proposal.diff_text || "")}</pre></section>
-    <div class="proposal-actions">
-      <button type="button" data-action="approve">Approve</button>
-      <button type="button" data-action="reject">Reject</button>
-      <button type="button" data-action="apply">Apply</button>
-    </div>`;
-  $("#proposal-panel").querySelector(".proposal-actions").addEventListener("click", async (event) => {
-    const button = event.target.closest("button");
-    if (!button) return;
-    const action = button.dataset.action;
-    try {
-      const result = await post(`/api/vault/edit-proposals/${proposal.id}/${action}`, {});
-      const status = result.proposal?.status || result.logRecord?.status || action;
-      $("#proposal-status").textContent = status;
-      if (status === "stale") renderProposal(result.proposal);
-    } catch (error) {
-      if (error.data?.proposal) renderProposal(error.data.proposal);
-      else $("#proposal-status").textContent = error.message;
-    }
-  });
 }
 
 // ── My Chart ─────────────────────────────────────────────────────────────────
@@ -3004,85 +2357,6 @@ function renderChart(chart, name, profile = null) {
   renderBars("#element-bars", chart.element_balance.percentages, ELEMENT_CLASS);
   renderBars("#modality-bars", chart.modality_balance.percentages, null);
   renderPlacements(chart);
-}
-
-function fillMyChartForm(profile) {
-  if (!profile || !$("#chart-form")) {
-    renderChartProfileMeta(profile);
-    return;
-  }
-  $("#cf-first").value = profile.first_name || "";
-  $("#cf-last").value = profile.last_name || "";
-  $("#cf-date").value = profile.birth_date || "";
-  $("#cf-time").value = profile.birth_time ? String(profile.birth_time).slice(0, 5) : "";
-  $("#cf-accuracy").value = profile.time_accuracy || "unknown";
-  const place = chartPlace(profile);
-  if (place) setPlaceSelection("cf", place, { existing: true });
-  else clearPlaceSelection("cf");
-  renderChartProfileMeta(profile);
-}
-
-function renderChartProfileMeta(profile) {
-  const target = $("#chart-profile-meta");
-  if (!target) return;
-  if (!profile) {
-    target.innerHTML = "";
-    return;
-  }
-  const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
-  const coords = profile.latitude != null && profile.longitude != null
-    ? `${Number(profile.latitude).toFixed(4)}, ${Number(profile.longitude).toFixed(4)}`
-    : "";
-  const rows = [
-    fullName ? `<span>${esc(fullName)}</span>` : "",
-    profile.birthplace_name ? `<span>${esc(profile.birthplace_name)}</span>` : "",
-    profile.timezone_name ? `<span class="chart-meta-advanced">${esc(profile.timezone_name)}</span>` : "",
-    coords ? `<span class="chart-meta-advanced">${esc(coords)}</span>` : "",
-    profile.utc_offset_at_birth ? `<span class="chart-meta-advanced">UTC ${esc(profile.utc_offset_at_birth)}</span>` : "",
-  ].filter(Boolean);
-  target.innerHTML = rows.join("");
-}
-
-function wireMyChart() {
-  const form = $("#chart-form");
-  if (!form) return;
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const hint = $("#chart-form-hint");
-    hint.textContent = "Calculating…";
-    try {
-      if (authSignedIn()) {
-        const active = activeChart();
-        const payload = chartFormPayload("cf", { forceMyChart: !active, allowExistingPlace: !!active });
-        const result = active
-          ? await patch(`/api/charts/${active.id}`, payload)
-          : await post("/api/charts", payload);
-        renderChart(result.chart, result.profile?.nickname || "My Chart");
-        renderChartProfileMeta(result.profile);
-        await loadSavedCharts();
-        await refreshActiveExperience();
-        hint.textContent = active ? "Saved to your active chart." : "Saved as My Chart.";
-      } else {
-        hint.textContent = "Sign in to search birthplaces and save charts.";
-      }
-    } catch (err) {
-      hint.textContent = err.message;
-    }
-  });
-}
-
-async function loadMoonTonight() {
-  const target = $("#moon-tonight");
-  if (!target) return;
-  try {
-    const { moon } = await get("/api/moon/current");
-    target.innerHTML = `
-      <div class="moon-phase">${SIGN_GLYPH[moon.sign] || ""} ${esc(moon.phase_name)}</div>
-      <div class="moon-illum">${moon.illumination_percent}% illuminated · ${moon.waxing ? "waxing" : "waning"}</div>
-      <div class="moon-sign">Moon in ${esc(moon.sign)} · times in UTC</div>`;
-  } catch {
-    target.textContent = "Moon data unavailable.";
-  }
 }
 
 // ══ Orbit Axis daily experience ═════════════════════════════════════════════
@@ -3495,7 +2769,7 @@ function axisRenderSky(sky) {
         <!-- Update 5.2b: the two secondary destinations, reached from the
              section whose content they explain. Text labels, not icons. -->
         <div class="sky-actions">
-          <a class="o-btn o-btn--secondary sky-action" href="#transits">View Transits</a>
+          <a class="o-btn o-btn--secondary sky-action" href="#transits">View Today’s Transits</a>
           <a class="o-btn o-btn--secondary sky-action" href="#symbol-atlas">Open Symbol Atlas</a>
         </div>
         <div class="current-sky__location">

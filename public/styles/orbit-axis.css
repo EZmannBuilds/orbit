@@ -70,24 +70,6 @@
 }
 .axis-reading-for strong { color: var(--axis-lavender); }
 
-/* ── Detail-level segmented control ───────────────────────────────────────── */
-.axis-detail {
-  display: inline-flex; gap: 2px; padding: 3px;
-  background: var(--color-surface-sunken, #12152a);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-}
-.axis-detail button {
-  border: 0; background: transparent; color: var(--color-secondary);
-  padding: 7px 14px; border-radius: 999px; font-size: 13px; cursor: pointer;
-  min-height: 34px;
-}
-.axis-detail button[aria-pressed="true"] {
-  background: linear-gradient(135deg, var(--axis-blue), var(--axis-indigo));
-  color: #0a0c18; font-weight: 600;
-}
-.axis-detail button:focus-visible { outline: var(--focus-ring, 2px solid #6fa8ff); outline-offset: 2px; }
-
 /* ── Active chart selector ("Viewing") ────────────────────────────────────── */
 /* :not([hidden]) so the `hidden` attribute always wins without !important. */
 .axis-chart-picker:not([hidden]) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; max-width: 100%; }
@@ -207,3 +189,59 @@
 
 /* `hidden` attribute must win over the flex display above. */
 .axis-chart-picker[hidden], .axis-reading-for[hidden] { display: none !important; }
+
+/* ══ Light theme ═════════════════════════════════════════════════════════════
+   Light mode is designed, not inverted. The celestial identity is carried by
+   the same hues at lower saturation against light surfaces; what changes is
+   which end of the ramp does the work.
+
+   Three things break under a naive inversion, and each is corrected here:
+     1. White stars on a white page are invisible — the starfield is a night
+        effect and has no light-mode equivalent, so it is withdrawn rather than
+        faked.
+     2. A pale gradient wordmark on white loses all contrast — light mode uses
+        the deep end of the same palette.
+     3. The atmospheric wash is sized for a dark page; at full strength on white
+        it reads as a smudge. */
+:root[data-theme="light"] {
+  --axis-lavender: #6f5bd6;
+  --axis-periwinkle: #5a68d8;
+  --axis-blue: #2f6bff;
+  --axis-pink: #c04f6a;
+  --axis-moon: #4a4f7a;
+  --axis-indigo: #5b4bd1;
+}
+
+:root[data-theme="light"] .axis-starfield { display: none; }
+
+:root[data-theme="light"] #panel-home::before {
+  background:
+    radial-gradient(60% 80% at 78% 18%, color-mix(in oklab, var(--axis-indigo) 9%, transparent), transparent 70%),
+    radial-gradient(50% 70% at 20% 0%, color-mix(in oklab, var(--axis-blue) 7%, transparent), transparent 65%);
+}
+
+:root[data-theme="light"] .axis-wordmark {
+  background: linear-gradient(120deg, #26305c, var(--axis-indigo) 60%, var(--axis-blue));
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+
+/* The Moon graphic stays a moon: a light-grey disc on a white card disappears,
+   so it keeps its own contrast rather than following the page. */
+:root[data-theme="light"] .axis-moon {
+  background:
+    radial-gradient(circle at 35% 32%, #ffffff 0%, #eef1ff 34%, #c3cbef 66%, #8e99cf 100%);
+  box-shadow: var(--axis-glow-soft) color-mix(in oklab, var(--axis-indigo) 22%, transparent),
+              inset -10px -8px 20px rgba(40, 46, 92, 0.35);
+}
+
+/* Forced colors: gradient text renders as nothing at all, because the clip
+   makes the glyphs transparent and the browser paints the background instead. */
+@media (forced-colors: active) {
+  .axis-wordmark {
+    background: none;
+    -webkit-text-fill-color: CanvasText;
+    color: CanvasText;
+  }
+  .axis-starfield { display: none; }
+}
