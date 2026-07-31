@@ -521,7 +521,20 @@
    big enough to hit on a phone, and tables that scroll inside themselves
    instead of pushing the page sideways. */
 
-.me-head-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+/* Three controls in one row is fine on a desktop and impossible on a phone.
+   The row wraps, and the switcher takes the full width once it does — a
+   half-width select next to a stranded button reads as a layout bug. */
+.me-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  min-width: 0;
+  max-width: 100%;
+}
+/* Primary controls on this page are thumb-sized, matching the disclosures. */
+.me-head-actions .o-btn,
+#me-saved-chart-add { min-height: 44px; }
 .chart-switcher { display: grid; gap: 4px; min-width: 0; }
 .chart-switcher__label { font-size: 12px; color: var(--color-secondary); }
 .chart-switcher__select {
@@ -659,6 +672,14 @@
 @media (max-height: 460px), (max-width: 420px) {
   .reading-grid, .pattern-row { grid-template-columns: 1fr; }
   .chart-switcher__select { max-width: 100%; }
+}
+
+/* Phones: the switcher owns its own row, the two buttons share the next one. */
+@media (max-width: 640px) {
+  .me-head-actions { width: 100%; }
+  .chart-switcher { flex: 1 1 100%; }
+  .chart-switcher__select { width: 100%; max-width: 100%; }
+  .me-head-actions .o-btn { flex: 1 1 140px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
