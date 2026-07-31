@@ -177,47 +177,93 @@
           <div class="o-section-head me-page-head">
             <div class="o-section-head__text">
               <h1 class="u-title" id="mychart-title" tabindex="-1">My Chart</h1>
-              <p class="u-meta">Your natal chart, key placements, and saved profiles.</p>
+              <p class="u-meta">Your birth chart, explained placement by placement.</p>
               <div class="me-active-line">
                 <span id="mychart-name">No active chart yet</span>
                 <span class="o-pill o-pill--success" id="me-active-badge" hidden>Active</span>
               </div>
             </div>
-            <div class="o-section-head__actions">
+            <div class="o-section-head__actions me-head-actions">
+              <div class="chart-switcher" id="chart-switcher" hidden>
+                <label class="chart-switcher__label" for="chart-switcher-select">Viewing chart</label>
+                <select class="chart-switcher__select" id="chart-switcher-select"></select>
+              </div>
+              <button type="button" class="o-btn o-btn--secondary" id="me-edit-chart" hidden>Edit Chart</button>
               <button type="button" class="o-btn o-btn--primary" id="me-add-chart">Add Chart</button>
             </div>
           </div>
 
           <div class="me-status" id="me-status" role="status" aria-live="polite">Loading your chart…</div>
 
-          <div class="me-grid">
+          <!-- ── The reading ──────────────────────────────────────────────
+               Section order matters and is deliberate: identity and how the
+               chart was calculated, then the limitation notice, then the
+               reading itself from broadest (Big Three, patterns) to most
+               specific (placements, aspects, houses), then the raw data.
+
+               The limitation notice sits HIGH rather than at the position it
+               occupies in the brief's list. A caution about what a chart
+               cannot show has to be read before the chart, not after it —
+               placed last it qualifies content the reader has already
+               finished and believed. -->
+          <div class="me-grid" id="me-reading" data-state="idle">
+
+            <!-- 1. Chart identity and calculation context -->
             <article class="me-panel me-panel--overview" id="me-overview"></article>
 
-            <section class="me-panel me-panel--placements" aria-labelledby="me-chart-keys-title">
+            <!-- 7. Birth-time limitations (rendered high; see note above) -->
+            <div class="me-panel--bare" id="chart-limitation"></div>
+
+            <!-- 2. Big Three -->
+            <section class="me-panel me-panel--placements" id="section-bigthree" aria-labelledby="me-chart-keys-title">
               <div class="me-section-head">
-                <h2 id="me-chart-keys-title">The Keys to Your Chart</h2>
-                <p>Rising, Sun, and Moon are the fastest way into the chart.</p>
+                <h2 id="me-chart-keys-title">Sun, Moon, and Rising</h2>
+                <p>The three placements most people start with.</p>
               </div>
-              <div class="chart-warnings" id="chart-warnings"></div>
-              <div class="placement-grid placement-grid--keys" id="bigthree"></div>
+              <div class="reading-grid reading-grid--keys" id="bigthree"></div>
             </section>
 
-            <section class="me-panel me-panel--placements" aria-labelledby="me-planets-title">
+            <!-- 3. Chart patterns -->
+            <section class="me-panel" id="section-patterns" aria-labelledby="me-patterns-title">
               <div class="me-section-head">
-                <h2 id="me-planets-title">Planets</h2>
-                <p>All major planets stay visible so you can scan the whole chart quickly.</p>
+                <h2 id="me-patterns-title">Chart Patterns</h2>
+                <p>What this chart emphasises overall, across every placement.</p>
               </div>
-              <div class="placement-grid placement-grid--planets" id="key-placements"></div>
+              <div id="chart-patterns"></div>
             </section>
 
-            <section class="me-panel me-panel--advanced" aria-labelledby="me-advanced-title">
+            <!-- 4. Planet placements -->
+            <section class="me-panel me-panel--placements" id="section-planets" aria-labelledby="me-planets-title">
               <div class="me-section-head">
-                <h2 id="me-advanced-title">Advanced Chart</h2>
-                <p>Technical placements, houses, aspects, angles, and balances.</p>
+                <h2 id="me-planets-title">Planet Placements</h2>
+                <p>Each planet describes one function, shaped by its sign and house.</p>
               </div>
-              <div class="balance-row">
-                <div class="balance-block"><h3>Element Balance</h3><div class="bars" id="element-bars"></div></div>
-                <div class="balance-block"><h3>Modality</h3><div class="bars" id="modality-bars"></div></div>
+              <div class="reading-grid reading-grid--planets" id="key-placements"></div>
+            </section>
+
+            <!-- 5. Major aspects -->
+            <section class="me-panel" id="section-aspects" aria-labelledby="me-aspects-title">
+              <div class="me-section-head">
+                <h2 id="me-aspects-title">Major Aspects</h2>
+                <p>How the planets in this chart relate to one another.</p>
+              </div>
+              <div id="chart-aspects"></div>
+            </section>
+
+            <!-- 6. Houses and angles -->
+            <section class="me-panel" id="section-houses" aria-labelledby="me-houses-title">
+              <div class="me-section-head">
+                <h2 id="me-houses-title">Houses and Angles</h2>
+                <p>The areas of life the chart maps onto.</p>
+              </div>
+              <div id="chart-houses"></div>
+            </section>
+
+            <!-- 8. Chart data and source information -->
+            <section class="me-panel me-panel--advanced" id="section-data" aria-labelledby="me-advanced-title">
+              <div class="me-section-head">
+                <h2 id="me-advanced-title">Chart Data</h2>
+                <p>The calculated figures behind every reading above.</p>
               </div>
               <div id="chart-placements"></div>
             </section>
@@ -769,23 +815,6 @@
         <button type="button" class="o-btn o-btn--secondary" id="confirm-cancel">Cancel</button>
         <button type="button" class="o-btn o-btn--danger" id="confirm-accept">Delete</button>
       </div>
-    </div>
-  </div>
-
-  <!-- ── Placement detail dialog ──────────────────────────────────────── -->
-  <div class="o-modal placement-detail-modal" id="placement-detail-modal" hidden role="dialog" aria-modal="true" aria-labelledby="placement-detail-title">
-    <div class="o-modal__backdrop" data-modal-close></div>
-    <div class="o-modal__panel placement-detail-panel">
-      <header class="o-modal__head">
-        <div>
-          <p class="u-eyebrow" id="placement-detail-kicker">Placement</p>
-          <h2 id="placement-detail-title">Placement detail</h2>
-        </div>
-        <button type="button" class="o-modal__close" id="placement-detail-close" aria-label="Close placement detail" data-modal-close>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-        </button>
-      </header>
-      <div id="placement-detail-body" class="placement-detail-body"></div>
     </div>
   </div>
 

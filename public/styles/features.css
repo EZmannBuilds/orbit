@@ -363,155 +363,6 @@
 .warn-chip { background: #3a2a12; border: 1px solid #6a4d1e; color: var(--gold);
   font-size: 12px; padding: 3px 9px; border-radius: 999px; }
 
-.placement-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-auto-rows: 1fr;
-  gap: 10px;
-}
-.placement-card {
-  width: 100%;
-  min-height: 104px;
-  display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  padding: 12px 14px;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  border: 1px solid color-mix(in oklab, var(--axis-lavender) 14%, var(--color-border));
-  border-radius: 8px;
-  background: color-mix(in oklab, var(--color-surface-sunken) 92%, var(--axis-indigo) 8%);
-  cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-standard),
-    background var(--duration-fast) var(--ease-standard),
-    transform var(--duration-instant) var(--ease-standard);
-}
-.placement-card:hover {
-  border-color: color-mix(in oklab, var(--axis-lavender) 50%, var(--color-border));
-  background: color-mix(in oklab, var(--color-surface-sunken) 80%, var(--axis-indigo) 20%);
-}
-.placement-card:active { transform: translateY(1px); }
-.placement-card:focus-visible {
-  outline: 2px solid var(--axis-blue);
-  outline-offset: 2px;
-}
-.placement-card.is-unavailable {
-  border-style: dashed;
-}
-.placement-card__glyph {
-  width: 46px;
-  min-height: 46px;
-  display: grid;
-  place-items: center;
-  color: var(--axis-moon);
-  background: color-mix(in oklab, var(--axis-lavender) 12%, transparent);
-  border: 1px solid color-mix(in oklab, var(--axis-lavender) 22%, transparent);
-  border-radius: 8px;
-  font-size: 21px;
-  font-weight: 700;
-  line-height: 1;
-}
-.placement-card__main {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-.placement-card__title {
-  color: var(--color-primary);
-  font-weight: 700;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-.placement-card__role,
-.placement-card__meta,
-.placement-card__tech,
-.placement-card__warning {
-  color: var(--color-secondary);
-  font-size: 12px;
-  line-height: 1.35;
-}
-.placement-card__meta {
-  color: var(--axis-lavender);
-  font-weight: 700;
-}
-.placement-card__warning {
-  color: var(--gold);
-}
-.placement-card__chevron {
-  color: var(--color-muted);
-  font-size: 24px;
-  line-height: 1;
-  justify-self: end;
-}
-.placement-detail-panel {
-  max-width: 680px;
-}
-.placement-detail-body {
-  display: grid;
-  gap: 16px;
-}
-.placement-detail-hero {
-  display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
-}
-.placement-detail-glyph {
-  width: 58px;
-  height: 58px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  border: 1px solid color-mix(in oklab, var(--axis-lavender) 28%, var(--color-border));
-  background: color-mix(in oklab, var(--color-surface-sunken) 75%, var(--axis-indigo) 25%);
-  color: var(--axis-moon);
-  font-size: 26px;
-  font-weight: 700;
-}
-.placement-detail-hero h3,
-.placement-detail-section h3 {
-  color: var(--color-primary);
-}
-.placement-detail-hero p,
-.placement-detail-section p {
-  color: var(--color-secondary);
-  line-height: 1.55;
-}
-.placement-detail-facts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 0;
-}
-.placement-detail-facts div {
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface-sunken);
-}
-.placement-detail-facts dt {
-  color: var(--color-secondary);
-  font-size: 12px;
-}
-.placement-detail-facts dd {
-  margin: 2px 0 0;
-  color: var(--color-primary);
-  overflow-wrap: anywhere;
-}
-.placement-detail-warnings {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.placement-detail-section {
-  display: grid;
-  gap: 6px;
-}
-
 .balance-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 8px; }
 .balance-block h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; }
 .bar-row { display: grid; grid-template-columns: 64px 1fr 40px; align-items: center; gap: 8px; margin: 5px 0; font-size: 13px; }
@@ -541,19 +392,16 @@
   .me-facts,
   .me-section-head--actions { grid-template-columns: 1fr; }
   .me-panel { padding: 14px; }
-  .placement-card { min-height: 96px; }
-  .placement-detail-facts { grid-template-columns: 1fr; }
   .saved-chart-card__actions button { flex: 1 1 120px; }
 }
 @media (min-width: 641px) and (max-width: 960px) {
   .me-grid { grid-template-columns: 1fr; }
   .me-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .placement-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .placement-grid > .placement-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .reading-grid--keys,
+  .reading-grid--planets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (min-width: 961px) {
-  .placement-grid--keys { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .placement-grid--planets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .reading-grid--keys { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* ── Home actions into Transits and Symbol Atlas (Update 5.2b) ─────────────
@@ -665,4 +513,162 @@
 
 @media (prefers-reduced-motion: reduce) {
   .tr-card, .sa-card { transition: none; }
+}
+
+/* ══ My Chart reading (Dev Update 1.5) ═══════════════════════════════════════
+   The reading is long-form text, so the constraints here are readability
+   first: a measure that does not run past ~70 characters, disclosure controls
+   big enough to hit on a phone, and tables that scroll inside themselves
+   instead of pushing the page sideways. */
+
+.me-head-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.chart-switcher { display: grid; gap: 4px; min-width: 0; }
+.chart-switcher__label { font-size: 12px; color: var(--color-secondary); }
+.chart-switcher__select {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-elevated);
+  color: inherit;
+  font: inherit;
+  max-width: 260px;
+}
+
+/* Sections are hidden while loading so the page keeps its shape rather than
+   collapsing and rebuilding under the reader. */
+#me-reading[data-state="loading"] .me-panel--overview { opacity: 0.75; }
+
+.me-loading { padding: 8px 0; color: var(--color-secondary); }
+
+.me-facts__help { display: block; font-size: 12px; color: var(--color-secondary); margin-top: 2px; }
+.me-facts--compact { margin-top: 12px; }
+
+/* ── One page-level limitation notice ─────────────────────────────────────── */
+.chart-limitation {
+  grid-column: 1 / -1;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in oklab, var(--gold, #c9a227) 45%, var(--color-border));
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--gold, #c9a227) 8%, var(--color-surface-elevated));
+}
+.chart-limitation__title { margin: 0 0 6px; font-size: 16px; }
+.chart-limitation p { margin: 0 0 8px; max-width: 68ch; }
+.chart-limitation__list { margin: 8px 0; padding-left: 20px; display: grid; gap: 6px; max-width: 68ch; }
+.chart-limitation__action { font-weight: 600; margin-bottom: 0; }
+
+/* ── Reading cards ────────────────────────────────────────────────────────── */
+.reading-grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+.reading-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-elevated);
+  min-width: 0;
+}
+.reading-card--unavailable { border-style: dashed; opacity: 0.9; }
+.reading-card__head { display: flex; gap: 12px; align-items: baseline; min-width: 0; }
+.reading-card__glyph {
+  flex: 0 0 auto;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--axis-lavender, inherit);
+}
+.reading-card__ident { min-width: 0; }
+.reading-card__title { margin: 0; font-size: 17px; line-height: 1.3; }
+.reading-card__meta,
+.reading-card__role { margin: 2px 0 0; font-size: 13px; color: var(--color-secondary); }
+.reading-card__summary { margin: 0; max-width: 68ch; line-height: 1.55; }
+.reading-card__body { display: grid; gap: 10px; padding-top: 10px; }
+.reading-card__body p { margin: 0; max-width: 68ch; line-height: 1.55; }
+.reading-card__aside {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--axis-indigo, #4b4b8f) 8%, transparent);
+}
+.reading-card__aside h4 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-secondary); }
+.reading-card__aside p { margin: 0; }
+.reading-card__note { margin: 0; font-size: 13px; color: var(--color-secondary); max-width: 68ch; }
+
+/* Native disclosure, sized for a thumb. */
+.reading-card__more > summary,
+.chart-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 2px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--axis-lavender, inherit);
+  list-style: none;
+}
+.reading-card__more > summary::-webkit-details-marker,
+.chart-details > summary::-webkit-details-marker { display: none; }
+.reading-card__more > summary::before,
+.chart-details > summary::before {
+  content: "＋";
+  font-weight: 700;
+  transition: transform 120ms ease;
+}
+.reading-card__more[open] > summary::before,
+.chart-details[open] > summary::before { content: "－"; }
+.reading-card__more > summary:focus-visible,
+.chart-details > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 4px; }
+
+/* ── Patterns ─────────────────────────────────────────────────────────────── */
+.pattern-row { display: grid; gap: 16px; grid-template-columns: 1fr; }
+.pattern-block { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.pattern-block h3 { margin: 0; font-size: 15px; }
+.pattern-block__summary { margin: 0; max-width: 68ch; line-height: 1.55; }
+.pattern-block__counts { font-variant-numeric: tabular-nums; }
+.pattern-note { margin: 12px 0 0; font-size: 13px; color: var(--color-secondary); max-width: 68ch; }
+
+/* ── Aspects ──────────────────────────────────────────────────────────────── */
+.aspect-list { display: grid; gap: 12px; }
+.aspect-card {
+  display: grid; gap: 8px; padding: 14px 16px;
+  border: 1px solid var(--color-border); border-radius: 8px;
+  background: var(--color-surface-elevated); min-width: 0;
+}
+.aspect-card__head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.aspect-card__title { margin: 0; font-size: 16px; }
+.aspect-card__orb { font-size: 13px; color: var(--color-secondary); font-variant-numeric: tabular-nums; }
+.aspect-card__summary { margin: 0; max-width: 68ch; line-height: 1.55; }
+.aspect-plain { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.aspect-plain li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--color-border); }
+
+/* Wide content scrolls inside itself; the page never scrolls sideways. */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table { min-width: 460px; }
+
+@media (min-width: 700px) {
+  .reading-grid--keys { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .reading-grid--planets { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .pattern-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1200px) {
+  .reading-grid--planets { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+}
+
+/* Short viewports and heavy zoom: one column, nothing clipped. */
+@media (max-height: 460px), (max-width: 420px) {
+  .reading-grid, .pattern-row { grid-template-columns: 1fr; }
+  .chart-switcher__select { max-width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reading-card__more > summary::before,
+  .chart-details > summary::before { transition: none; }
+}
+
+@media (forced-colors: active) {
+  .reading-card, .aspect-card, .chart-limitation { border: 1px solid CanvasText; }
+  .reading-card__aside { border: 1px solid CanvasText; background: Canvas; }
+  .reading-card__more > summary,
+  .chart-details > summary { color: LinkText; }
 }

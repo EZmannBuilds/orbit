@@ -110,21 +110,35 @@ test("reconciled: a failed chart request shows a recoverable error, not onboardi
 });
 
 // ── Me page (from feat/orbit-axis-me-planet-grid-redesign) ───────────────────
-test("reconciled: Me keys (Rising/Sun/Moon) + full Mercury–Pluto grid survive", () => {
-  assert.match(appJs, /const CHART_KEY_PLACEMENTS = \["Rising", "Sun", "Moon"\]/);
-  assert.match(appJs, /const PLANET_GRID_PLACEMENTS = \["Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"\]/);
-  assert.ok(html.includes("The Keys to Your Chart") && html.includes(">Planets<"));
+test("reconciled: Sun, Moon, Rising, and every planet still reach the reader", () => {
+  // The constants moved into the interpretation layer in Dev Update 1.5, but
+  // the guarantee is unchanged: the Big Three lead, and no planet is dropped.
+  const planets = readFileSync(join(ROOT, "lib", "interpretation", "planets.js"), "utf8");
+  for (const p of ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]) {
+    assert.ok(planets.includes(`"${p}"`) || planets.includes(`${p}:`), `${p} must still have a reading`);
+  }
+  const compose = readFileSync(join(ROOT, "lib", "interpretation", "compose.js"), "utf8");
+  assert.match(compose, /composeBigThree/, "the Big Three are still composed as a set");
+  assert.match(compose, /PLANET_ORDER\.map/, "every planet is composed, in a stable order");
+  assert.ok(html.includes("Sun, Moon, and Rising") && html.includes(">Planet Placements<"));
 });
 
 test("reconciled: unknown birth time still hides Rising/houses (no fabrication)", () => {
-  assert.match(appJs, /if \(!chart\?\.time_known\) return "House unavailable"/);
-  assert.ok(appJs.includes("Rising unavailable"));
+  // Same guarantee, now enforced in the composer rather than a label helper.
+  const compose = readFileSync(join(ROOT, "lib", "interpretation", "compose.js"), "utf8");
+  assert.match(compose, /const houseNumber = chart\?\.planet_houses\?\.\[planetName\]/);
+  assert.match(compose, /unavailable: true/, "Rising is withheld, not estimated");
+  assert.match(appJs, /!chart\?\.time_known \|\| !chart\?\.houses\?\.length/,
+    "the houses section refuses to render without a usable time");
 });
 
-test("reconciled: Simple keeps all planets; Advanced only adds technical detail", () => {
-  // Same grid constant drives both modes; Advanced adds an overlay class.
-  assert.ok(appJs.includes("PLANET_GRID_PLACEMENTS"));
-  assert.ok(appJs.includes("placement-card__tech advanced-only"));
+test("reconciled: every planet renders, with no hidden detail mode", () => {
+  // Update 5.2 retired Simple/Advanced. There is one complete experience, so
+  // nothing may be gated behind a detail level any more.
+  assert.ok(!appJs.includes("placement-card__tech advanced-only"),
+    "the old advanced-only gating is gone");
+  assert.match(appJs, /renderPlacements\(readingPayload\.placements\)/,
+    "placements come from the composed reading, complete");
 });
 
 // ── Dev Update 1.3 :: Ask Orbit retired from the interface ───────────────────

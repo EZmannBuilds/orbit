@@ -56,111 +56,213 @@ test("Home has a saved-chart selector wired to the activate endpoint", () => {
   assert.match(appJs, /today-chart-manage[\s\S]*navigate\("me"\)/, "Home Manage should route to Me");
 });
 
-test("Me is the dedicated natal chart and saved-chart management page", () => {
-  assert.ok(html.includes('id="panel-me"'), "Me panel exists");
-  assert.ok(html.includes('id="me-overview"'), "active overview exists");
-  assert.ok(html.includes('id="bigthree"'), "Big Three mount exists");
-  assert.ok(html.includes('id="key-placements"'), "key placements mount exists");
-  assert.ok(html.includes("The Keys to Your Chart"), "chart keys heading exists");
-  assert.ok(html.includes(">Planets<"), "planets heading exists");
-  assert.ok(html.includes('id="me-saved-charts-list"'), "Saved Charts list lives on Me");
-  assert.ok(html.includes('id="me-add-chart"') && html.includes('id="me-saved-chart-add"'), "Me add chart actions exist");
-  assert.ok(!html.includes('id="chart-form"'), "old Me chart form should not be the primary surface");
-  assert.ok(!html.includes('id="saved-chart-form"'), "old More saved-chart form should be removed");
-  assert.ok(html.includes('data-goto="me"'), "Tools routes saved-chart management to My Chart");
-});
-
-test("Me renderer exposes beginner and advanced chart sections", () => {
-  assert.match(appJs, /function renderMeOverview/);
-  assert.match(appJs, /function renderBigThree/);
-  assert.match(appJs, /function renderKeyPlacements/);
-  assert.match(appJs, /function renderPlacements/);
-  for (const label of ["All planetary placements", "Houses", "Major aspects", "Angles", "Elements, modalities, and retrogrades"]) {
-    assert.ok(appJs.includes(label), `${label} disclosure should render`);
+test("My Chart renders the eight-section reading hierarchy in order", () => {
+  // Order is part of the design: identity and the reliability caution come
+  // before any interpretation the reader would otherwise take at face value.
+  const order = ["me-overview", "chart-limitation", "section-bigthree", "section-patterns",
+                 "section-planets", "section-aspects", "section-houses", "section-data"];
+  const positions = order.map((id) => {
+    const at = html.indexOf(`id="${id}"`);
+    assert.ok(at > -1, `${id} is missing from My Chart`);
+    return at;
+  });
+  for (let i = 1; i < positions.length; i += 1) {
+    assert.ok(positions[i] > positions[i - 1],
+      `${order[i]} must come after ${order[i - 1]} in the markup`);
   }
-  assert.ok(appJs.includes("Mercury") && appJs.includes("Communication and thinking"));
-  assert.ok(appJs.includes("Venus") && appJs.includes("Attraction, taste, and relating"));
-  assert.ok(appJs.includes("Mars") && appJs.includes("Drive, conflict, and action"));
-  assert.ok(appJs.includes("Uranus") && appJs.includes("Change, freedom, and disruption"));
-  assert.ok(appJs.includes("Neptune") && appJs.includes("Dreams, intuition, and ideals"));
-  assert.ok(appJs.includes("Pluto") && appJs.includes("Power, depth, and transformation"));
 });
 
-test("Me chart keys render Rising, Sun, and Moon before planets", () => {
-  assert.match(appJs, /const CHART_KEY_PLACEMENTS = \["Rising", "Sun", "Moon"\]/);
-  assert.match(appJs, /CHART_KEY_PLACEMENTS\.map\(\(name\) => placementCardHtml\(chart, name, \{ group: "keys" \}\)\)/);
+test("My Chart has a header with identity, switcher, and edit action", () => {
+  assert.ok(html.includes('id="mychart-title"'), "one page heading");
+  assert.ok(html.includes('id="mychart-name"'), "active chart name");
+  assert.ok(html.includes('id="chart-switcher-select"'), "chart switcher");
+  assert.ok(html.includes('id="me-edit-chart"'), "edit action");
+  assert.match(html, /<label[^>]*for="chart-switcher-select"/, "the switcher needs a real label");
+  assert.ok(appJs.includes("renderChartSwitcher"), "the switcher is populated from state");
+  // One <h1> on the page.
+  const h1s = [...html.matchAll(/<h1\b/g)].length;
+  const panelH1s = [...html.matchAll(/id="panel-me"[\s\S]*?<\/section>/g)].join("").match(/<h1\b/g) || [];
+  assert.ok(h1s >= 1 && panelH1s.length <= 1, "My Chart must not introduce a second h1");
 });
 
-test("Me planet grid renders all eight remaining major planets in stable order", () => {
-  assert.match(appJs, /const PLANET_GRID_PLACEMENTS = \["Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"\]/);
-  assert.match(appJs, /const STANDARD_PLANET_ORDER = \["Sun", "Moon", \.\.\.PLANET_GRID_PLACEMENTS\]/);
-  assert.match(appJs, /PLANET_GRID_PLACEMENTS\.map\(\(name\) => placementCardHtml\(chart, name, \{ group: "planets" \}\)\)/);
+test("interpretation comes only from the composed reading, never from app.js", () => {
+  // The whole point of lib/interpretation. If a second corpus grows here, the
+  // two will disagree and only one of them has tests.
+  assert.ok(!appJs.includes("PLACEMENT_ROLES"),
+    "the old in-app interpretation table must be gone");
+  assert.ok(appJs.includes("readingPayload"), "app.js renders a server-composed reading");
+  assert.match(appJs, /renderChart called without a composed reading/,
+    "rendering without a reading must fail loudly rather than invent text");
+  // No authored interpretive sentences hiding in the client. These are the
+  // phrasings the content modules own.
+  for (const phrase of ["describes thinking and communication", "Core identity",
+                        "Emotional nature", "expresses this"]) {
+    assert.ok(!appJs.includes(phrase), `"${phrase}" is content and belongs in lib/interpretation`);
+  }
 });
 
-test("Placement cards use real chart data for sign, degree, house, and retrograde state", () => {
-  assert.match(appJs, /chart\?\.planets\?\.\[name\]/, "planet cards should read from calculated planets");
-  assert.match(appJs, /reliableHouseLabel\(chart, name\)/, "planet cards should use reliable house labels");
-  assert.match(appJs, /degLabel\(body\)/, "planet cards should show calculated degree labels");
-  assert.match(appJs, /body\.retrograde \? " · Retrograde" : ""/, "retrograde state should render in card metadata");
+test("the server composes the reading through the interpretation service", () => {
+  const api = readFileSync(join(ROOT, "lib", "charts", "api.js"), "utf8");
+  assert.match(api, /buildChartReading/, "the chart route attaches a composed reading");
+  const svc = readFileSync(join(ROOT, "lib", "interpretation", "service.js"), "utf8");
+  assert.match(svc, /composeChart/, "the service delegates to composeChart");
 });
 
-test("Unknown birth time never fabricates Rising or house data in Me placements", () => {
-  assert.ok(appJs.includes("Rising unavailable"));
-  assert.ok(appJs.includes("Birth time needed"));
-  assert.ok(appJs.includes("House unavailable"));
-  assert.match(appJs, /if \(!chart\?\.time_known\) return "House unavailable"/);
+test("calculation context is read from the stored chart, never hardcoded", () => {
+  const svc = readFileSync(join(ROOT, "lib", "interpretation", "service.js"), "utf8");
+  assert.match(svc, /profile\?\.zodiac_system/, "zodiac comes from the profile");
+  assert.match(svc, /profile\?\.house_system/, "house system comes from the profile");
+  // The engine never states a geocentric frame, so no context row may claim
+  // one. Checked against the rendered labels, not the file text — the module
+  // comment explains the omission and should be allowed to say the word.
+  const contextLabels = [...svc.matchAll(/label: "([^"]+)"|value: "([^"]+)"/g)]
+    .flatMap((m) => [m[1], m[2]]).filter(Boolean);
+  assert.ok(!contextLabels.some((l) => /geocentric/i.test(l)),
+    "no geocentric claim: the engine does not report one");
+  assert.ok(!appJs.includes("Placidus") && !appJs.includes("Tropical"),
+    "the client must not hardcode calculation claims");
 });
 
-test("Me communicates birth-time reliability states", () => {
-  // The stored accuracy values keep their display labels in TIME_ACCURACY_COPY,
-  // which is what Me reads. The form's own wording is checked separately, in
-  // chart-onboarding.test.js — the two are allowed to differ, because asking
-  // "how sure are you?" and reporting "reported birth time" are different jobs.
-  assert.ok(appJs.includes("Exact birth time"));
-  assert.ok(appJs.includes("Approximate birth time"));
-  assert.ok(appJs.includes("Unknown birth time"));
-  assert.ok(appJs.includes("Reported birth time"));
-  assert.ok(appJs.includes("Your Rising sign and houses may shift because the birth time is approximate."));
-  assert.ok(appJs.includes("A birth time is needed to calculate your Rising sign and houses reliably."));
-  assert.ok(appJs.includes("Moon may shift signs without a birth time."));
+test("a house system is only named when houses were actually calculated", () => {
+  const svc = readFileSync(join(ROOT, "lib", "interpretation", "service.js"), "utf8");
+  assert.match(svc, /houses && chart\?\.time_known/,
+    "naming a house system on an unknown-time chart describes a calculation that did not happen");
 });
 
-test("Simple mode hides Me advanced sections while Advanced exposes them", () => {
-  const css = readFileSync(join(ROOT, "public", "styles", "orbit-axis.css"), "utf8");
-  assert.match(css, /data-detail="Simple"[\s\S]*\.me-panel--advanced/);
-  assert.match(css, /not\(\[data-detail="Advanced"\]\)[\s\S]*\.advanced-only/);
-  assert.ok(appJs.includes("renderMeOverview(state.activeProfile, state.activeNatalChart"), "detail toggles refresh Me mode text");
-  assert.ok(appJs.includes("PLANET_GRID_PLACEMENTS"), "Simple mode should keep all planets in the primary grid");
-  assert.ok(appJs.includes("placement-card__tech advanced-only"), "Advanced mode should add technical card detail without replacing the grid");
+test("unknown birth time withholds Rising, houses, and angles", () => {
+  assert.match(appJs, /!chart\?\.time_known \|\| !chart\?\.houses\?\.length/,
+    "the houses section checks time_known before rendering anything");
+  assert.match(appJs, /House placements, the Rising sign, and the Midheaven all need a reliable birth time/,
+    "and explains the omission once");
+  // The Rising-unavailable card is a designed state, not a blank.
+  assert.match(appJs, /reading-card--unavailable/, "unavailable placements get their own card style");
+  const compose = readFileSync(join(ROOT, "lib", "interpretation", "compose.js"), "utf8");
+  assert.match(compose, /unavailable: true/, "composeBigThree withholds Rising rather than guessing");
 });
 
-test("Placement cards are concise buttons that open an accessible detail dialog", () => {
-  assert.ok(html.includes('id="placement-detail-modal"'));
-  assert.ok(html.includes('role="dialog"'));
-  assert.ok(html.includes('id="placement-detail-close"'));
-  assert.match(appJs, /function wirePlacementDetails/);
-  assert.match(appJs, /openPlacementDetail\(button\)/);
-  assert.match(appJs, /openModal\(modal, \{ initialFocus: \$\("#placement-detail-close"\) \}\)/);
-  assert.match(appJs, /button\.focus\(\{ preventScroll: true \}\)/, "focus should restore to the triggering card through the modal utility");
-  assert.doesNotMatch(appJs, /<p>\$\{esc\(info\.meaning\)\}<\/p>/, "full paragraphs should not live inside every grid card");
+test("the birth-time limitation is one page-level notice, not a badge per card", () => {
+  assert.ok(appJs.includes("renderLimitation"), "one limitation renderer");
+  assert.match(appJs, /chart-limitation__title/, "the notice is a titled region");
+  // The old per-card warning chips are gone from the reading cards.
+  assert.ok(!appJs.includes("placement-card__warning"),
+    "per-card warning chips repeated the same sentence up to eleven times");
 });
 
-test("Placement detail includes simple, advanced, and reliability content", () => {
-  assert.ok(appJs.includes("Simple interpretation"));
-  assert.ok(appJs.includes("Advanced notes"));
-  assert.ok(appJs.includes("TIME_ACCURACY_COPY.reported.note"));
-  assert.ok(appJs.includes("TIME_ACCURACY_COPY.approximate.note"));
-  assert.ok(appJs.includes("TIME_ACCURACY_COPY.unknown.note"));
+test("aspects are ranked, explained both ways, and never graded", () => {
+  assert.ok(appJs.includes("aspects?.highlights"), "highlights come pre-ranked from the composer");
+  assert.match(appJs, /Constructive potential/, "each aspect shows a constructive reading");
+  assert.match(appJs, /Possible tension/, "and a tension reading");
+  const aspects = readFileSync(join(ROOT, "lib", "interpretation", "aspects.js"), "utf8");
+  assert.match(aspects, /rankAspects/, "ranking is deterministic and lives in the content layer");
+  // Applying/separating is absent from the NATAL response, so the natal aspect
+  // renderer must not show it. Today's Transits legitimately has the field and
+  // is not in scope here, so this is checked against the renderer only.
+  const aspectRenderer = appJs.slice(appJs.indexOf("function aspectCardHtml"),
+                                     appJs.indexOf("function renderHouses"));
+  assert.ok(!/applying|separating/i.test(aspectRenderer),
+    "the natal engine does not report applying/separating; showing it would invent a chart fact");
 });
 
-test("Me placement grid has responsive one, two, and three column rules without horizontal scroll", () => {
+test("element dominance keeps the five-point gap rule", () => {
+  const patterns = readFileSync(join(ROOT, "lib", "interpretation", "patterns.js"), "utf8");
+  assert.match(patterns, /DOMINANCE_THRESHOLD_PERCENT = 5/, "the threshold is explicit");
+  assert.match(patterns, /isMeaningfullyDominant/, "and enforced by a named guard");
+  // The client renders whatever the composer decided; it does not re-derive.
+  assert.ok(!appJs.includes("dominant ="), "the client must not compute dominance itself");
+});
+
+test("retrograde is visible text and never applies to the Sun or Moon", () => {
+  assert.match(appJs, /placement\.retrograde \? "Retrograde" : ""/,
+    "retrograde state is spelled out, not left to a glyph");
+  const patterns = readFileSync(join(ROOT, "lib", "interpretation", "patterns.js"), "utf8");
+  assert.match(patterns, /NEVER_RETROGRADE = Object\.freeze\(\["Sun", "Moon"\]\)/,
+    "Sun and Moon never retrograde");
+  const compose = readFileSync(join(ROOT, "lib", "interpretation", "compose.js"), "utf8");
+  assert.match(compose, /!NEVER_RETROGRADE\.includes\(planetName\)/,
+    "and the composer honours that when marking a placement retrograde");
+});
+
+test("glyphs are decorative and every placement has a text name", () => {
+  assert.match(appJs, /class="reading-card__glyph" aria-hidden="true"/,
+    "glyphs are hidden from assistive technology");
+  assert.match(appJs, /reading-card__title">\$\{esc\(placement\.planet\)\}/,
+    "the planet name is real text in the heading");
+});
+
+test("expandable readings use native disclosure, not custom widgets", () => {
+  // <details> is keyboard operable and announces its own expanded state.
+  assert.match(appJs, /<details class="reading-card__more">/);
+  assert.match(appJs, /<summary><span>Read more about/);
+  assert.ok(!appJs.includes("placement-detail-modal"),
+    "the old modal-per-placement flow is gone");
+});
+
+test("collapsed and expanded content never repeat each other", () => {
+  // summary renders `placement.summary`; the body renders `placement.detail`.
+  // If these ever became the same field the reader would read it twice.
+  assert.match(appJs, /reading-card__summary">\$\{esc\(placement\.summary\)\}/);
+  assert.match(appJs, /\(placement\.detail \|\| \[\]\)\.map/);
+});
+
+test("My Chart states are explicit and a failed reading is never swallowed", () => {
+  for (const s of ["loading", "empty", "error"]) {
+    assert.ok(appJs.includes(`"${s}"`), `${s} is a real state`);
+  }
+  assert.ok(appJs.includes("renderChartPlaceholder"), "one placeholder renderer");
+  assert.ok(appJs.includes('data-action="retry-reading"'), "errors offer a retry");
+  // The 1.4 code hid render defects behind Home's chart-loading copy.
+  assert.ok(!/catch \{ \/\* Home still owns the failure state \*\/ \}/.test(appJs),
+    "the swallowed catch must be gone");
+  assert.match(appJs, /stage: "render"/, "render failures are logged distinctly from fetch failures");
+});
+
+test("structured error logging carries no birth data", () => {
+  const log = appJs.match(/console\.error\("\[orbit\] chart reading failed to render",[\s\S]{0,220}?\);/);
+  assert.ok(log, "the render failure is logged");
+  for (const leak of ["birth_date", "birth_time", "latitude", "longitude", "birthplace"]) {
+    assert.ok(!log[0].includes(leak), `${leak} must never be logged`);
+  }
+});
+
+test("chart switching cannot leave a previous chart's reading on screen", () => {
+  assert.ok(appJs.includes("clearChartReading"), "there is an explicit clear");
+  assert.match(appJs, /const token = \+\+reading\.token/,
+    "each load takes a token so a slow response cannot paint over a newer chart");
+  assert.match(appJs, /if \(token !== reading\.token\) return;/,
+    "superseded responses are discarded");
+  // Clearing must happen before the request, not after it returns.
+  const fn = appJs.slice(appJs.indexOf("async function loadChartReading"));
+  const clearAt = fn.indexOf("clearChartReading()");
+  const fetchAt = fn.indexOf("await get(`/api/charts/");
+  assert.ok(clearAt > -1 && clearAt < fetchAt,
+    "stale content must be cleared before the new chart is fetched, not after");
+});
+
+test("added charts still do not steal the active slot", () => {
+  // Dev Update 1.4 made this deliberate. My Chart must not quietly undo it.
+  assert.ok(!/afterChartSaved[\s\S]{0,400}\/activate/.test(appJs),
+    "saving a chart must not activate it");
+});
+test("the reading grid is responsive and never scrolls the page sideways", () => {
   const css = readFileSync(join(ROOT, "public", "styles", "features.css"), "utf8");
-  assert.match(css, /\.placement-grid \{[\s\S]*grid-template-columns: 1fr/);
-  assert.match(css, /min-width: 641px[\s\S]*\.placement-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(css, /min-width: 961px[\s\S]*\.placement-grid--planets \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.ok(css.includes("overflow-wrap: anywhere"), "long placement titles should wrap inside cards");
+  // One column by default, more only when there is room for them.
+  assert.match(css, /\.reading-grid \{[\s\S]*?grid-template-columns: 1fr/);
+  assert.match(css, /min-width: 700px[\s\S]*?\.reading-grid--keys \{ grid-template-columns: repeat\(auto-fit/);
+  assert.match(css, /min-width: 961px[\s\S]*?\.reading-grid--keys \{ grid-template-columns: repeat\(3/);
+  // Short viewports and heavy zoom collapse back to one column.
+  assert.match(css, /max-height: 460px[\s\S]*?grid-template-columns: 1fr/);
+  // Wide tables scroll inside their own container, not the document.
+  assert.match(css, /\.table-scroll \{[\s\S]*?overflow-x: auto/);
+  assert.ok(css.includes("overflow-wrap: anywhere"), "long titles must wrap inside cards");
   const baseCss = readFileSync(join(ROOT, "public", "styles", "base.css"), "utf8");
   assert.ok(baseCss.includes("overflow-x: hidden"));
+});
+
+test("disclosure controls meet the 44px touch guidance", () => {
+  const css = readFileSync(join(ROOT, "public", "styles", "features.css"), "utf8");
+  assert.match(css, /\.reading-card__more > summary,[\s\S]*?min-height: 44px/,
+    "expanders are the primary control on this page and must be thumb-sized");
+  assert.match(css, /\.chart-switcher__select \{[\s\S]*?min-height: 44px/);
 });
 
 test("Me chart actions reuse the existing saved-chart endpoints and confirmation", () => {

@@ -26,6 +26,7 @@ const state = {
   activeChartId: null,
   activeProfile: null,
   activeNatalChart: null,
+  activeReading: null,
   // Saved-chart request outcome. This is what onboarding keys off — an empty
   // `charts` array is NOT enough, because a failed request also leaves it empty
   // and a returning user must never be mistaken for a new one.
@@ -2079,13 +2080,14 @@ function renderSavedCharts() {
   const statusTargets = [$("#me-saved-charts-status")].filter(Boolean);
   const listTargets = [$("#me-saved-charts-list")].filter(Boolean);
   axisRenderChartPicker();
+  renderChartSwitcher();
   if (!statusTargets.length || !listTargets.length) return;
   const setStatus = (text) => statusTargets.forEach((status) => { status.textContent = text; });
   const setLists = (html) => listTargets.forEach((list) => { list.innerHTML = html; });
   if (!authSignedIn()) {
     setStatus("Sign in to save and restore charts.");
     setLists("");
-    renderMeOverview(null, null, "");
+    renderChartPlaceholder("empty", { message: "Sign in to see your chart." });
     return;
   }
   if (state.chartsStatus === "loading" && !state.charts.length) {
@@ -2097,13 +2099,13 @@ function renderSavedCharts() {
   if (state.chartsStatus === "error" && !state.charts.length) {
     setStatus("We couldn't load your saved charts. Check your connection and try again.");
     setLists(`<button type="button" class="o-btn o-btn--secondary" data-action="retry-charts">Retry</button>`);
-    renderMeOverview(null, null, "");
+    renderChartPlaceholder("error", { message: "We couldn't load your saved charts. Check your connection and try again.", retry: false });
     return;
   }
   if (!state.charts.length) {
     setStatus("No saved charts yet. Create your chart to begin.");
     setLists(`<div class="me-empty me-empty--compact"><p>No saved charts yet.</p><button type="button" class="o-btn o-btn--primary" data-action="add-chart">Create your chart</button></div>`);
-    renderMeOverview(null, null, "");
+    renderChartPlaceholder("empty");
     return;
   }
   setStatus(`${state.charts.length} saved chart${state.charts.length === 1 ? "" : "s"}`);
@@ -2142,15 +2144,15 @@ function savedChartCardHtml(chart) {
 
 async function refreshActiveExperience() {
   const active = activeChart();
+  renderChartSwitcher();
   if (active) {
     setActiveChartName(active.nickname);
     axisShowReadingFor(active.nickname);
-    try {
-      const data = await get(`/api/charts/${active.id}`);
-      renderChart(data.chart, data.profile?.nickname || active.nickname, data.profile);
-    } catch { /* Home still owns the failure state */ }
+    // loadChartReading owns its own loading, stale, and failure states — the
+    // previous `catch {}` here hid render defects behind Home's error copy.
+    await loadChartReading(active);
   } else {
-    renderMeOverview(null, null, "");
+    renderChartPlaceholder("empty", { message: "No active chart yet." });
   }
   await axisLoadToday();
   if (currentWorkspace() === "history") await axisLoadHistory($("#history-scope")?.value || "active");
@@ -2319,7 +2321,7 @@ async function boot() {
   setupPlaceSearch("cm");
   wireSavedCharts();
   wireChartModal();
-  wirePlacementDetails();
+  wireChartReading();
   wireHomeChartActions();
 
   $("#topnav-date").textContent = new Date().toLocaleDateString("en-US", {
@@ -2350,26 +2352,11 @@ const SIGN_GLYPH = {
   Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓",
 };
 const PLACEMENT_GLYPHS = {
-  Rising: "ASC", Sun: "☉", Moon: "☾", Mercury: "☿", Venus: "♀", Mars: "♂",
-  Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
+  Rising: "ASC", Ascendant: "ASC", Midheaven: "MC", Sun: "☉", Moon: "☾", Mercury: "☿",
+  Venus: "♀", Mars: "♂", Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
 };
 const ELEMENT_CLASS = { Fire: "fire", Earth: "earth", Air: "air", Water: "water" };
-const PLACEMENT_ROLES = {
-  Rising: { role: "Chart ruler and outward style", meaning: "How you approach life, first impressions, and new situations.", advanced: "Sets the house layout and orients the whole chart when birth time is reliable." },
-  Sun: { role: "Core identity", meaning: "Where you develop confidence, vitality, and purpose.", advanced: "A luminary weighted strongly in element and modality balance." },
-  Moon: { role: "Emotional nature", meaning: "What helps you feel secure, understood, and restored.", advanced: "A luminary that can shift noticeably when birth time is unknown." },
-  Mercury: { role: "Communication and thinking", meaning: "How you process ideas, speak, learn, and make decisions.", advanced: "Shows mental style, information flow, and practical interpretation patterns." },
-  Venus: { role: "Attraction, taste, and relating", meaning: "How you seek ease, pleasure, beauty, and connection.", advanced: "Highlights relational style, creative preference, and receptive values." },
-  Mars: { role: "Drive, conflict, and action", meaning: "How you pursue goals, protect energy, and handle friction.", advanced: "Shows directness, urgency, motivation, and conflict rhythm." },
-  Jupiter: { role: "Growth and faith", meaning: "Where you seek meaning, confidence, and wider possibility.", advanced: "Points to expansion, trust, study, and opportunity patterns." },
-  Saturn: { role: "Boundaries, discipline, and responsibility", meaning: "Where life asks for patience, structure, and maturity.", advanced: "Shows pressure points, commitments, and long-term mastery." },
-  Uranus: { role: "Change, freedom, and disruption", meaning: "Where you need room to innovate and break stale patterns.", advanced: "A generational planet that becomes personal through house, aspects, and chart emphasis." },
-  Neptune: { role: "Dreams, intuition, and ideals", meaning: "Where imagination, longing, and spiritual sensitivity gather.", advanced: "A generational planet refined through house placement, aspects, and chart context." },
-  Pluto: { role: "Power, depth, and transformation", meaning: "Where intensity, release, and deep renewal tend to unfold.", advanced: "A generational planet made personal by house position, aspects, and emphasis." },
-};
-const CHART_KEY_PLACEMENTS = ["Rising", "Sun", "Moon"];
-const PLANET_GRID_PLACEMENTS = ["Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
-const STANDARD_PLANET_ORDER = ["Sun", "Moon", ...PLANET_GRID_PLACEMENTS];
+const STANDARD_PLANET_ORDER = ["Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
 const TIME_ACCURACY_COPY = {
   exact: { label: "Exact birth time", note: "Rising sign, houses, and angles can be read with confidence." },
   reported: { label: "Reported birth time", note: "Rising sign, houses, and angles use the saved reported time." },
@@ -2377,9 +2364,15 @@ const TIME_ACCURACY_COPY = {
   unknown: { label: "Unknown birth time", note: "A birth time is needed to calculate your Rising sign and houses reliably." },
 };
 
+// Every word of interpretation on this page comes from the server-composed
+// `reading` (lib/interpretation/). NOTHING below authors meaning. When you are
+// tempted to add "a short explanatory sentence" here, add it to the content
+// modules instead — otherwise there are two corpora and only one of them has
+// tests.
+
 function degLabel(p) {
   if (!p || p.unavailable) return "";
-  return `${p.degrees}° ${String(p.minutes).padStart(2, "0")}′`;
+  return `${p.degrees}° ${String(p.minutes).padStart(2, "0")}′`;
 }
 
 function formatBirthDate(value) {
@@ -2403,335 +2396,503 @@ function timeAccuracyInfo(value) {
   return TIME_ACCURACY_COPY[value] || TIME_ACCURACY_COPY.unknown;
 }
 
-function houseLabel(chart, bodyName) {
-  const house = chart?.planet_houses?.[bodyName];
-  return house ? `House ${house}` : "House unavailable";
+function glyphFor(name) {
+  return PLACEMENT_GLYPHS[name] || "";
 }
 
-function modalityElement(sign) {
-  return [elementOfSign(sign), modalityOfSign(sign)].filter(Boolean).join(" · ");
+/**
+ * A glyph plus its name, where the glyph is decoration and the name is the
+ * accessible label. Screen readers announce "Sun", never "black circle with
+ * dot", and the reading stays understandable with images and symbols off.
+ */
+function glyphHtml(name) {
+  const glyph = glyphFor(name);
+  if (!glyph) return "";
+  return `<span class="reading-card__glyph" aria-hidden="true">${esc(glyph)}</span>`;
 }
 
-function elementOfSign(sign) {
-  if (["Aries", "Leo", "Sagittarius"].includes(sign)) return "Fire";
-  if (["Taurus", "Virgo", "Capricorn"].includes(sign)) return "Earth";
-  if (["Gemini", "Libra", "Aquarius"].includes(sign)) return "Air";
-  if (["Cancer", "Scorpio", "Pisces"].includes(sign)) return "Water";
-  return "";
-}
+// ── Reading state ───────────────────────────────────────────────────────────
+// One place decides what My Chart is showing. `token` guards against a slow
+// response for a chart the user has already switched away from: every request
+// takes the next token and only the newest may paint.
+const reading = {
+  token: 0,
+  state: "idle",   // idle | loading | ready | empty | error
+  chartId: null,
+};
 
-function modalityOfSign(sign) {
-  if (["Aries", "Cancer", "Libra", "Capricorn"].includes(sign)) return "Cardinal";
-  if (["Taurus", "Leo", "Scorpio", "Aquarius"].includes(sign)) return "Fixed";
-  if (["Gemini", "Virgo", "Sagittarius", "Pisces"].includes(sign)) return "Mutable";
-  return "";
-}
+const READING_SECTIONS = ["#section-bigthree", "#section-patterns", "#section-planets",
+                          "#section-aspects", "#section-houses", "#section-data"];
 
-function reliableHouseLabel(chart, bodyName) {
-  if (!chart?.time_known) return "House unavailable";
-  return houseLabel(chart, bodyName);
-}
-
-function placementData(chart, name) {
-  const info = PLACEMENT_ROLES[name] || { role: "", meaning: "", advanced: "" };
-  if (name === "Rising") {
-    const rising = chart?.big_three?.rising;
-    if (!rising || rising.unavailable) {
-      return {
-        name,
-        glyph: PLACEMENT_GLYPHS.Rising,
-        title: "Rising unavailable",
-        sign: null,
-        degree: "Birth time needed",
-        house: "House unavailable",
-        meta: "Birth time needed",
-        role: info.role,
-        meaning: info.meaning,
-        advanced: info.advanced,
-        unavailable: true,
-        warning: TIME_ACCURACY_COPY.unknown.note,
-      };
-    }
-    const chartRuler = chart.chart_ruler ? `${chart.chart_ruler} chart ruler` : "Chart ruler";
-    return {
-      name,
-      glyph: PLACEMENT_GLYPHS.Rising,
-      title: `Rising in ${rising.sign}`,
-      sign: rising.sign,
-      degree: degLabel(rising),
-      house: "Chart angle",
-      meta: `${degLabel(rising)} · ${chartRuler}`,
-      role: info.role,
-      meaning: info.meaning,
-      advanced: [modalityElement(rising.sign), chart.angles?.ascendant?.longitude != null ? `${Number(chart.angles.ascendant.longitude).toFixed(2)}° absolute longitude` : ""].filter(Boolean).join(" · "),
-      source: chart.angles?.ascendant || rising,
-      unavailable: false,
-    };
-  }
-
-  const body = chart?.planets?.[name];
-  if (!body) {
-    return {
-      name,
-      glyph: PLACEMENT_GLYPHS[name] || name.slice(0, 2),
-      title: `${name} unavailable`,
-      sign: null,
-      degree: "Degree unavailable",
-      house: "House unavailable",
-      meta: "Placement unavailable",
-      role: info.role,
-      meaning: info.meaning || "This placement is not available in the current calculation.",
-      advanced: info.advanced,
-      unavailable: true,
-    };
-  }
-  const house = reliableHouseLabel(chart, name);
-  const titleHouse = house === "House unavailable" ? "" : ` · ${house}`;
-  const degree = degLabel(body);
-  const retro = body.retrograde ? " · Retrograde" : "";
-  return {
-    name,
-    glyph: PLACEMENT_GLYPHS[name] || name.slice(0, 2),
-    title: `${name} in ${body.sign}${titleHouse}`,
-    sign: body.sign,
-    degree,
-    house,
-    meta: `${degree}${retro}`,
-    role: info.role,
-    meaning: info.meaning,
-    advanced: [info.advanced, modalityElement(body.sign), body.longitude != null ? `${Number(body.longitude).toFixed(2)}° absolute longitude` : ""].filter(Boolean).join(" · "),
-    retrograde: !!body.retrograde,
-    source: body,
-    unavailable: false,
-  };
-}
-
-function placementCardHtml(chart, name, { group }) {
-  const data = placementData(chart, name);
-  const technical = data.sign
-    ? [elementOfSign(data.sign), modalityOfSign(data.sign), data.retrograde ? "Retrograde" : ""].filter(Boolean).join(" · ")
-    : "";
-  const warning = data.warning ? `<span class="placement-card__warning">${esc(data.warning)}</span>` : "";
-  return `<button type="button" class="placement-card${data.unavailable ? " is-unavailable" : ""}" data-placement-name="${esc(name)}" data-placement-group="${esc(group)}" aria-label="${esc(data.title)} details">
-    <span class="placement-card__glyph" aria-hidden="true">${esc(data.glyph)}</span>
-    <span class="placement-card__main">
-      <span class="placement-card__title">${esc(data.title)}</span>
-      <span class="placement-card__meta">${esc(data.meta || data.degree)}</span>
-      <span class="placement-card__role">${esc(data.role)}</span>
-      ${warning}
-      ${technical ? `<span class="placement-card__tech advanced-only">${esc(technical)}</span>` : ""}
-    </span>
-    <span class="placement-card__chevron" aria-hidden="true">›</span>
-  </button>`;
-}
-
-function renderBigThree(bt) {
-  const chart = state.activeNatalChart;
-  const target = $("#bigthree");
-  if (!target || !chart) return;
-  target.innerHTML = CHART_KEY_PLACEMENTS.map((name) => placementCardHtml(chart, name, { group: "keys" })).join("");
-}
-
-function renderBars(elId, percentages, classMap) {
-  const el = $(elId);
-  if (!el) return;
-  el.innerHTML = Object.entries(percentages).map(([key, pct]) => `
-    <div class="bar-row">
-      <span class="bar-key">${esc(key)}</span>
-      <span class="bar-track"><span class="bar-fill ${classMap ? (classMap[key] || "") : ""}" style="width:${pct}%"></span></span>
-      <span class="bar-pct">${pct}%</span>
-    </div>`).join("");
-}
-
-function renderKeyPlacements(chart) {
-  const target = $("#key-placements");
-  if (!target) return;
-  target.innerHTML = PLANET_GRID_PLACEMENTS.map((name) => placementCardHtml(chart, name, { group: "planets" })).join("");
-}
-
-function placementDetailBodyHtml(chart, name) {
-  const data = placementData(chart, name);
-  const timeInfo = timeAccuracyInfo(chart.time_accuracy);
-  const detailRows = [
-    ["Sign", data.sign || "Unavailable"],
-    ["Exact degree", data.degree || "Unavailable"],
-    ["House", data.house || "House unavailable"],
-    ["Retrograde", data.retrograde ? "Yes" : "No"],
-  ];
-  const reliability = [];
-  if (chart.time_accuracy === "reported") reliability.push(TIME_ACCURACY_COPY.reported.note);
-  if (chart.time_accuracy === "approximate") reliability.push(TIME_ACCURACY_COPY.approximate.note);
-  if (chart.time_accuracy === "unknown" || data.unavailable || data.house === "House unavailable") reliability.push(TIME_ACCURACY_COPY.unknown.note);
-  if (chart.warnings?.includes("moon_approximate") && name === "Moon") reliability.push("Moon may shift signs without a birth time.");
-  return `
-    <div class="placement-detail-hero">
-      <span class="placement-detail-glyph" aria-hidden="true">${esc(data.glyph)}</span>
-      <div>
-        <p class="u-eyebrow">${esc(timeInfo.label)}</p>
-        <h3>${esc(data.title)}</h3>
-        <p>${esc(data.role)}</p>
-      </div>
-    </div>
-    <dl class="placement-detail-facts">
-      ${detailRows.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}
-    </dl>
-    ${reliability.length ? `<div class="placement-detail-warnings">${[...new Set(reliability)].map((item) => `<span class="warn-chip">${esc(item)}</span>`).join("")}</div>` : ""}
-    <section class="placement-detail-section">
-      <h3>Simple interpretation</h3>
-      <p>${esc(data.meaning)}</p>
-    </section>
-    <section class="placement-detail-section advanced-only">
-      <h3>Advanced notes</h3>
-      <p>${esc(data.advanced || "No additional technical notes are available for this placement.")}</p>
-    </section>`;
-}
-
-function openPlacementDetail(button) {
-  const modal = $("#placement-detail-modal");
-  const chart = state.activeNatalChart;
-  const name = button?.dataset?.placementName;
-  if (!modal || !chart || !name) return;
-  const data = placementData(chart, name);
-  $("#placement-detail-kicker").textContent = button.dataset.placementGroup === "keys" ? "Chart Key" : "Planet";
-  $("#placement-detail-title").textContent = data.title;
-  $("#placement-detail-body").innerHTML = placementDetailBodyHtml(chart, name);
-  if (document.activeElement !== button) button.focus({ preventScroll: true });
-  openModal(modal, { initialFocus: $("#placement-detail-close") });
-}
-
-function wirePlacementDetails() {
-  const panel = $("#panel-me");
-  if (!panel || panel._placementDetailsWired) return;
-  panel._placementDetailsWired = true;
-  panel.addEventListener("click", (event) => {
-    const button = event.target.closest(".placement-card[data-placement-name]");
-    if (!button) return;
-    openPlacementDetail(button);
-  });
-  panel.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    const button = event.target.closest(".placement-card[data-placement-name]");
-    if (!button) return;
-    event.preventDefault();
-    openPlacementDetail(button);
+function setReadingState(next) {
+  reading.state = next;
+  const root = $("#me-reading");
+  if (root) root.dataset.state = next;
+  // Sections are hidden rather than emptied while loading, so the page keeps
+  // its shape and does not collapse and rebuild under the reader.
+  const showSections = next === "ready";
+  READING_SECTIONS.forEach((sel) => {
+    const el = $(sel);
+    if (el) el.hidden = !showSections;
   });
 }
 
-function renderPlacements(chart) {
-  const target = $("#chart-placements");
-  if (!target) return;
-  const orderedPlanets = STANDARD_PLANET_ORDER.map((name) => chart.planets?.[name]).filter(Boolean);
-  const rows = orderedPlanets.map((p) =>
-    `<tr><td>${esc(p.name)}</td><td>${SIGN_GLYPH[p.sign] || ""} ${esc(p.sign)}</td><td>${degLabel(p)}</td><td>${p.retrograde ? "Retrograde" : ""}</td><td>${chart.planet_houses[p.name] ? "H" + chart.planet_houses[p.name] : "—"}</td></tr>`
-  ).join("");
-  const asp = chart.aspects.slice(0, 12).map((a) =>
-    `<li>${esc(a.a)} ${esc(a.aspect.toLowerCase())} ${esc(a.b)} <span class="orb">(orb ${a.orb}°)</span></li>`
-  ).join("");
-  const houseRows = chart.houses?.length ? chart.houses.map((h) =>
-    `<tr><td>House ${h.house}</td><td>${SIGN_GLYPH[h.sign] || ""} ${esc(h.sign)}</td><td>${h.degrees}°${String(h.minutes).padStart(2, "0")}′</td></tr>`
-  ).join("") : "";
-  const angleRows = chart.time_known && chart.angles ? Object.entries(chart.angles).map(([name, angle]) =>
-    angle ? `<tr><td>${name === "midheaven" ? "Midheaven" : "Ascendant"}</td><td>${SIGN_GLYPH[angle.sign] || ""} ${esc(angle.sign)}</td><td>${degLabel(angle)}</td></tr>` : ""
-  ).join("") : "";
-  const retro = chart.retrogrades?.length ? chart.retrogrades.join(", ") : "None";
-  target.innerHTML = `
-    <details class="chart-details">
-      <summary>All planetary placements</summary>
-      <table class="placements">
-        <thead><tr><th>Body</th><th>Sign</th><th>Degree</th><th>Status</th><th>House</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </details>
-    <details class="chart-details">
-      <summary>Houses</summary>
-      ${houseRows ? `<table class="placements"><thead><tr><th>House</th><th>Sign</th><th>Cusp</th></tr></thead><tbody>${houseRows}</tbody></table>` : `<p class="me-muted">A birth time is needed to calculate houses reliably.</p>`}
-    </details>
-    <details class="chart-details">
-      <summary>Major aspects</summary>
-      <ul class="aspect-list">${asp || "<li>No major aspects in the current calculation.</li>"}</ul>
-    </details>
-    <details class="chart-details">
-      <summary>Angles</summary>
-      ${angleRows ? `<table class="placements"><thead><tr><th>Angle</th><th>Sign</th><th>Degree</th></tr></thead><tbody>${angleRows}</tbody></table>` : `<p class="me-muted">A birth time is needed to calculate angles reliably.</p>`}
-    </details>
-    <details class="chart-details">
-      <summary>Elements, modalities, and retrogrades</summary>
-      <div class="chart-meta">Chart ruler: ${esc(chart.chart_ruler || "—")} · Dominant: ${esc(chart.element_balance.dominant)} / ${esc(chart.modality_balance.dominant)} · Retrograde: ${esc(retro)} · ${esc(chart.calculation_version)}</div>
-    </details>`;
+/**
+ * Clear every rendered interpretation.
+ *
+ * Called before any chart load. This is the stale-content guard: after this
+ * runs there is no sentence left on the page that belongs to the previous
+ * chart, so a slow or failed load cannot leave one person's Rising sign
+ * sitting under another person's name.
+ */
+function clearChartReading() {
+  state.activeNatalChart = null;
+  state.activeProfile = null;
+  state.activeReading = null;
+  ["#bigthree", "#chart-patterns", "#key-placements", "#chart-aspects",
+   "#chart-houses", "#chart-placements", "#chart-limitation"].forEach((sel) => {
+    const el = $(sel);
+    if (el) el.innerHTML = "";
+  });
 }
 
-function renderMeOverview(profile, chart, name) {
+// ── 1. Chart identity and calculation context ───────────────────────────────
+
+function renderChartHeader(profile, chart, name, context) {
   const target = $("#me-overview");
-  const status = $("#me-status");
   if (!target) return;
-  if (!profile || !chart) {
-    if (status) status.textContent = authSignedIn() && state.chartsStatus === "error"
-      ? "We couldn't load your saved charts. Try again from Home."
-      : "No active chart yet.";
-    $("#mychart-name").textContent = "No active chart yet";
-    $("#me-active-badge")?.setAttribute("hidden", "");
-    target.innerHTML = `<div class="me-empty">
-      <h2>No active chart yet</h2>
-      <p>Create your chart to see your chart keys, planet grid, and saved profiles.</p>
-      <button type="button" class="o-btn o-btn--primary" data-action="add-chart">Create your chart</button>
-    </div>`;
-    $("#bigthree").innerHTML = "";
-    $("#key-placements").innerHTML = "";
-    $("#chart-warnings").innerHTML = "";
-    $("#chart-placements").innerHTML = "";
-    renderBars("#element-bars", {}, null);
-    renderBars("#modality-bars", {}, null);
-    return;
-  }
-  if (status) status.textContent = "Active chart loaded.";
-  $("#mychart-name").textContent = name || profile.nickname || "My Chart";
-  $("#me-active-badge")?.removeAttribute("hidden");
-  const timeInfo = timeAccuracyInfo(profile.time_accuracy || chart.time_accuracy);
-  const rising = chart.big_three.rising?.unavailable ? "Needs birth time" : chart.big_three.rising?.sign;
-  const mode = "Advanced";   // Update 5.2: one complete experience
-  const cautions = [];
-  if ((profile.time_accuracy || chart.time_accuracy) === "approximate") cautions.push(TIME_ACCURACY_COPY.approximate.note);
-  if ((profile.time_accuracy || chart.time_accuracy) === "unknown" || chart.big_three.rising?.unavailable) cautions.push(TIME_ACCURACY_COPY.unknown.note);
-  if (chart.warnings?.includes("moon_approximate")) cautions.push("Moon is calculated from the date and may shift signs without a birth time.");
+  const timeInfo = timeAccuracyInfo(profile?.time_accuracy || chart?.time_accuracy);
+  const contextRows = (context || []).map((row) => `
+    <div>
+      <dt>${esc(row.label)}</dt>
+      <dd>${esc(row.value)}${row.help ? `<span class="me-facts__help">${esc(row.help)}</span>` : ""}</dd>
+    </div>`).join("");
   target.innerHTML = `
     <div class="me-overview__top">
       <div>
         <p class="u-eyebrow">Active Chart</p>
-        <h2>${esc(name || profile.nickname || "My Chart")}</h2>
+        <h2>${esc(name || profile?.nickname || "My Chart")}</h2>
       </div>
-      <button type="button" class="o-btn o-btn--secondary" data-action="edit" data-id="${esc(profile.id)}">Edit Chart</button>
-    </div>
-    <div class="me-overview__big">
-      <span><strong>Sun</strong>${esc(chart.big_three.sun?.sign || "—")}</span>
-      <span><strong>Moon</strong>${esc(chart.big_three.moon?.sign || "—")}</span>
-      <span><strong>Rising</strong>${esc(rising || "—")}</span>
     </div>
     <dl class="me-facts">
-      <div><dt>Birth date</dt><dd>${esc(formatBirthDate(profile.birth_date))}</dd></div>
-      <div><dt>Birth location</dt><dd>${esc(profile.birthplace_name || "Location not set")}</dd></div>
+      <div><dt>Birth date</dt><dd>${esc(formatBirthDate(profile?.birth_date))}</dd></div>
+      <div><dt>Birthplace</dt><dd>${esc(profile?.birthplace_name || "Location not set")}</dd></div>
       <div><dt>Birth time</dt><dd>${esc(formatBirthTime(profile))}</dd></div>
-      <div><dt>Accuracy</dt><dd>${esc(timeInfo.label)}</dd></div>
-      <div><dt>Mode</dt><dd>${esc(mode)}</dd></div>
-    </dl>
-    <p class="me-overview__note">${esc(timeInfo.note)}</p>
-    ${cautions.length ? `<div class="chart-warnings">${cautions.map((c) => `<span class="warn-chip">${esc(c)}</span>`).join("")}</div>` : ""}`;
+      <div><dt>Time certainty</dt><dd>${esc(timeInfo.label)}</dd></div>
+      ${contextRows}
+    </dl>`;
 }
 
-function renderChart(chart, name, profile = null) {
+// ── 7. Birth-time limitations (one page-level notice) ───────────────────────
+
+function renderLimitation(limitation) {
+  const target = $("#chart-limitation");
+  if (!target) return;
+  if (!limitation) { target.innerHTML = ""; return; }
+  const details = (limitation.details || []).map((d) => `<li>${esc(d)}</li>`).join("");
+  target.innerHTML = `
+    <aside class="chart-limitation" role="note" aria-labelledby="chart-limitation-title">
+      <h2 class="chart-limitation__title" id="chart-limitation-title">${esc(limitation.title)}</h2>
+      <p>${esc(limitation.body)}</p>
+      ${details ? `<ul class="chart-limitation__list">${details}</ul>` : ""}
+      ${limitation.action ? `<p class="chart-limitation__action">${esc(limitation.action)}</p>` : ""}
+    </aside>`;
+}
+
+// ── Shared card ─────────────────────────────────────────────────────────────
+
+/**
+ * One placement, with its reading behind a native disclosure.
+ *
+ * The summary line and the expanded body never repeat each other: the summary
+ * is the one-sentence composition, the body is the layered detail. <details>
+ * is used deliberately over a custom widget — it is keyboard operable and
+ * announces its own expanded state without any ARIA of ours to get wrong.
+ */
+function readingCardHtml(placement, { role = null } = {}) {
+  if (!placement) return "";
+  if (placement.unavailable) {
+    return `<article class="reading-card reading-card--unavailable">
+      <div class="reading-card__head">
+        ${glyphHtml(placement.planet)}
+        <div class="reading-card__ident">
+          <h3 class="reading-card__title">${esc(placement.planet)} unavailable</h3>
+          <p class="reading-card__meta">Birth time needed</p>
+        </div>
+      </div>
+      <p class="reading-card__summary">${esc(placement.reason || "")}</p>
+    </article>`;
+  }
+  const meta = [placement.position, placement.house ? `House ${placement.house}` : "",
+                placement.retrograde ? "Retrograde" : ""].filter(Boolean).join(" · ");
+  const body = (placement.detail || []).map((p) => `<p>${esc(p)}</p>`).join("");
+  const extras = [
+    placement.strength ? `<div class="reading-card__aside"><h4>Where this tends to work well</h4><p>${esc(placement.strength)}</p></div>` : "",
+    placement.growth ? `<div class="reading-card__aside"><h4>A growing edge</h4><p>${esc(placement.growth)}</p></div>` : "",
+    placement.retrogradeNote ? `<p class="reading-card__note">${esc(placement.retrogradeNote)}</p>` : "",
+  ].join("");
+  return `<article class="reading-card">
+    <div class="reading-card__head">
+      ${glyphHtml(placement.planet)}
+      <div class="reading-card__ident">
+        <h3 class="reading-card__title">${esc(placement.planet)}${placement.sign ? ` in ${esc(placement.sign)}` : ""}</h3>
+        <p class="reading-card__meta">${esc(meta)}</p>
+        ${role ? `<p class="reading-card__role">${esc(role)}</p>` : ""}
+      </div>
+    </div>
+    <p class="reading-card__summary">${esc(placement.summary)}</p>
+    ${body || extras ? `<details class="reading-card__more">
+      <summary><span>Read more about ${esc(placement.planet)}</span></summary>
+      <div class="reading-card__body">${body}${extras}</div>
+    </details>` : ""}
+  </article>`;
+}
+
+// ── 2. Big Three ────────────────────────────────────────────────────────────
+
+function renderBigThree(bigThree) {
+  const target = $("#bigthree");
+  if (!target) return;
+  target.innerHTML = (bigThree || []).map((p) => readingCardHtml(p, { role: p.role })).join("");
+}
+
+// ── 3. Chart patterns ───────────────────────────────────────────────────────
+
+function balanceBarsHtml(percentages, classMap) {
+  return Object.entries(percentages || {}).map(([key, pct]) => `
+    <div class="bar-row">
+      <span class="bar-key">${esc(key)}</span>
+      <span class="bar-track"><span class="bar-fill ${classMap ? (classMap[key] || "") : ""}" style="width:${Number(pct) || 0}%"></span></span>
+      <span class="bar-pct">${esc(String(pct))}%</span>
+    </div>`).join("");
+}
+
+function patternBlockHtml(pattern, { title, classMap, countsLabel }) {
+  if (!pattern) return "";
+  const extra = [
+    pattern.detail ? `<p>${esc(pattern.detail)}</p>` : "",
+    pattern.lighter?.detail ? `<p>${esc(pattern.lighter.detail)}</p>` : "",
+    pattern.growth ? `<p>${esc(pattern.growth)}</p>` : "",
+  ].filter(Boolean).join("");
+  return `<div class="pattern-block">
+    <h3>${esc(title)}</h3>
+    <p class="pattern-block__summary">${esc(pattern.summary)}</p>
+    <div class="bars">${balanceBarsHtml(pattern.percentages, classMap)}</div>
+    ${extra ? `<details class="reading-card__more">
+      <summary><span>What ${esc(title.toLowerCase())} means here</span></summary>
+      <div class="reading-card__body">${extra}</div>
+    </details>` : ""}
+    <details class="reading-card__more">
+      <summary><span>${esc(countsLabel)}</span></summary>
+      <div class="reading-card__body"><p class="pattern-block__counts">${
+        Object.entries(pattern.counts || {}).map(([k, v]) => `${esc(k)}: ${esc(String(v))}`).join(" · ")
+      }</p></div>
+    </details>
+  </div>`;
+}
+
+function renderPatterns(patterns) {
+  const target = $("#chart-patterns");
+  if (!target) return;
+  if (!patterns || (!patterns.element && !patterns.modality)) {
+    target.innerHTML = `<p class="me-muted">Pattern information is not available for this chart.</p>`;
+    return;
+  }
+  target.innerHTML = `<div class="pattern-row">
+    ${patternBlockHtml(patterns.element, { title: "Element balance", classMap: ELEMENT_CLASS, countsLabel: "Counted placements" })}
+    ${patternBlockHtml(patterns.modality, { title: "Modality balance", classMap: null, countsLabel: "Counted placements" })}
+  </div>
+  <p class="pattern-note">Counts weigh the ten planets in this chart, with the Sun and Moon carrying extra weight.</p>`;
+}
+
+// ── 4. Planet placements ────────────────────────────────────────────────────
+
+function renderPlacements(placements) {
+  const target = $("#key-placements");
+  if (!target) return;
+  if (!placements?.length) {
+    target.innerHTML = `<p class="me-muted">No planet placements are available for this chart.</p>`;
+    return;
+  }
+  target.innerHTML = placements.map((p) => readingCardHtml(p)).join("");
+}
+
+// ── 5. Major aspects ────────────────────────────────────────────────────────
+
+function aspectCardHtml(aspect) {
+  return `<article class="aspect-card">
+    <div class="aspect-card__head">
+      <h3 class="aspect-card__title">${esc(aspect.a)} ${esc(aspect.aspect.toLowerCase())} ${esc(aspect.b)}</h3>
+      ${aspect.orbLabel ? `<span class="aspect-card__orb">${esc(aspect.orbLabel)}</span>` : ""}
+    </div>
+    <p class="aspect-card__summary">${esc(aspect.headline)}</p>
+    <details class="reading-card__more">
+      <summary><span>What this pairing can look like</span></summary>
+      <div class="reading-card__body">
+        <p>${esc(aspect.detail)}</p>
+        <div class="reading-card__aside"><h4>Constructive potential</h4><p>${esc(aspect.constructive)}</p></div>
+        <div class="reading-card__aside"><h4>Possible tension</h4><p>${esc(aspect.tension)}</p></div>
+      </div>
+    </details>
+  </article>`;
+}
+
+function renderAspects(aspects) {
+  const target = $("#chart-aspects");
+  if (!target) return;
+  const highlights = aspects?.highlights || [];
+  const all = aspects?.all || [];
+  if (!all.length) {
+    target.innerHTML = `<p class="me-muted">This chart has no major aspects within the orbs Orbit Axis uses.</p>`;
+    return;
+  }
+  const rest = all.slice(highlights.length);
+  target.innerHTML = `
+    <div class="aspect-list">${highlights.map(aspectCardHtml).join("")}</div>
+    ${rest.length ? `<details class="chart-details">
+      <summary>All ${all.length} major aspects</summary>
+      <ul class="aspect-plain">${rest.map((a) => `<li><span>${esc(a.a)} ${esc(a.aspect.toLowerCase())} ${esc(a.b)}</span>${a.orbLabel ? `<span class="orb">${esc(a.orbLabel)}</span>` : ""}</li>`).join("")}</ul>
+    </details>` : ""}`;
+}
+
+// ── 6. Houses and angles ────────────────────────────────────────────────────
+
+function renderHouses(chart, bigThree) {
+  const target = $("#chart-houses");
+  if (!target) return;
+  // Houses and angles exist only with a usable birth time. When they do not,
+  // this section says so once — it does not render an empty table.
+  if (!chart?.time_known || !chart?.houses?.length) {
+    target.innerHTML = `<p class="me-muted">House placements, the Rising sign, and the Midheaven all need a reliable birth time. Everything else on this page is calculated normally without one.</p>`;
+    return;
+  }
+  const rising = (bigThree || []).find((p) => p.planet === "Ascendant" && !p.unavailable);
+  const mc = chart.angles?.midheaven;
+  const angleCards = [
+    rising ? `<article class="reading-card">
+      <div class="reading-card__head">${glyphHtml("Ascendant")}<div class="reading-card__ident">
+        <h3 class="reading-card__title">Ascendant in ${esc(rising.sign)}</h3>
+        <p class="reading-card__meta">${esc(rising.position)}</p>
+      </div></div>
+      <p class="reading-card__summary">${esc(rising.summary)}</p>
+    </article>` : "",
+    mc ? `<article class="reading-card">
+      <div class="reading-card__head">${glyphHtml("Midheaven")}<div class="reading-card__ident">
+        <h3 class="reading-card__title">Midheaven in ${esc(mc.sign)}</h3>
+        <p class="reading-card__meta">${esc(degLabel(mc))}</p>
+      </div></div>
+      <p class="reading-card__summary">The Midheaven marks the most public point of the chart — visible direction, reputation, and the work you are seen doing.</p>
+    </article>` : "",
+  ].filter(Boolean).join("");
+  const rows = chart.houses.map((h) => `<tr>
+    <td>House ${esc(String(h.house))}</td>
+    <td>${esc(h.sign)}</td>
+    <td>${esc(String(h.degrees))}°${esc(String(h.minutes).padStart(2, "0"))}′</td>
+    <td>${esc(planetsInHouse(chart, h.house) || "—")}</td>
+  </tr>`).join("");
+  target.innerHTML = `
+    <div class="reading-grid reading-grid--keys">${angleCards}</div>
+    <details class="chart-details">
+      <summary>All twelve house cusps</summary>
+      <div class="table-scroll">
+        <table class="placements">
+          <thead><tr><th>House</th><th>Sign on cusp</th><th>Cusp degree</th><th>Planets</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </details>`;
+}
+
+function planetsInHouse(chart, houseNumber) {
+  return Object.entries(chart?.planet_houses || {})
+    .filter(([, h]) => h === houseNumber)
+    .map(([name]) => name)
+    .join(", ");
+}
+
+// ── 8. Chart data and source information ────────────────────────────────────
+
+function renderChartData(chart, readingPayload) {
+  const target = $("#chart-placements");
+  if (!target) return;
+  const rows = STANDARD_PLANET_ORDER.map((name) => chart.planets?.[name]).filter(Boolean).map((p) =>
+    `<tr><td>${esc(p.name)}</td><td>${esc(p.sign)}</td><td>${esc(degLabel(p))}</td><td>${p.retrograde ? "Retrograde" : "Direct"}</td><td>${chart.planet_houses?.[p.name] ? "House " + esc(String(chart.planet_houses[p.name])) : "—"}</td></tr>`
+  ).join("");
+  const retro = readingPayload?.retrogrades?.length ? readingPayload.retrogrades.join(", ") : "None";
+  target.innerHTML = `
+    <details class="chart-details" open>
+      <summary>Calculated positions</summary>
+      <div class="table-scroll">
+        <table class="placements">
+          <thead><tr><th>Body</th><th>Sign</th><th>Degree</th><th>Motion</th><th>House</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </details>
+    <dl class="me-facts me-facts--compact">
+      <div><dt>Chart ruler</dt><dd>${esc(chart.chart_ruler || "—")}</dd></div>
+      <div><dt>Retrograde at birth</dt><dd>${esc(retro)}</dd></div>
+      <div><dt>Calculation</dt><dd>${esc(chart.calculation_version || "—")}</dd></div>
+      <div><dt>Interpretation content</dt><dd>${esc(readingPayload?.contentVersion || "—")}</dd></div>
+    </dl>
+    <p class="me-muted">Orbit Axis writes these readings from your calculated chart using text written and reviewed in advance. Nothing on this page is generated by an AI model, and your birth details are never sent to one.</p>`;
+}
+
+// ── Composition ─────────────────────────────────────────────────────────────
+
+/**
+ * Render a complete chart reading.
+ *
+ * Throws rather than half-painting: a composition defect must surface as an
+ * error state the reader can retry, not as a page that silently omits a
+ * section. The caller catches and distinguishes it from a network failure.
+ */
+function renderChart(chart, name, profile = null, readingPayload = null) {
+  if (!chart) throw new Error("renderChart called without a chart");
+  if (!readingPayload) throw new Error("renderChart called without a composed reading");
   state.activeNatalChart = chart;
   state.activeProfile = profile;
-  const warn = $("#chart-warnings");
-  if (warn && chart.warnings && chart.warnings.length) {
-    const human = { birth_time_unknown: "Birth time unknown — Rising and houses are hidden.", houses_unavailable: "Houses unavailable.", rising_unavailable: "Rising unavailable.", moon_approximate: "Moon may shift signs without a birth time." };
-    const seen = new Set();
-    warn.innerHTML = chart.warnings.filter((w) => !seen.has(w) && seen.add(w)).map((w) => `<span class="warn-chip">${esc(human[w] || w)}</span>`).join("");
-  } else if (warn) warn.innerHTML = "";
-  renderMeOverview(profile, chart, name);
-  renderBigThree(chart.big_three);
-  renderKeyPlacements(chart);
-  renderBars("#element-bars", chart.element_balance.percentages, ELEMENT_CLASS);
-  renderBars("#modality-bars", chart.modality_balance.percentages, null);
-  renderPlacements(chart);
+  state.activeReading = readingPayload;
+
+  renderChartHeader(profile, chart, name, readingPayload.context);
+  renderLimitation(readingPayload.limitation);
+  renderBigThree(readingPayload.bigThree);
+  renderPatterns(readingPayload.patterns);
+  renderPlacements(readingPayload.placements);
+  renderAspects(readingPayload.aspects);
+  renderHouses(chart, readingPayload.bigThree);
+  renderChartData(chart, readingPayload);
+
+  const edit = $("#me-edit-chart");
+  if (edit) {
+    edit.hidden = !profile?.id;
+    if (profile?.id) edit.dataset.id = profile.id;
+  }
+  setReadingState("ready");
+}
+
+/** The signed-out / no-chart / failed states all route through here. */
+function renderChartPlaceholder(kind, { message = "", retry = false } = {}) {
+  clearChartReading();
+  setReadingState(kind);
+  const target = $("#me-overview");
+  const status = $("#me-status");
+  const nameEl = $("#mychart-name");
+  const edit = $("#me-edit-chart");
+  if (edit) edit.hidden = true;
+  if (nameEl) nameEl.textContent = kind === "loading" ? "Loading your chart…" : "No active chart yet";
+  $("#me-active-badge")?.setAttribute("hidden", "");
+  if (status) status.textContent = message || "";
+  if (!target) return;
+  if (kind === "loading") {
+    target.innerHTML = `<div class="me-loading"><p>Loading your chart…</p></div>`;
+    return;
+  }
+  if (kind === "error") {
+    target.innerHTML = `<div class="me-empty">
+      <h2>We couldn't load this chart</h2>
+      <p>${esc(message || "Something went wrong while preparing your reading.")}</p>
+      ${retry ? `<button type="button" class="o-btn o-btn--primary" data-action="retry-reading">Try again</button>` : ""}
+    </div>`;
+    return;
+  }
+  target.innerHTML = `<div class="me-empty">
+    <h2>No active chart yet</h2>
+    <p>Create your chart and Orbit Axis will explain every placement in it.</p>
+    <button type="button" class="o-btn o-btn--primary" data-action="add-chart">Create your chart</button>
+  </div>`;
+}
+
+/**
+ * Load and render the active chart.
+ *
+ * Failures are separated on purpose. A fetch that fails is a chart-loading
+ * problem the reader can retry; a render that throws is our defect, and
+ * reporting it as "check your connection" would hide it for ever. Neither is
+ * swallowed.
+ */
+async function loadChartReading(chartProfile) {
+  if (!chartProfile) { renderChartPlaceholder("empty"); return; }
+  const token = ++reading.token;
+  reading.chartId = chartProfile.id;
+
+  clearChartReading();
+  renderChartPlaceholder("loading", { message: `Loading ${chartProfile.nickname || "your chart"}…` });
+  const nameEl = $("#mychart-name");
+  if (nameEl) nameEl.textContent = chartProfile.nickname || "My Chart";
+
+  let data;
+  try {
+    data = await get(`/api/charts/${chartProfile.id}`);
+  } catch (error) {
+    if (token !== reading.token) return;   // superseded — say nothing
+    renderChartPlaceholder("error", {
+      message: "We couldn't reach your chart just now. Your saved charts are safe.",
+      retry: true,
+    });
+    return;
+  }
+  if (token !== reading.token) return;     // a newer chart is already loading
+
+  try {
+    renderChart(data.chart, data.profile?.nickname || chartProfile.nickname, data.profile, data.reading);
+    const status = $("#me-status");
+    if (status) status.textContent = `${data.profile?.nickname || chartProfile.nickname || "Your chart"} is ready.`;
+    $("#me-active-badge")?.removeAttribute("hidden");
+  } catch (error) {
+    // A composition or rendering defect. Structured, and carrying no birth data.
+    console.error("[orbit] chart reading failed to render", {
+      chartId: chartProfile.id, stage: "render", message: error?.message,
+    });
+    renderChartPlaceholder("error", {
+      message: "We couldn't prepare the reading for this chart. This one is on us — please try again.",
+      retry: true,
+    });
+  }
+}
+
+// ── Chart switcher ──────────────────────────────────────────────────────────
+
+function renderChartSwitcher() {
+  const wrap = $("#chart-switcher");
+  const select = $("#chart-switcher-select");
+  if (!wrap || !select) return;
+  const charts = state.charts || [];
+  // A switcher with one option is a control that cannot do anything.
+  wrap.hidden = charts.length < 2;
+  if (charts.length < 2) { select.innerHTML = ""; return; }
+  const active = activeChart();
+  select.innerHTML = charts.map((c) =>
+    `<option value="${esc(c.id)}"${c.id === active?.id ? " selected" : ""}>${esc(c.nickname || "Untitled chart")}</option>`
+  ).join("");
+}
+
+function wireChartReading() {
+  const panel = $("#panel-me");
+  if (!panel || panel._readingWired) return;
+  panel._readingWired = true;
+
+  $("#chart-switcher-select")?.addEventListener("change", async (event) => {
+    const id = event.target.value;
+    if (!id || id === activeChart()?.id) return;
+    try {
+      await post(`/api/charts/${id}/activate`, {});
+      await refreshData();
+      // Announce the change and put focus somewhere useful, so a keyboard or
+      // screen-reader user is not left at a stale position in a page that has
+      // completely changed underneath them.
+      $("#mychart-title")?.focus({ preventScroll: true });
+    } catch {
+      toast("We couldn't switch charts just now.");
+    }
+  });
+
+  panel.addEventListener("click", (event) => {
+    const retry = event.target.closest('[data-action="retry-reading"]');
+    if (retry) { loadChartReading(activeChart()); return; }
+    const edit = event.target.closest("#me-edit-chart");
+    if (edit?.dataset.id) openChartForm("edit", edit.dataset.id);
+  });
 }
 
 // ══ Orbit Axis daily experience ═════════════════════════════════════════════
@@ -2845,7 +3006,6 @@ function axisApplyDetail(rerender = true) {
   if (rerender) {
     if (AXIS.lastFortune) axisRenderFortune(AXIS.lastFortune);
     if (AXIS.lastSky) axisRenderSky(AXIS.lastSky);
-    if (state.activeNatalChart) renderMeOverview(state.activeProfile, state.activeNatalChart, state.activeProfile?.nickname || state.activeChartName);
   }
 }
 async function axisSetDetail(level) {
