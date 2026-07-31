@@ -331,3 +331,14 @@ test("Sun and Moon are not printed twice in the same reading", () => {
   assert.equal(reading.placements.length, 10, "the full set stays available for chart data");
   assert.equal(reading.remainingPlacements.length, 8);
 });
+
+test("aspects use reader-facing body names, not raw engine shorthand", () => {
+  // The engine calls the Midheaven "MC". Correct shorthand, and meaningless to
+  // a reader meeting it for the first time — and it contradicted "Midheaven"
+  // as used everywhere else on the page.
+  const withMc = { ...KNOWN, aspects: [{ a: "Moon", b: "MC", aspect: "Trine", orb: 2.1 }] };
+  const [aspect] = composeChart(withMc).aspects.all;
+  assert.equal(aspect.b, "Midheaven");
+  assert.match(aspect.headline, /Moon and Midheaven/);
+  assert.ok(!aspect.headline.includes("MC"), "no raw engine shorthand reaches the reader");
+});
