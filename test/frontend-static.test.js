@@ -238,6 +238,28 @@ test("chart switching cannot leave a previous chart's reading on screen", () => 
     "stale content must be cleared before the new chart is fetched, not after");
 });
 
+test("switching charts reloads saved charts, not just the sky", () => {
+  // Found in the browser: the switch handler called refreshData(), which
+  // refreshes the current sky and nothing else. Activation succeeded server-
+  // side while the page kept rendering the previous chart — showing a Rising
+  // sign and full houses for a chart that has no birth time at all.
+  const from = appJs.indexOf('select?.addEventListener("change"');
+  assert.ok(from > -1, "the switcher change handler must exist");
+  const handler = appJs.slice(from, appJs.indexOf("panel.addEventListener", from));
+  assert.match(handler, /await loadSavedCharts\(\)/,
+    "state.charts must be refreshed before the active chart is re-read");
+  assert.match(handler, /await refreshActiveExperience\(\)/);
+  assert.ok(!/await refreshData\(\)/.test(handler),
+    "refreshData only refreshes the sky and cannot update the reading");
+  // And the old reading is cleared the moment the switch starts.
+  const clearAt = handler.indexOf("clearChartReading()");
+  const activateAt = handler.indexOf("/activate");
+  assert.ok(clearAt > -1 && clearAt < activateAt,
+    "the previous chart's reading must be cleared before activation is requested");
+  assert.match(handler, /state\.activeChartId = previousId/,
+    "a failed switch must not leave the switcher claiming a chart that is not active");
+});
+
 test("added charts still do not steal the active slot", () => {
   // Dev Update 1.4 made this deliberate. My Chart must not quietly undo it.
   assert.ok(!/afterChartSaved[\s\S]{0,400}\/activate/.test(appJs),

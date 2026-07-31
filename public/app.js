@@ -2351,8 +2351,9 @@ const SIGN_GLYPH = {
   Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍",
   Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓",
 };
+// Keyed by the composer's stable `key`, never by display text.
 const PLACEMENT_GLYPHS = {
-  Rising: "ASC", Ascendant: "ASC", Midheaven: "MC", Sun: "☉", Moon: "☾", Mercury: "☿",
+  ascendant: "ASC", midheaven: "MC", Sun: "☉", Moon: "☾", Mercury: "☿",
   Venus: "♀", Mars: "♂", Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
 };
 const ELEMENT_CLASS = { Fire: "fire", Earth: "earth", Air: "air", Water: "water" };
@@ -2396,8 +2397,8 @@ function timeAccuracyInfo(value) {
   return TIME_ACCURACY_COPY[value] || TIME_ACCURACY_COPY.unknown;
 }
 
-function glyphFor(name) {
-  return PLACEMENT_GLYPHS[name] || "";
+function glyphFor(key) {
+  return PLACEMENT_GLYPHS[key] || "";
 }
 
 /**
@@ -2405,8 +2406,8 @@ function glyphFor(name) {
  * accessible label. Screen readers announce "Sun", never "black circle with
  * dot", and the reading stays understandable with images and symbols off.
  */
-function glyphHtml(name) {
-  const glyph = glyphFor(name);
+function glyphHtml(key) {
+  const glyph = glyphFor(key);
   if (!glyph) return "";
   return `<span class="reading-card__glyph" aria-hidden="true">${esc(glyph)}</span>`;
 }
@@ -2514,7 +2515,7 @@ function readingCardHtml(placement, { role = null } = {}) {
   if (placement.unavailable) {
     return `<article class="reading-card reading-card--unavailable">
       <div class="reading-card__head">
-        ${glyphHtml(placement.planet)}
+        ${glyphHtml(placement.key)}
         <div class="reading-card__ident">
           <h3 class="reading-card__title">${esc(placement.planet)} unavailable</h3>
           <p class="reading-card__meta">Birth time needed</p>
@@ -2533,7 +2534,7 @@ function readingCardHtml(placement, { role = null } = {}) {
   ].join("");
   return `<article class="reading-card">
     <div class="reading-card__head">
-      ${glyphHtml(placement.planet)}
+      ${glyphHtml(placement.key)}
       <div class="reading-card__ident">
         <h3 class="reading-card__title">${esc(placement.planet)}${placement.sign ? ` in ${esc(placement.sign)}` : ""}</h3>
         <p class="reading-card__meta">${esc(meta)}</p>
@@ -2657,7 +2658,7 @@ function renderAspects(aspects) {
 
 // ── 6. Houses and angles ────────────────────────────────────────────────────
 
-function renderHouses(chart, bigThree) {
+function renderHouses(chart, bigThree, midheaven) {
   const target = $("#chart-houses");
   if (!target) return;
   // Houses and angles exist only with a usable birth time. When they do not,
@@ -2666,23 +2667,10 @@ function renderHouses(chart, bigThree) {
     target.innerHTML = `<p class="me-muted">House placements, the Rising sign, and the Midheaven all need a reliable birth time. Everything else on this page is calculated normally without one.</p>`;
     return;
   }
-  const rising = (bigThree || []).find((p) => p.planet === "Ascendant" && !p.unavailable);
-  const mc = chart.angles?.midheaven;
+  const rising = (bigThree || []).find((p) => p.key === "ascendant" && !p.unavailable);
   const angleCards = [
-    rising ? `<article class="reading-card">
-      <div class="reading-card__head">${glyphHtml("Ascendant")}<div class="reading-card__ident">
-        <h3 class="reading-card__title">Ascendant in ${esc(rising.sign)}</h3>
-        <p class="reading-card__meta">${esc(rising.position)}</p>
-      </div></div>
-      <p class="reading-card__summary">${esc(rising.summary)}</p>
-    </article>` : "",
-    mc ? `<article class="reading-card">
-      <div class="reading-card__head">${glyphHtml("Midheaven")}<div class="reading-card__ident">
-        <h3 class="reading-card__title">Midheaven in ${esc(mc.sign)}</h3>
-        <p class="reading-card__meta">${esc(degLabel(mc))}</p>
-      </div></div>
-      <p class="reading-card__summary">The Midheaven marks the most public point of the chart — visible direction, reputation, and the work you are seen doing.</p>
-    </article>` : "",
+    rising ? readingCardHtml(rising) : "",
+    midheaven ? readingCardHtml(midheaven) : "",
   ].filter(Boolean).join("");
   const rows = chart.houses.map((h) => `<tr>
     <td>House ${esc(String(h.house))}</td>
@@ -2758,9 +2746,9 @@ function renderChart(chart, name, profile = null, readingPayload = null) {
   renderLimitation(readingPayload.limitation);
   renderBigThree(readingPayload.bigThree);
   renderPatterns(readingPayload.patterns);
-  renderPlacements(readingPayload.placements);
+  renderPlacements(readingPayload.remainingPlacements);
   renderAspects(readingPayload.aspects);
-  renderHouses(chart, readingPayload.bigThree);
+  renderHouses(chart, readingPayload.bigThree, readingPayload.midheaven);
   renderChartData(chart, readingPayload);
 
   const edit = $("#me-edit-chart");
@@ -2872,18 +2860,38 @@ function wireChartReading() {
   if (!panel || panel._readingWired) return;
   panel._readingWired = true;
 
-  $("#chart-switcher-select")?.addEventListener("change", async (event) => {
+  const select = $("#chart-switcher-select");
+  select?.addEventListener("change", async (event) => {
     const id = event.target.value;
-    if (!id || id === activeChart()?.id) return;
+    const previousId = state.activeChartId;
+    if (!id || id === previousId) return;
+    select.disabled = true;
+    // Clear immediately. Activation is a round trip, and until the new reading
+    // arrives the page must not keep showing the previous person's chart under
+    // a name the switcher has already changed.
+    clearChartReading();
+    renderChartPlaceholder("loading", { message: "Switching charts…" });
     try {
       await post(`/api/charts/${id}/activate`, {});
-      await refreshData();
-      // Announce the change and put focus somewhere useful, so a keyboard or
-      // screen-reader user is not left at a stale position in a page that has
-      // completely changed underneath them.
+      // loadSavedCharts refreshes state.charts; refreshActiveExperience then
+      // re-reads the active chart. refreshData() only refreshes the sky, and
+      // calling it here left the previous chart's reading on screen.
+      await loadSavedCharts();
+      await refreshActiveExperience();
+      // Move focus to the page heading so a keyboard or screen-reader user is
+      // not left at a stale position in a page that changed underneath them.
       $("#mychart-title")?.focus({ preventScroll: true });
-    } catch {
+      toast(`${activeChart()?.nickname || "Chart"} is active`);
+    } catch (error) {
+      state.activeChartId = previousId;
+      renderChartSwitcher();
+      renderChartPlaceholder("error", {
+        message: "We couldn't switch charts just now. Your saved charts are safe.",
+        retry: true,
+      });
       toast("We couldn't switch charts just now.");
+    } finally {
+      select.disabled = false;
     }
   });
 

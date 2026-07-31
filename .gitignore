@@ -42,3 +42,6 @@ supabase/.branches/
 # the Orbit vault.
 07 Orbit App/
 .vercel
+
+# Local QA session hand-off (never committed)
+public/qa-local-session.json

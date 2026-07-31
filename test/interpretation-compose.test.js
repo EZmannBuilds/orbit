@@ -293,3 +293,41 @@ test("formatPosition renders degree and minute within the sign", () => {
   assert.equal(formatPosition(body("Leo", 8, 3)), "8° 03′ Leo");
   assert.equal(formatPosition(null), "");
 });
+
+// ── Dev Update 1.5 :: defects found by reading real rendered output ─────────
+
+test("the Midheaven is composed from authored content, not written in the view", async () => {
+  const { composeMidheaven } = await import("../lib/interpretation/compose.js");
+  const mc = composeMidheaven(KNOWN);
+  assert.ok(mc, "a known-time chart has a Midheaven");
+  assert.equal(mc.key, "midheaven");
+  assert.match(mc.summary, /public direction/, "it uses the authored ANGLES copy");
+  // The renderer must not carry its own copy of this sentence.
+  const appJs = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+  assert.ok(!appJs.includes("The Midheaven marks the most public point"),
+    "Midheaven interpretation must not live in the view layer");
+});
+
+test("no Midheaven is composed without a usable birth time", () => {
+  assert.equal(composeChart(UNKNOWN).midheaven, null);
+});
+
+test("placements are identified by a stable key, not by display text", () => {
+  // ANGLES.Ascendant.name is "Rising sign". A renderer that matched that
+  // string silently dropped the Ascendant from Houses and Angles.
+  const reading = composeChart(KNOWN);
+  const rising = reading.bigThree.find((p) => p.key === "ascendant");
+  assert.ok(rising, "the Ascendant is addressable by key");
+  assert.notEqual(rising.key, rising.planet,
+    "key is identity and planet is display text — they are allowed to differ");
+  for (const p of reading.placements) assert.ok(p.key, "every placement carries a key");
+});
+
+test("Sun and Moon are not printed twice in the same reading", () => {
+  const reading = composeChart(KNOWN);
+  const keys = reading.remainingPlacements.map((p) => p.key);
+  assert.ok(!keys.includes("Sun") && !keys.includes("Moon"),
+    "the Big Three lead the page; repeating them verbatim reads as machine output");
+  assert.equal(reading.placements.length, 10, "the full set stays available for chart data");
+  assert.equal(reading.remainingPlacements.length, 8);
+});

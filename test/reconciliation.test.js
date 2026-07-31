@@ -137,8 +137,13 @@ test("reconciled: every planet renders, with no hidden detail mode", () => {
   // nothing may be gated behind a detail level any more.
   assert.ok(!appJs.includes("placement-card__tech advanced-only"),
     "the old advanced-only gating is gone");
-  assert.match(appJs, /renderPlacements\(readingPayload\.placements\)/,
-    "placements come from the composed reading, complete");
+  assert.match(appJs, /renderPlacements\(readingPayload\.remainingPlacements\)/,
+    "the planet section renders the composed placements");
+  // Sun and Moon are not dropped — they lead the page in the Big Three, and
+  // the complete ten still appear in Chart Data.
+  const compose = readFileSync(join(ROOT, "lib", "interpretation", "compose.js"), "utf8");
+  assert.match(compose, /BIG_THREE_KEYS = Object\.freeze\(\["Sun", "Moon", "ascendant"\]\)/);
+  assert.match(appJs, /STANDARD_PLANET_ORDER\.map/, "chart data still lists all ten bodies");
 });
 
 // ── Dev Update 1.3 :: Ask Orbit retired from the interface ───────────────────
