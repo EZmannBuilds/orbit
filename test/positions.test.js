@@ -444,3 +444,55 @@ test("the signed-out workspace renders nothing and cannot take focus", () => {
   const posCode = APP.slice(APP.indexOf("const POSITIONS = {"));
   assert.ok(!posCode.includes('setAttribute("inert"'), "Positions does not re-implement it");
 });
+
+// ── Session lifecycle (three states, not two) ───────────────────────────────
+
+test("session state has three meanings and the guard respects all of them", () => {
+  // Unresolved is NOT signed out. Treating it as such would clear a session
+  // that is about to arrive, and the app would settle on an empty workspace
+  // for a signed-in user.
+  assert.match(APP, /auth: \{ restoring: true, user: null \}/,
+    "the app starts in the unresolved state, not the signed-out one");
+  const fn = APP.slice(APP.indexOf("async function loadPositions"), APP.indexOf("function clearPositions"));
+  assert.match(fn, /state\.auth\.restoring \|\| !authSignedIn\(\)/,
+    "unresolved and signed-out both defer, and are reached before any request");
+  const guardAt = fn.indexOf("state.auth.restoring");
+  const fetchAt = fn.indexOf("/api/sky/current");
+  assert.ok(guardAt > -1 && guardAt < fetchAt, "no request precedes session resolution");
+});
+
+test("deferring while unresolved cannot strand a session that arrives later", () => {
+  // The boot sequence is: renderRoute (defers) -> restoreSession ->
+  // refreshSecondaryRoute (loads). If that second load were skipped, a
+  // signed-in user landing on #positions would see nothing for ever.
+  const boot = APP.slice(APP.indexOf("  renderRoute();\n\n  try {"), APP.indexOf("  await axisInit();"));
+  assert.match(boot, /await restoreSession\(\);\s*\n\s*refreshSecondaryRoute\(\);/,
+    "the route is refreshed once the session resolves");
+  const refresh = APP.slice(APP.indexOf("function refreshSecondaryRoute"), APP.indexOf("function renderTransits"));
+  assert.match(refresh, /if \(id === "positions"\)[\s\S]{0,80}loadPositions\(\)/,
+    "and that refresh reloads Positions");
+  // restoreSession must not be able to throw past its own handling, or the
+  // reload above would be skipped and the deferral would become permanent.
+  const rs = APP.slice(APP.indexOf("async function restoreSession"), APP.indexOf("async function applySignedIn"));
+  assert.match(rs, /\} catch \{/, "restoreSession handles its own failure");
+  assert.match(rs, /\} finally \{/, "and always settles the restoring flag");
+  assert.match(rs, /state\.auth\.restoring = false/);
+});
+
+test("signing out clears Positions and the shell isolation returns", () => {
+  const clear = APP.slice(APP.indexOf("function clearPrivateState"), APP.indexOf("function clearPrivateState") + 700);
+  assert.match(clear, /clearPositions\(\)/);
+  // The isolation itself is the pre-existing modal mechanism, not ours.
+  const bg = APP.slice(APP.indexOf("function setBackgroundInert"), APP.indexOf("function setBackgroundInert") + 400);
+  assert.match(bg, /setAttribute\("inert", ""\)/);
+  assert.match(bg, /setAttribute\("aria-hidden", "true"\)/);
+});
+
+test("refresh is unreachable while signed out and operable once authenticated", () => {
+  // Not asserted on a disabled attribute: the control is unreachable because
+  // the whole shell is inert behind the gate, which is stronger.
+  const fn = APP.slice(APP.indexOf("async function loadPositions"), APP.indexOf("function clearPositions"));
+  assert.match(fn, /if \(btn\) \{ btn\.disabled = true/, "and disabled while a load is in flight");
+  assert.match(fn, /btn\.disabled = false/, "then re-enabled");
+  assert.match(fn, /if \(POSITIONS\.loading\) return;/, "a second activation is refused");
+});
