@@ -41,3 +41,4 @@ supabase/.branches/
 # the app and not appropriate for a public repository. Canonical copy lives in
 # the Orbit vault.
 07 Orbit App/
+.vercel
