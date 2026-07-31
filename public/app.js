@@ -1928,6 +1928,20 @@ function wireSavedCharts() {
       await retryLoadSavedCharts();
       return;
     }
+    if (button.dataset.action === "retry-sky") {
+      // Retries only the sky. The personal reading is a separate request and
+      // must not be torn down because the sky failed.
+      const tz = axisResolveTimezone();
+      $("#today-sky").innerHTML = `<div class="axis-shimmer" style="height:180px"></div>`;
+      try {
+        const r = await get(`/api/sky/current?tz=${encodeURIComponent(tz)}`);
+        AXIS.lastSky = r.sky;
+        axisRenderSky(r.sky);
+      } catch {
+        axisRenderSkyError("We still couldn't reach the current sky. Your reading above is unaffected.");
+      }
+      return;
+    }
     if (button.dataset.action === "add-chart") {
       openChartModal(null);
       return;
@@ -3093,7 +3107,22 @@ async function axisLoadToday() {
   AXIS.loadedOnce = true;
   // Sky (incl. the Moon) always renders — it doesn't need a saved chart.
   const tz = axisResolveTimezone();
-  get(`/api/sky/current?tz=${encodeURIComponent(tz)}`).then(r => { AXIS.lastSky = r.sky; axisRenderSky(r.sky); }).catch(() => {});
+  // The sky and the personal reading fail independently. A sky failure used to
+  // be swallowed by `.catch(() => {})`, which left the shimmer placeholder in
+  // place for ever — an indefinite spinner that looked like a slow network and
+  // was actually a dead section.
+  get(`/api/sky/current?tz=${encodeURIComponent(tz)}`)
+    .then(r => {
+      AXIS.lastSky = r.sky;
+      try {
+        axisRenderSky(r.sky);
+      } catch (error) {
+        // A render defect is ours, and must not be reported as a network problem.
+        console.error("[orbit] current sky failed to render", { stage: "render", message: error?.message });
+        axisRenderSkyError("We couldn't show the current sky just now.");
+      }
+    })
+    .catch(() => axisRenderSkyError("We couldn't reach the current sky just now."));
 
   // Fortune: prefer the signed-in path; fall back to a local preview.
   try {
@@ -3129,6 +3158,22 @@ async function axisLoadToday() {
   } catch (e) {
     $("#today-fortune").innerHTML = `<div class="fortune-card"><h2>Today’s Fortune</h2><p class="fortune-card__sub">${esc(e.message)}</p></div>`;
   }
+}
+
+/**
+ * The sky section's own failure state.
+ *
+ * Separate from the fortune's, because they are separate requests: one can
+ * fail while the other succeeds, and the whole page must not go down for
+ * either. Carries a retry and no private data.
+ */
+function axisRenderSkyError(message) {
+  const el = $("#today-sky");
+  if (!el) return;
+  el.innerHTML = `<div class="axis-section-error" role="status">
+    <p>${esc(message)}</p>
+    <button type="button" class="o-btn o-btn--secondary o-btn--sm" data-action="retry-sky">Try again</button>
+  </div>`;
 }
 
 function axisShowReadingFor(name) {

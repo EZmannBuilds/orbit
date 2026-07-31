@@ -164,3 +164,19 @@
   .fortune-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .fortune-card2--primary { grid-column: 1 / -1; }
 }
+
+/* ── Section-level failure (Dev Update 1.6) ──────────────────────────────────
+   Home is several independent requests. When one fails the others keep their
+   content, so the failure state is scoped to its own section rather than
+   replacing the page. */
+.axis-section-error {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-elevated);
+}
+.axis-section-error p { margin: 0; max-width: 60ch; color: var(--color-secondary); }
+.axis-section-error .o-btn { min-height: 44px; }

@@ -34,8 +34,11 @@ test("the actions are inside Technical Sky, not above the fortune", () => {
   // axisWireSkyControls happens to be declared BEFORE axisRenderSky, so the
   // slice runs from the renderer to the end of its template rather than to a
   // function that precedes it.
-  const skyStart = appJs.indexOf("function axisRenderSky");
-  const skyEnd = appJs.indexOf("function ", skyStart + 40);
+  // Matched with the opening paren: `axisRenderSkyError` is a real function in
+  // this file and a bare "function axisRenderSky" prefix-matches it, slicing
+  // the wrong body and failing for a reason that has nothing to do with layout.
+  const skyStart = appJs.indexOf("function axisRenderSky(");
+  const skyEnd = appJs.indexOf("\nfunction ", skyStart + 40);
   const skySource = appJs.slice(skyStart, skyEnd > skyStart ? skyEnd : undefined);
   assert.ok(skySource.includes("sky-actions"), "the actions belong to the sky renderer");
 
