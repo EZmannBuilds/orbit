@@ -84,11 +84,23 @@ test("opening any dialog makes the application shell inert", () => {
 test("inertness is released before focus is restored", () => {
   // Restoring focus into a still-inert shell silently drops it to <body>, which
   // is how "focus returns to what opened this" quietly stops being true.
-  const close = appJs.slice(appJs.indexOf("function closeModal"));
+  // Dev Update 1.4 moved the restore itself into restoreFocusAfterClose; the
+  // ordering it protects is unchanged, so this follows the call rather than
+  // the line that used to be here.
+  const close = appJs.slice(appJs.indexOf("function closeModal"),
+                            appJs.indexOf("function restoreFocusAfterClose"));
   const release = close.indexOf("setBackgroundInert(false)");
-  const restore = close.indexOf("entry.restoreTo.focus()");
+  const restore = close.indexOf("restoreFocusAfterClose(entry)");
   assert.ok(release !== -1 && restore !== -1, "both steps must exist in closeModal");
   assert.ok(release < restore, "the shell must be interactive again before focus goes back to it");
+});
+
+test("focus restoration has a real target when the opener is gone", () => {
+  // The old code fell through to <body>, which is focus loss rather than a
+  // fallback: a keyboard user lands nowhere and nothing is announced.
+  const fn = appJs.slice(appJs.indexOf("function restoreFocusAfterClose"));
+  assert.match(fn, /opener !== document\.body/);
+  assert.match(fn, /\.workspace-panel:not\(\[hidden\]\) h1/);
 });
 
 test("the gate is opened through the shared dialog machinery, not a raw toggle", () => {

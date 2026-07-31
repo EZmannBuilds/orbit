@@ -320,6 +320,17 @@ test("the password Show control no longer wraps onto its own row", () => {
   assert.ok(!/\.password-row \{ grid-template-columns: 1fr; \}/.test(mobile));
 });
 
+test("focus never falls to the body after a dialog closes", () => {
+  // "Falls back to the body" is not a fallback, it is focus loss: a keyboard
+  // user lands nowhere and a screen reader announces nothing.
+  assert.match(appJs, /function restoreFocusAfterClose/);
+  const fn = appJs.slice(appJs.indexOf("function restoreFocusAfterClose"));
+  assert.match(fn, /opener !== document\.body/);
+  assert.match(fn, /offsetParent !== null/, "a hidden opener is not a usable target");
+  assert.match(fn, /\.workspace-panel:not\(\[hidden\]\) h1/, "the visible heading is the fallback");
+  assert.ok(!/entry\.restoreTo\.focus\(\);\s*\n\}/.test(appJs), "the old unguarded restore is gone");
+});
+
 test("errors are stated in words and not by colour alone", () => {
   assert.match(featuresCss, /\.chart-field__error::before[\s\S]{0,120}content: "! "/);
   assert.match(chartModal, /id="cm-date-error" role="alert"/);

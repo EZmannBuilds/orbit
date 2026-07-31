@@ -1054,8 +1054,34 @@ function closeModal(el) {
   // to the button you opened this from" quietly stops being true.
   if (!modalStack.length) setBackgroundInert(false);
   entry.onClose?.();
-  // Restore focus to whatever opened the dialog (falls back to the body).
-  if (entry.restoreTo && document.contains(entry.restoreTo)) entry.restoreTo.focus();
+  restoreFocusAfterClose(entry);
+}
+
+/**
+ * Put focus somewhere real after a dialog closes.
+ *
+ * "Falls back to the body" is not a fallback — it is focus loss. A keyboard
+ * user lands nowhere and has to Tab from the top of the document to get back to
+ * what they were doing, and a screen reader announces nothing at all.
+ *
+ * The opener is preferred. When it is gone, hidden, or was never focused in the
+ * first place (a programmatic open, or a click that did not move focus), the
+ * heading of whatever is now on screen is the honest answer: it tells the
+ * person where they are rather than dropping them into silence.
+ */
+function restoreFocusAfterClose(entry) {
+  const opener = entry.restoreTo;
+  const usable = opener
+    && opener !== document.body
+    && document.contains(opener)
+    && opener.offsetParent !== null;
+  if (usable) { opener.focus({ preventScroll: true }); return; }
+
+  const heading = $(".workspace-panel:not([hidden]) h1") || $("#workspace-title");
+  if (heading) {
+    if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");
+    heading.focus({ preventScroll: true });
+  }
 }
 
 // Accessible replacement for window.confirm — prevents accidental deletion and
