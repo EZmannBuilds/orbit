@@ -289,10 +289,16 @@ test("regression: the fortune path never opens the onboarding gate", () => {
   assert.doesNotMatch(body, /onboarding-gate/, "axisLoadToday must not touch the onboarding gate");
 });
 
-test("regression: onboarding is opened from exactly one place", () => {
-  // Only resolveChartState may open it (via the shared modal utility).
-  const opens = appJs.match(/openModal\(\s*onboarding/g) || [];
-  assert.equal(opens.length, 1, "exactly one code path opens onboarding");
+test("regression: onboarding is opened automatically from exactly one place", () => {
+  // Dev Update 1.4 replaced the separate onboarding dialog with the one chart
+  // form in "first" mode, but the property being protected is the same: only
+  // resolveChartState may make a form appear that the user did not ask for.
+  const resolver = appJs.slice(
+    appJs.indexOf("async function resolveChartState"),
+    appJs.indexOf("function setStartupStatus"));
+  const opens = resolver.match(/openChartForm\(/g) || [];
+  assert.equal(opens.length, 1, "exactly one code path opens onboarding automatically");
+  assert.match(resolver, /STARTUP_VIEW\.ONBOARDING/, "and it is gated on the ONBOARDING decision");
 });
 
 test("regression: a failed chart request does not clear known charts", () => {

@@ -78,16 +78,25 @@ test("reconciled: pickFallbackActive prefers last-active, then primary, then rec
 
 test("reconciled: onboarding is opened from exactly one place (no fortune/chart-fail path opens it)", () => {
   // The onboarding gate is opened by exactly one call site.
-  const openers = (appJs.match(/openModal\(onboarding/g) || []).length;
-  assert.equal(openers, 1, `onboarding must open from exactly one gated path (found ${openers})`);
+  // Dev Update 1.4 replaced the separate onboarding dialog with the one chart
+  // form opened in "first" mode. The invariant is unchanged and is about
+  // AUTOMATIC opening: a form that appears unprompted may have exactly one
+  // trigger, and that trigger must be the ONBOARDING decision. A button the
+  // user presses is a different thing and is not counted here.
+  const resolverBody = appJs.slice(
+    appJs.indexOf("async function resolveChartState"),
+    appJs.indexOf("function setStartupStatus"));
+  const autoOpeners = (resolverBody.match(/openChartForm\(/g) || []).length;
+  assert.equal(autoOpeners, 1,
+    `first-run onboarding must open automatically from exactly one gated path (found ${autoOpeners})`);
   // That single opener lives in the chart-state resolver, gated on the pure
   // startup decision (ONBOARDING) — which is derived from a confirmed zero-chart,
   // auth-resolved, successful-request result and is unit-tested in returning-user.
   const resolver = appJs.slice(appJs.indexOf("async function resolveChartState"), appJs.indexOf("async function resolveChartState") + 1600);
-  assert.match(resolver, /view === STARTUP_VIEW\.ONBOARDING[\s\S]*openModal\(onboarding/, "opener gated on the ONBOARDING decision");
+  assert.match(resolver, /view === STARTUP_VIEW\.ONBOARDING[\s\S]*openChartForm\("first"\)/, "opener gated on the ONBOARDING decision");
   assert.match(resolver, /chartCount: state\.charts\.length/, "decision receives the real chart count");
   // A recoverable failure closes onboarding and shows a retry instead.
-  assert.match(resolver, /STARTUP_VIEW\.ERROR[\s\S]*closeModal\(onboarding\)[\s\S]*errorBox\.hidden = false/, "chart failure never opens onboarding");
+  assert.match(resolver, /STARTUP_VIEW\.ERROR[\s\S]*closeModal\(modal\)[\s\S]*errorBox\.hidden = false/, "chart failure never opens onboarding");
   // The fortune loader must never open onboarding — a fortune failure is inline.
   const fortuneBlock = appJs.slice(appJs.indexOf("async function axisLoadToday"), appJs.indexOf("async function axisLoadToday") + 2000);
   assert.ok(fortuneBlock.length > 0, "fortune loader found");

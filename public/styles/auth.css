@@ -167,7 +167,11 @@
   border-radius: 12px;
   color: var(--color-primary);
   background: var(--color-surface-elevated);
-  padding: 0 12px;
+  /* Fixed width so the row does not reflow between "Show" and "Hide", and so
+     the field beside it keeps a predictable size. */
+  min-width: 68px;
+  min-height: 44px;
+  padding: 0 10px;
 }
 
 .auth-message {
@@ -180,7 +184,9 @@
 @media (max-width: 560px) {
   .auth-gate { padding: 14px; }
   .auth-card { padding: 18px; }
-  .password-row { grid-template-columns: 1fr; }
+  /* Dev Update 1.3 dropped "Show" onto its own full-width row here, which read
+     as a second, unlabelled button under the password field. 68px + the gap
+     fits beside the input at 375px, so the row stays one row. */
 }
 
 /* Terms and privacy, shown on the sign-in card because that is where an account

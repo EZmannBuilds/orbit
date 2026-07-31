@@ -151,22 +151,64 @@ function esc(text) {
   return div.innerHTML;
 }
 
+/* ── Birthplace search ───────────────────────────────────────────────────
+   A combobox over a server-backed place search. Three properties matter more
+   than the markup:
+
+   1. A CHART MAY ONLY BE SAVED AGAINST A PLACE THE SERVER SIGNED. The server
+      returns a selection_token with each result and refuses a chart whose place
+      lacks a valid one, so typed text can never become coordinates. Everything
+      here is a convenience layer over that rule, not a substitute for it.
+
+   2. A STALE SELECTION MUST NOT SURVIVE AN EDIT. Someone who picks "London,
+      England" and then types over it has not chosen a place; keeping the old
+      token would silently save a chart for a city they just deleted. Editing
+      the field clears the selection.
+
+   3. A SLOW ANSWER MUST NOT OVERWRITE A FAST ONE. Requests are sequenced and
+      the in-flight one is aborted, so results from an abandoned query cannot
+      replace results for what the user is actually typing. */
+
+const PLACE_MIN_QUERY = 3;
+const PLACE_DEBOUNCE_MS = 300;
+
+function placeEls(prefix) {
+  return {
+    input: $(`#${prefix}-place`),
+    results: $(`#${prefix}-place-results`),
+    status: $(`#${prefix}-place-status`),
+    clear: $(`#${prefix}-place-clear`),
+  };
+}
+
+function setPlaceStatus(prefix, text) {
+  const { status } = placeEls(prefix);
+  if (status) status.textContent = text || "";
+}
+
+function closePlaceResults(prefix) {
+  const { input, results } = placeEls(prefix);
+  if (results) { results.hidden = true; results.innerHTML = ""; results._places = []; }
+  if (input) { input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); }
+}
+
 function clearPlaceSelection(prefix, message = "") {
   delete state.places.selections[prefix];
-  const status = $(`#${prefix}-place-status`);
-  const results = $(`#${prefix}-place-results`);
-  if (status) status.textContent = message;
-  if (results) results.innerHTML = "";
+  closePlaceResults(prefix);
+  setPlaceStatus(prefix, message);
+  const { clear, input } = placeEls(prefix);
+  if (clear) clear.hidden = !(input?.value.trim());
 }
 
 function setPlaceSelection(prefix, place, { existing = false } = {}) {
   state.places.selections[prefix] = { ...place, existing, label: place.label || place.birthplace_name || "" };
-  const input = $(`#${prefix}-place`);
-  const status = $(`#${prefix}-place-status`);
-  const results = $(`#${prefix}-place-results`);
+  const { input, clear } = placeEls(prefix);
   if (input) input.value = state.places.selections[prefix].label;
-  if (status) status.textContent = existing ? "Saved location will be reused." : "Location selected. Timezone will be detected automatically.";
-  if (results) results.innerHTML = "";
+  closePlaceResults(prefix);
+  setPlaceStatus(prefix, existing
+    ? "Saved birthplace will be reused."
+    : "Birthplace selected. The timezone is worked out from it.");
+  if (clear) clear.hidden = false;
 }
 
 function chartPlace(chart) {
@@ -184,64 +226,134 @@ function chartPlace(chart) {
   };
 }
 
+/**
+ * The place half of the submit payload, or a thrown error explaining what is
+ * missing. An existing saved place is allowed through without a fresh token
+ * only when the caller is editing a chart that already has one.
+ */
 function requireSelectedPlace(prefix, { allowExisting = false } = {}) {
   const place = state.places.selections[prefix];
-  if (!place) throw new Error("Choose a birthplace from the search results.");
-  const value = $(`#${prefix}-place`)?.value.trim() || "";
-  if (value !== place.label) throw new Error("Choose a birthplace from the search results.");
+  if (!place) throw new Error("Choose a birthplace from the list of results.");
+  const typed = placeEls(prefix).input?.value.trim() || "";
+  // The typed text having drifted from the selection is the stale-token case.
+  if (typed !== place.label) throw new Error("Choose a birthplace from the list of results.");
   if (place.selection_token) return { birthplace: place };
   if (allowExisting && place.existing) return {};
-  throw new Error("Choose a birthplace from the search results.");
+  throw new Error("Choose a birthplace from the list of results.");
+}
+
+function renderPlaceResults(prefix, items) {
+  const { input, results } = placeEls(prefix);
+  if (!results) return;
+  results._places = items;
+  results.innerHTML = items.map((place, i) => `
+    <li role="option" id="${prefix}-place-opt-${i}" class="place-result" data-index="${i}" aria-selected="false" tabindex="-1">
+      ${esc(place.label)}
+    </li>`).join("");
+  results.hidden = items.length === 0;
+  if (input) input.setAttribute("aria-expanded", String(items.length > 0));
+  results._active = -1;
+}
+
+function movePlaceActive(prefix, delta) {
+  const { input, results } = placeEls(prefix);
+  const options = [...(results?.querySelectorAll("[role=option]") || [])];
+  if (!options.length) return;
+  const next = Math.max(0, Math.min(options.length - 1, (results._active ?? -1) + delta));
+  results._active = next;
+  options.forEach((el, i) => el.setAttribute("aria-selected", String(i === next)));
+  options[next].scrollIntoView({ block: "nearest" });
+  if (input) input.setAttribute("aria-activedescendant", options[next].id);
+}
+
+function choosePlaceActive(prefix) {
+  const { results } = placeEls(prefix);
+  const i = results?._active ?? -1;
+  const place = i >= 0 ? results?._places?.[i] : null;
+  if (place) { setPlaceSelection(prefix, place); return true; }
+  return false;
+}
+
+async function runPlaceSearch(prefix, query) {
+  const { results } = placeEls(prefix);
+  if (!results) return;
+  state.places.controllers[prefix]?.abort();
+  const controller = new AbortController();
+  state.places.controllers[prefix] = controller;
+  setPlaceStatus(prefix, "Searching…");
+  try {
+    const response = await fetch(`/api/locations/search?q=${encodeURIComponent(query)}&limit=5`, {
+      credentials: "same-origin", signal: controller.signal,
+    });
+    const parsed = await readApiResponse(response);
+    if (parsed.kind !== "json") throw new Error(apiTransportMessage(parsed.kind, parsed.status));
+    const data = parsed.data ?? {};
+    if (!parsed.ok) {
+      // Distinguish "the search is not available" from "nothing matched": one
+      // is worth retrying and the other is not.
+      const message = data.code === "geoapify_unconfigured"
+        ? "Birthplace search isn't available right now."
+        : (data.error || "Birthplace search failed.");
+      throw new Error(message);
+    }
+    const items = data.results || [];
+    renderPlaceResults(prefix, items);
+    setPlaceStatus(prefix, items.length
+      ? `${items.length} ${items.length === 1 ? "match" : "matches"}. Use the arrow keys to choose one.`
+      : `No places matched “${query}”. Try a nearby larger town.`);
+  } catch (error) {
+    if (error.name === "AbortError") return;   // a newer query owns the field now
+    closePlaceResults(prefix);
+    setPlaceStatus(prefix, `${error.message} You can try again.`);
+  }
 }
 
 function setupPlaceSearch(prefix) {
-  const input = $(`#${prefix}-place`);
-  const results = $(`#${prefix}-place-results`);
-  const status = $(`#${prefix}-place-status`);
-  if (!input || !results) return;
+  const { input, results, clear } = placeEls(prefix);
+  if (!input || !results || input._wired) return;
+  input._wired = true;
   let timer = null;
+
   input.addEventListener("input", () => {
     const selected = state.places.selections[prefix];
-    if (selected && input.value.trim() !== selected.label) clearPlaceSelection(prefix, "Select a result to continue.");
+    if (selected && input.value.trim() !== selected.label) {
+      clearPlaceSelection(prefix, "Choose a birthplace from the list of results.");
+    }
+    if (clear) clear.hidden = !input.value.trim();
     clearTimeout(timer);
     const q = input.value.trim();
-    if (q.length < 3) {
-      results.innerHTML = "";
-      if (status) status.textContent = q ? "Keep typing to search." : "";
+    if (q.length < PLACE_MIN_QUERY) {
+      closePlaceResults(prefix);
+      setPlaceStatus(prefix, q ? "Keep typing to search." : "");
       return;
     }
-    timer = setTimeout(async () => {
-      state.places.controllers[prefix]?.abort();
-      const controller = new AbortController();
-      state.places.controllers[prefix] = controller;
-      if (status) status.textContent = "Searching...";
-      try {
-        const response = await fetch(`/api/locations/search?q=${encodeURIComponent(q)}&limit=5`, {
-          credentials: "same-origin",
-          signal: controller.signal,
-        });
-        const parsed = await readApiResponse(response);
-        if (parsed.kind !== "json") throw new Error(apiTransportMessage(parsed.kind, parsed.status));
-        const data = parsed.data ?? {};
-        if (!parsed.ok) throw new Error(data.error || "Location search failed");
-        const items = data.results || [];
-        results.innerHTML = items.length
-          ? items.map((place, index) => `<button type="button" class="place-result" data-index="${index}" aria-label="Select ${esc(place.label)}">${esc(place.label)}</button>`).join("")
-          : '<div class="place-empty">No matches found.</div>';
-        results._places = items;
-        if (status) status.textContent = items.length ? "Select the matching birthplace." : "";
-      } catch (error) {
-        if (error.name === "AbortError") return;
-        results.innerHTML = "";
-        if (status) status.textContent = error.message;
-      }
-    }, 300);
+    timer = setTimeout(() => runPlaceSearch(prefix, q), PLACE_DEBOUNCE_MS);
   });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") { event.preventDefault(); movePlaceActive(prefix, 1); }
+    else if (event.key === "ArrowUp") { event.preventDefault(); movePlaceActive(prefix, -1); }
+    else if (event.key === "Enter") {
+      // Only swallow Enter when it is actually choosing a result; otherwise it
+      // belongs to the form.
+      if (!results.hidden && choosePlaceActive(prefix)) event.preventDefault();
+    } else if (event.key === "Escape") {
+      if (!results.hidden) { event.stopPropagation(); closePlaceResults(prefix); }
+    }
+  });
+
   results.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-index]");
-    if (!button) return;
-    const place = results._places?.[Number(button.dataset.index)];
-    if (place) setPlaceSelection(prefix, place);
+    const option = event.target.closest("[role=option]");
+    if (!option) return;
+    const place = results._places?.[Number(option.dataset.index)];
+    if (place) { setPlaceSelection(prefix, place); input.focus(); }
+  });
+
+  clear?.addEventListener("click", () => {
+    input.value = "";
+    clearPlaceSelection(prefix, "");
+    clear.hidden = true;
+    input.focus();
   });
 }
 
@@ -1225,7 +1337,6 @@ function clearPrivateState({ purgeLocalData = false } = {}) {
 
   renderAccount();
   renderSavedCharts();
-  if (!$("#onboarding-gate").hidden) closeModal($("#onboarding-gate"));
   if (!$("#chart-modal").hidden) closeModal($("#chart-modal"));
   $("#today-chart-error").hidden = true;
   showAuthGate();
@@ -1394,8 +1505,9 @@ async function applySignedIn(user, { quiet = false } = {}) {
 // resolve. The decision itself lives in startup-state.js so it can be unit
 // tested; this function only paints the result.
 async function resolveChartState() {
-  const onboarding = $("#onboarding-gate");
+  const modal = $("#chart-modal");
   const errorBox = $("#today-chart-error");
+  const formOpen = modal && !modal.hidden;
 
   const view = decideStartupView({
     authResolved: !state.auth.restoring,
@@ -1407,7 +1519,7 @@ async function resolveChartState() {
 
   // Recoverable failure: offer a retry. NEVER claim the user has no chart.
   if (view === STARTUP_VIEW.ERROR) {
-    if (onboarding && !onboarding.hidden) closeModal(onboarding);
+    if (formOpen && chartForm.mode === "first") closeModal(modal);
     if (errorBox) errorBox.hidden = false;
     await axisLoadToday(); // Current Sky still renders; Home is never left blank.
     return;
@@ -1415,17 +1527,17 @@ async function resolveChartState() {
   if (errorBox) errorBox.hidden = true;
 
   // Genuinely zero saved charts on a successful request → first-run onboarding.
+  // It opens the same form every other entry point opens, in "first" mode.
   if (view === STARTUP_VIEW.ONBOARDING) {
-    if (onboarding && onboarding.hidden) {
-      openModal(onboarding, { initialFocus: $("#ob-first") });
-    }
+    if (!formOpen) openChartForm("first");
     renderSavedCharts();
     return;
   }
 
   // Returning user. The server already resolved (and persisted) the active
-  // chart, so we just load their experience. No popup, ever.
-  if (onboarding && !onboarding.hidden) closeModal(onboarding);
+  // chart, so we just load their experience. No popup, ever — and a form the
+  // user opened deliberately is left alone.
+  if (formOpen && chartForm.mode === "first") closeModal(modal);
   await refreshActiveExperience();
 }
 
@@ -1452,36 +1564,190 @@ function renderAccount() {
   $("#account-email").textContent = state.auth.user?.email || "Not signed in";
 }
 
-function chartFormPayload(prefix, { forceMyChart = false, allowExistingPlace = false } = {}) {
-  const accuracy = $(`#${prefix}-accuracy`).value;
-  const allowExisting = allowExistingPlace;
-  const placePayload = requireSelectedPlace(prefix, { allowExisting });
-  const payload = {
-    nickname: forceMyChart ? "My Chart" : ($(`#${prefix}-nickname`)?.value.trim() || undefined),
-    first_name: $(`#${prefix}-first`)?.value.trim() || null,
-    last_name: $(`#${prefix}-last`)?.value.trim() || null,
-    relationship_type: forceMyChart ? "self" : ($(`#${prefix}-relationship`)?.value || "other"),
-    birth_date: $(`#${prefix}-date`).value,
-    birth_time: accuracy === "unknown" ? null : ($(`#${prefix}-time`).value || null),
+/* ── The chart form ──────────────────────────────────────────────────────
+   One form, three modes. Dev Update 1.4 collapsed three separate forms into
+   this: a first-run dialog with its own fields, this modal, and a third form
+   injected into Home that could never succeed for the signed-out audience that
+   saw it. Three forms meant three sets of ids for the same data, and three
+   places for validation to drift apart.
+
+   Only these three things vary by mode. Everything else — fields, validation,
+   place search, dialog behaviour — is shared by construction. */
+const CHART_MODES = {
+  first: {
+    title: "Create your birth chart",
+    intro: "Orbit Axis uses your birth date, time, and place to calculate your chart. "
+         + "Your information stays private and can be exported or deleted from your account.",
+    save: "Create my chart",
+    saving: "Calculating your chart…",
+    done: "Your chart is ready.",
+    defaultName: "My Chart",
+    showRelationship: false,
+    showNames: true,
+  },
+  add: {
+    title: "Add a saved chart",
+    intro: "Orbit Axis uses a birth date, time, and place to calculate this chart. "
+         + "Saved charts are private to your account.",
+    save: "Save chart",
+    saving: "Saving chart…",
+    done: "Chart added.",
+    defaultName: "",
+    showRelationship: true,
+    showNames: true,
+  },
+  edit: {
+    title: "Edit saved chart",
+    intro: "Changing the date, time, or place recalculates this chart. "
+         + "Placements may move as a result.",
+    save: "Save changes",
+    saving: "Saving changes…",
+    done: "Chart updated.",
+    defaultName: "",
+    showRelationship: true,
+    showNames: true,
+  },
+};
+
+/** Live state of the open form. `mode` is what the copy and submit key off. */
+const chartForm = { mode: "add", chartId: null, submitting: false, openedBy: null };
+
+const NAME_MAX = 80;
+
+/* ── Validation ──────────────────────────────────────────────────────────
+   Shared by all three modes, and deliberately not delegated to the browser.
+   `<input type="date">` will happily hand over a date in the year 3000, and on
+   a browser without native date support it hands over free text. The server
+   validates all of this again; this layer exists so the person finds out at the
+   field rather than after a round trip. */
+
+function isRealCalendarDate(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (y < 1000 || mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+  // Round-tripping through Date catches the impossible days that range checks
+  // miss — 31 February, 31 April, 29 February in a common year.
+  const probe = new Date(Date.UTC(y, mo - 1, d));
+  return probe.getUTCFullYear() === y && probe.getUTCMonth() === mo - 1 && probe.getUTCDate() === d;
+}
+
+function isFutureDate(value) {
+  // Compared as calendar dates, not instants: a birth date is a date on a wall
+  // calendar, and converting it to an instant would make "today" wrong for
+  // roughly half the world.
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return String(value) > todayKey;
+}
+
+function fieldError(id, message) {
+  const el = $(`#cm-${id}-error`);
+  const input = $(`#cm-${id}`);
+  if (el) { el.textContent = message || ""; el.hidden = !message; }
+  if (input) {
+    if (message) input.setAttribute("aria-invalid", "true");
+    else input.removeAttribute("aria-invalid");
+  }
+}
+
+function clearChartFormErrors() {
+  for (const id of ["nickname", "date", "time", "place"]) fieldError(id, "");
+  const summary = $("#chart-modal-error");
+  if (summary) { summary.textContent = ""; summary.hidden = true; }
+}
+
+function chartAccuracy() {
+  return $('input[name="cm-accuracy"]:checked')?.value || "unknown";
+}
+
+/**
+ * Validate every field and return the first offending input so focus can go to
+ * it. Reporting all of them at once and focusing the first is the behaviour
+ * that survives a keyboard-only pass.
+ */
+function validateChartForm() {
+  clearChartFormErrors();
+  let firstBad = null;
+  const fail = (id, message) => {
+    fieldError(id, message);
+    if (!firstBad) firstBad = $(`#cm-${id}`);
+  };
+
+  const name = $("#cm-nickname").value.trim();
+  if (!name) fail("nickname", "Give this chart a name.");
+  else if (name.length > NAME_MAX) fail("nickname", `Keep the name under ${NAME_MAX} characters.`);
+
+  const date = $("#cm-date").value;
+  if (!date) fail("date", "Enter a birth date.");
+  else if (!isRealCalendarDate(date)) fail("date", "That date doesn't exist. Check the day and month.");
+  else if (isFutureDate(date)) fail("date", "A birth date can't be in the future.");
+
+  const accuracy = chartAccuracy();
+  const time = $("#cm-time").value;
+  if (accuracy !== "unknown" && !time) {
+    fail("time", "Enter a birth time, or choose Unknown above.");
+  }
+
+  try {
+    requireSelectedPlace("cm", { allowExisting: chartForm.mode === "edit" });
+  } catch (error) {
+    fail("place", error.message);
+  }
+
+  return firstBad;
+}
+
+function chartFormPayload() {
+  const accuracy = chartAccuracy();
+  const placePayload = requireSelectedPlace("cm", { allowExisting: chartForm.mode === "edit" });
+  return {
+    nickname: $("#cm-nickname").value.trim(),
+    first_name: $("#cm-first").value.trim() || null,
+    last_name: $("#cm-last").value.trim() || null,
+    relationship_type: chartForm.mode === "first" ? "self" : ($("#cm-relationship").value || "other"),
+    birth_date: $("#cm-date").value,
+    // The server nulls this too when the time is unknown. Doing it here as well
+    // means the request body never carries a time the user disclaimed.
+    birth_time: accuracy === "unknown" ? null : ($("#cm-time").value || null),
     time_accuracy: accuracy,
     ...placePayload,
   };
-  if (accuracy === "unknown") payload.birth_time = null;
-  return payload;
 }
 
-/* ── Chart modal (create / edit) ───────────────────────────────────────────
-   Once a user has a chart, creating another is a deliberate action from the
-   Home "+" — not an automatic popup. The same modal edits/renames an existing
-   chart, so there is one chart form instead of several. */
-function openChartModal(chart = null) {
+/** Show or hide the time field and its consequences to match the certainty. */
+function syncTimeCertainty() {
+  const unknown = chartAccuracy() === "unknown";
+  const field = $("#cm-time-field");
+  const notice = $("#cm-unknown-notice");
+  if (field) field.hidden = unknown;
+  if (notice) notice.hidden = !unknown;
+  if (unknown) fieldError("time", "");
+}
+
+/**
+ * @param {"first"|"add"|"edit"} mode
+ * @param {object|null} chart  the chart being edited, for edit mode
+ */
+function openChartForm(mode, chart = null) {
   const modal = $("#chart-modal");
   if (!modal) return;
+  const config = CHART_MODES[mode] || CHART_MODES.add;
+  chartForm.mode = mode;
+  chartForm.chartId = chart?.id || null;
+  chartForm.openedBy = document.activeElement;
+
   $("#chart-modal-form").reset();
+  clearChartFormErrors();
   $("#cm-id").value = chart?.id || "";
-  $("#chart-modal-title").textContent = chart ? "Edit chart" : "Add a chart";
-  $("#chart-modal-save").textContent = chart ? "Save changes" : "Save chart";
+  $("#chart-modal-title").textContent = config.title;
+  $("#chart-modal-intro").textContent = config.intro;
+  $("#chart-modal-save").textContent = config.save;
   $("#chart-modal-hint").textContent = "";
+
+  // Relationship is meaningless for your own first chart, and asking for it
+  // there implies the chart might be someone else's.
+  $("#cm-relationship-field").hidden = !config.showRelationship;
 
   if (chart) {
     $("#cm-nickname").value = chart.nickname || "";
@@ -1490,20 +1756,36 @@ function openChartModal(chart = null) {
     $("#cm-relationship").value = chart.relationship_type || "other";
     $("#cm-date").value = chart.birth_date || "";
     $("#cm-time").value = chart.birth_time ? String(chart.birth_time).slice(0, 5) : "";
-    $("#cm-accuracy").value = chart.time_accuracy || "unknown";
+    const accuracy = chart.time_accuracy || "unknown";
+    const radio = $(`input[name="cm-accuracy"][value="${accuracy}"]`)
+      // "reported" is a stored value with no radio of its own; it is a known
+      // time, so it presents as Exact rather than silently becoming Unknown.
+      || $('input[name="cm-accuracy"][value="exact"]');
+    if (radio) radio.checked = true;
     const place = chartPlace(chart);
     if (place) setPlaceSelection("cm", place, { existing: true });
     else clearPlaceSelection("cm");
   } else {
-    if (authSignedIn() && state.charts.length === 0) {
-      $("#chart-modal-title").textContent = "Create your chart";
-      $("#cm-nickname").value = "My Chart";
-      $("#cm-relationship").value = "self";
-    }
+    $("#cm-nickname").value = config.defaultName;
+    $("#cm-relationship").value = mode === "first" ? "self" : "other";
     clearPlaceSelection("cm");
   }
 
-  openModal(modal, { initialFocus: $("#cm-nickname") });
+  syncTimeCertainty();
+  setupPlaceSearch("cm");
+  openModal(modal, {
+    initialFocus: $("#cm-nickname"),
+    // First-run onboarding is dismissible: someone who is not ready to hand
+    // over birth details should be able to look around first.
+    onClose: () => { if (chartForm.mode === "first") state.onboardingDismissed = true; },
+  });
+}
+
+/** Kept as the old name so existing call sites read unchanged. */
+function openChartModal(chart = null) {
+  if (chart) return openChartForm("edit", chart);
+  const first = authSignedIn() && state.charts.length === 0;
+  return openChartForm(first ? "first" : "add");
 }
 
 function wireChartModal() {
@@ -1512,26 +1794,91 @@ function wireChartModal() {
   $("#chart-modal-close")?.addEventListener("click", () => closeModal(modal));
   $("#chart-modal-cancel")?.addEventListener("click", () => closeModal(modal));
 
+  for (const radio of $$('input[name="cm-accuracy"]')) {
+    radio.addEventListener("change", syncTimeCertainty);
+  }
+  // Re-validate a field once the user has had a go at fixing it, so the error
+  // clears when it stops being true rather than at the next submit.
+  for (const id of ["nickname", "date", "time"]) {
+    $(`#cm-${id}`)?.addEventListener("input", () => fieldError(id, ""));
+  }
+
   $("#chart-modal-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const id = $("#cm-id").value;
+    if (chartForm.submitting) return;             // double-submit guard
+
+    const firstBad = validateChartForm();
+    if (firstBad) {
+      firstBad.focus({ preventScroll: false });
+      const summary = $("#chart-modal-error");
+      if (summary) { summary.textContent = "Check the highlighted fields."; summary.hidden = false; }
+      return;
+    }
+
+    const config = CHART_MODES[chartForm.mode];
     const hint = $("#chart-modal-hint");
     const save = $("#chart-modal-save");
-    hint.textContent = id ? "Saving changes…" : "Saving chart…";
+    const summary = $("#chart-modal-error");
+    chartForm.submitting = true;
     save.disabled = true;
+    save.setAttribute("aria-busy", "true");
+    hint.textContent = config.saving;
+    if (summary) summary.hidden = true;
+
     try {
-      if (id) await patch(`/api/charts/${id}`, chartFormPayload("cm"));
-      else await post("/api/charts", chartFormPayload("cm"));
+      const payload = chartFormPayload();
+      const id = chartForm.chartId;
+      const saved = id
+        ? await patch(`/api/charts/${id}`, payload)
+        : await post("/api/charts", payload);
+      hint.textContent = config.done;
       closeModal(modal);
-      await loadSavedCharts();
-      await resolveChartState();
-      toast(id ? "Chart updated" : "Chart added");
+      await afterChartSaved(chartForm.mode, saved?.chart || null);
     } catch (error) {
-      hint.textContent = error.message;
+      hint.textContent = "";
+      if (summary) { summary.textContent = error.message; summary.hidden = false; }
+      // The message is already announced by role="alert"; moving focus to it
+      // would strand a keyboard user away from the field they need to fix.
     } finally {
+      chartForm.submitting = false;
       save.disabled = false;
+      save.removeAttribute("aria-busy");
     }
   });
+}
+
+/**
+ * What happens once a chart is saved.
+ *
+ * The first chart earns a destination. Everything the person just typed exists
+ * to produce a chart, and closing a dialog onto whatever screen they happened
+ * to be on does not show them that it worked. My Chart is the direct answer —
+ * it is where the Big Three lives, and it is the surface that says "this is
+ * yours". Home leads with the daily reading, which is a different question than
+ * "did my chart calculate?".
+ */
+async function afterChartSaved(mode, chart) {
+  await loadSavedCharts();
+  await resolveChartState();
+
+  if (mode === "first") {
+    navigate("me");
+    await refreshActiveExperience();
+    toast("Your chart is ready.");
+    // Focus the heading rather than a control: the person is arriving somewhere
+    // new and should hear where they are before what they can do.
+    $("#mychart-title")?.focus?.();
+    return;
+  }
+
+  await refreshActiveExperience();
+  refreshSecondaryRoute();
+  toast(CHART_MODES[mode]?.done || "Saved.");
+  // Focus returns to whatever opened the form, when it is still on screen.
+  const opener = chartForm.openedBy;
+  if (opener && document.contains(opener) && opener.offsetParent !== null) {
+    opener.focus({ preventScroll: true });
+  }
 }
 
 // Home-level chart actions: add (+), manage, and retry after a load failure.
@@ -1539,31 +1886,6 @@ function wireHomeChartActions() {
   $("#today-chart-add")?.addEventListener("click", () => openChartModal(null));
   $("#today-chart-manage")?.addEventListener("click", () => navigate("me"));
   $("#today-chart-retry")?.addEventListener("click", () => retryLoadSavedCharts());
-}
-
-function wireOnboarding() {
-  // Dismissing onboarding must not re-trigger it for the rest of the session.
-  // The Home "+" action is the obvious way back in.
-  $("#onboarding-dismiss")?.addEventListener("click", () => {
-    state.onboardingDismissed = true;
-    closeModal($("#onboarding-gate"));
-    toast("You can add a chart any time with the + beside Viewing.");
-  });
-
-  $("#onboarding-form")?.addEventListener("submit", async event => {
-    event.preventDefault();
-    const message = $("#onboarding-message");
-    message.textContent = "Saving My Chart…";
-    try {
-      await post("/api/charts", chartFormPayload("ob", { forceMyChart: true }));
-      message.textContent = "My Chart saved.";
-      closeModal($("#onboarding-gate"));
-      await loadSavedCharts();
-      await resolveChartState();
-    } catch (error) {
-      message.textContent = error.message;
-    }
-  });
 }
 
 function wireSavedCharts() {
@@ -1964,7 +2286,6 @@ async function boot() {
   wireAuth();
   setupPlaceSearch("ob");
   setupPlaceSearch("cm");
-  wireOnboarding();
   wireSavedCharts();
   wireChartModal();
   wirePlacementDetails();
@@ -2804,45 +3125,31 @@ function axisRenderSky(sky) {
     </div>`;
 }
 
-function axisRenderSetup(message = "Tell Orbit Axis when and where you were born, and it will read today’s sky just for you. Sign in to save this as My Chart.") {
+/**
+ * Home's "you have no chart yet" state.
+ *
+ * This used to be a third chart form, injected here with its own field ids. It
+ * could not work for the audience that saw it most: a signed-out visitor has no
+ * account to save a chart to, and birthplace search requires a session, so the
+ * form's only possible outcome for them was an error under the Save button.
+ *
+ * It is now a call to action that opens the one real form — or, when signed
+ * out, says plainly that an account comes first.
+ */
+function axisRenderSetup(message = "Orbit Axis reads today's sky against your birth chart. Create one and your daily reading appears here.") {
+  const signedIn = authSignedIn();
   $("#today-fortune").innerHTML = `
     <div class="fortune-card">
-      <h2>Set up your chart</h2>
-      <div class="fortune-card__sub" id="oa-setup-error"></div>
+      <h2>Create your birth chart</h2>
       <div class="fortune-setup">
         <p>${esc(message)}</p>
-        <form id="oa-setup" class="chart-form">
-          <div class="chart-form-grid">
-            <label>First name <input type="text" id="oa-first" autocomplete="given-name" /></label>
-            <label>Last name <input type="text" id="oa-last" autocomplete="family-name" /></label>
-            <label>Birth date <input type="date" id="oa-date" required /></label>
-            <label>Birth time <input type="time" id="oa-time" /></label>
-            <label>Time accuracy
-              <select id="oa-accuracy"><option value="exact">exact</option><option value="reported">reported</option><option value="approximate">approximate</option><option value="unknown">unknown</option></select>
-            </label>
-            <label class="place-field">Birthplace
-              <input type="text" id="oa-place" placeholder="Start typing a city" autocomplete="off" required />
-              <div class="place-results" id="oa-place-results"></div>
-              <span class="place-status" id="oa-place-status" role="status" aria-live="polite"></span>
-            </label>
-          </div>
-          <button type="submit">See today’s reading</button>
-        </form>
+        ${signedIn
+          ? `<button type="button" class="o-btn o-btn--primary" id="oa-open-chart-form">Create your birth chart</button>`
+          : `<p class="fortune-card__sub">Sign in first — your chart is saved to your account so it follows you between devices.</p>`}
       </div>
     </div>`;
-  setupPlaceSearch("oa");
-  $("#oa-setup").addEventListener("submit", (e) => {
-    e.preventDefault();
-    if (authSignedIn()) {
-      post("/api/charts", chartFormPayload("oa", { forceMyChart: true }))
-        .then(async () => {
-          await loadSavedCharts();
-          await refreshActiveExperience();
-        })
-        .catch(error => { $("#oa-setup-error").textContent = error.message; });
-    } else {
-      $("#oa-setup-error").textContent = "Sign in to search birthplaces and save My Chart.";
-    }
+  $("#oa-open-chart-form")?.addEventListener("click", () => {
+    openChartForm(state.charts.length === 0 ? "first" : "add");
   });
 }
 

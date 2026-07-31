@@ -33,12 +33,19 @@ test("the command palette is gone, DOM and listeners together", () => {
   assert.ok(!/metaKey \|\| e\.ctrlKey/.test(appJs), "the Cmd+K listener should be gone");
 });
 
-test("birthplace autocomplete still exists on the shared chart modal and onboarding forms", () => {
-  for (const prefix of ["cm", "ob"]) {
-    assert.ok(html.includes(`id="${prefix}-place"`), `${prefix}-place input should still exist`);
-    assert.ok(html.includes(`id="${prefix}-place-results"`), `${prefix}-place-results should still exist`);
-  }
+test("there is exactly one chart form, and it has birthplace autocomplete", () => {
+  // Dev Update 1.4 collapsed three chart forms into one. The `ob-` onboarding
+  // form and the `oa-` form injected into Home are gone; `cm-` is the only set
+  // of chart field ids that ships.
+  assert.ok(html.includes('id="cm-place"'), "the chart form keeps its birthplace input");
+  assert.ok(html.includes('id="cm-place-results"'), "and its results list");
   assert.ok(appJs.includes("setupPlaceSearch"), "setupPlaceSearch wiring should still exist");
+  for (const gone of ['id="ob-place"', 'id="ob-date"', 'id="onboarding-form"', 'id="oa-setup"', 'id="oa-place"']) {
+    assert.ok(!html.includes(gone) && !appJs.includes(gone), `${gone} belonged to a duplicate form and must be gone`);
+  }
+  const forms = [...html.matchAll(/<form[^>]*id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(forms.filter((f) => f.includes("chart")), ["chart-modal-form"],
+    "exactly one chart form may ship");
 });
 
 test("Home has a saved-chart selector wired to the activate endpoint", () => {
@@ -105,9 +112,13 @@ test("Unknown birth time never fabricates Rising or house data in Me placements"
 });
 
 test("Me communicates birth-time reliability states", () => {
-  assert.ok(html.includes("Exact birth time"));
-  assert.ok(html.includes("Approximate birth time"));
-  assert.ok(html.includes("Unknown birth time"));
+  // The stored accuracy values keep their display labels in TIME_ACCURACY_COPY,
+  // which is what Me reads. The form's own wording is checked separately, in
+  // chart-onboarding.test.js — the two are allowed to differ, because asking
+  // "how sure are you?" and reporting "reported birth time" are different jobs.
+  assert.ok(appJs.includes("Exact birth time"));
+  assert.ok(appJs.includes("Approximate birth time"));
+  assert.ok(appJs.includes("Unknown birth time"));
   assert.ok(appJs.includes("Reported birth time"));
   assert.ok(appJs.includes("Your Rising sign and houses may shift because the birth time is approximate."));
   assert.ok(appJs.includes("A birth time is needed to calculate your Rising sign and houses reliably."));
