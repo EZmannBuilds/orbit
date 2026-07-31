@@ -447,63 +447,11 @@ const RETIRED_ROUTES = Object.freeze({
    browser never computes an aspect. Viewing this page performs no write, so
    opening Transits cannot create a reading-history record. */
 
-/**
- * Ordering, stated once so the UI and the tests agree:
- *
- *   1. applying before separating   — something building beats something fading
- *   2. tighter orb first            — a 0.4° contact is more pointed than 5°
- *   3. personal bodies before slow  — Moon..Mars land in a day, Pluto does not
- *   4. transiting then natal name   — a stable, deterministic tie-break
- *
- * The last rule matters: without it two equal transits could swap places
- * between renders, and a list that reorders itself is a list nobody trusts.
- */
-const PERSONAL_BODIES = ["Moon", "Mercury", "Venus", "Sun", "Mars"];
+/* Transit ranking lives in lib/transits — server-side, tested, and shared with
+   the API response. A second ranker in the browser was removed in Dev Update
+   1.8: two rankers are one more than the number that can be right, and the
+   page renders the order it is given. */
 
-function transitRank(t) {
-  const personal = PERSONAL_BODIES.indexOf(t.transiting);
-  return {
-    applying: t.applying ? 0 : 1,
-    orb: Number.isFinite(t.orb) ? t.orb : 99,
-    speed: personal === -1 ? PERSONAL_BODIES.length : personal,
-    name: `${t.transiting}|${t.natal}|${t.aspect}`,
-  };
-}
-
-function sortTransits(list) {
-  return [...list].sort((a, b) => {
-    const x = transitRank(a), y = transitRank(b);
-    return x.applying - y.applying
-      || x.orb - y.orb
-      || x.speed - y.speed
-      || x.name.localeCompare(y.name);
-  });
-}
-
-const TRANSIT_FILTERS = ["all", "applying", "separating", "personal", "long-term"];
-
-function filterTransits(list, filter) {
-  // An unknown filter shows everything rather than an empty page: a stale link
-  // should degrade to the full list, not look like "you have no transits".
-  switch (filter) {
-    case "applying": return list.filter((t) => t.applying);
-    case "separating": return list.filter((t) => !t.applying);
-    case "personal": return list.filter((t) => PERSONAL_BODIES.includes(t.transiting));
-    case "long-term": return list.filter((t) => !PERSONAL_BODIES.includes(t.transiting));
-    default: return list;
-  }
-}
-
-const transitState = { filter: "all" };
-
-function transitsFromFortune() {
-  // factors[] already carries engine-computed transits with plain and technical
-  // phrasing. Reusing them avoids a second calculation and guarantees the page
-  // agrees with the fortune it sits behind.
-  return (AXIS.lastFortune?.factors || [])
-    .filter((f) => f.type === "transit" && f.transit)
-    .map((f) => ({ ...f.transit, plain: f.simple, technical: f.advanced }));
-}
 
 /**
  * Re-render whichever secondary destination is on screen.
@@ -522,86 +470,283 @@ function refreshSecondaryRoute() {
   if (id === "positions") { wirePositions(); loadPositions(); }
 }
 
-function renderTransits() {
+/* ── Today's Transits ───────────────────────────────────────────────────────
+   Rebuilt in Dev Update 1.8. The previous renderer read AXIS.lastFortune.factors
+   and filtered `type === "transit"` — but the fortune engine emits only its top
+   three, so this page showed at most three contacts: a summary slice built for
+   a daily reading, presented as a transits workspace.
+
+   It now consumes GET /api/charts/:id/transits, which calculates the full set
+   server-side. There is deliberately NO fallback to the old path: a hidden
+   fallback would mask a broken endpoint behind three plausible-looking cards. */
+
+const TRANSITS = { loading: false, token: 0, chartId: null, data: null };
+
+function transitsClear() {
+  TRANSITS.data = null;
   const body = $("#transits-body");
+  if (body) body.innerHTML = "";
+  const ctx = $("#transits-context");
+  if (ctx) ctx.textContent = "";
+  const explore = $("#transits-explore");
+  if (explore) explore.hidden = true;
+}
+
+function transitsStatus(text) {
+  const el = $("#transits-status");
+  if (el) el.textContent = text || "";
+}
+
+async function loadTransits() {
+  // Same three-state session model as Positions: unresolved is not signed out,
+  // and neither renders anything.
+  if (state.auth.restoring || !authSignedIn()) { transitsClear(); transitsRenderSignedOut(); return; }
+  const chart = activeChart();
+  if (!chart) { transitsClear(); transitsRenderNoChart(); return; }
+
+  // Rapid switching: a slower response for an abandoned chart must never paint
+  // over a newer selection.
+  const token = ++TRANSITS.token;
+  TRANSITS.chartId = chart.id;
+  TRANSITS.loading = true;
+  transitsClear();
+  transitsRenderLoading(chart.nickname);
+  transitsStatus(`Loading transits for ${chart.nickname || "your chart"}…`);
+
+  let data;
+  try {
+    const tz = axisResolveTimezone();
+    data = await get(`/api/charts/${chart.id}/transits?tz=${encodeURIComponent(tz)}`);
+  } catch (error) {
+    if (token !== TRANSITS.token) return;
+    TRANSITS.loading = false;
+    transitsRenderError("We couldn't work out your transits just now. Your saved charts are safe.");
+    return;
+  }
+  if (token !== TRANSITS.token) return;   // superseded by a newer chart
+
+  TRANSITS.loading = false;
+  TRANSITS.data = data;
+  try {
+    renderTransitsWorkspace(data, chart);
+    transitsStatus(`Transits for ${chart.nickname || "your chart"} are ready.`);
+  } catch (error) {
+    // A render defect is ours. Reporting it as a network problem would hide it.
+    console.error("[orbit] transits failed to render", { stage: "render", message: error?.message });
+    transitsRenderError("We couldn't show your transits just now. This one is on us — please try again.");
+  }
+}
+
+function transitsRenderSignedOut() {
+  const body = $("#transits-body");
+  if (body) body.innerHTML = "";
+  transitsStatus("");
+}
+
+function transitsRenderLoading(name) {
+  const body = $("#transits-body");
+  if (body) {
+    body.innerHTML = `<div class="axis-shimmer" style="height:280px" role="status" aria-live="polite"
+      aria-label="Loading transits for ${esc(name || "your chart")}"></div>`;
+  }
+}
+
+function transitsRenderError(message) {
+  const body = $("#transits-body");
+  transitsStatus("");
   if (!body) return;
+  body.innerHTML = `<div class="axis-section-error" role="alert">
+    <p>${esc(message)}</p>
+    <button type="button" class="o-btn o-btn--secondary o-btn--sm" data-action="retry-transits">Try again</button>
+  </div>`;
+}
 
-  if (!state.auth.user) {
-    body.innerHTML = `<div class="tr-empty"><p>Sign in to see transits for your chart.</p></div>`;
-    return;
-  }
-  if (!state.activeChartId) {
-    body.innerHTML = `
-      <div class="tr-empty">
-        <p>Create or select a chart to view personal transits.</p>
-        <button type="button" class="o-btn o-btn--primary" data-goto="me">Manage charts</button>
-      </div>`;
-    return;
-  }
-
-  const all = sortTransits(transitsFromFortune());
-  const shown = filterTransits(all, transitState.filter);
-
-  const timeKnown = state.activeProfile?.time_accuracy && state.activeProfile.time_accuracy !== "unknown";
-  const houseNote = timeKnown ? "" : `
-    <p class="tr-note">Your birth time is not recorded, so house and angle contacts are not shown.
-       Planet-to-planet transits below are unaffected — they do not depend on the time of day.</p>`;
-
-  if (!all.length) {
-    body.innerHTML = `
-      ${houseNote}
-      <div class="tr-empty">
-        <p>No transits are close enough to list right now.</p>
-        <p class="u-caption">The sky is still moving — nothing is currently within the orb Orbit reports on.</p>
-      </div>`;
-    return;
-  }
-
-  const cards = shown.map((t) => {
-    const state_ = t.applying ? "Applying" : "Separating";
-    const orb = Number.isFinite(t.orb) ? `${t.orb.toFixed(1)}° orb` : "";
-    return `
-      <article class="tr-card">
-        <h3 class="tr-card__title">${esc(t.plain || `${t.transiting} ${t.aspect} ${t.natal}`)}</h3>
-        <p class="tr-card__meta">
-          <span class="tr-badge tr-badge--${t.applying ? "applying" : "separating"}">
-            <span aria-hidden="true">${t.applying ? "→" : "←"}</span> ${state_}
-          </span>
-          ${orb ? `<span class="tr-orb">${esc(orb)}</span>` : ""}
-        </p>
-        <details class="tr-card__details">
-          <summary>Technical detail</summary>
-          <p class="tr-card__technical">${esc(t.technical || "")}</p>
-          <p class="u-caption">
-            <a href="#symbol-atlas">What do these symbols mean?</a>
-          </p>
-        </details>
-      </article>`;
-  }).join("");
-
-  body.innerHTML = `
-    ${houseNote}
-    <div class="tr-filters" role="group" aria-label="Filter transits">
-      ${TRANSIT_FILTERS.map((f) => `
-        <button type="button" class="o-tab tr-filter" data-filter="${f}"
-                aria-pressed="${String(f === transitState.filter)}">
-          ${f === "all" ? "All" : f === "long-term" ? "Long-term" : f[0].toUpperCase() + f.slice(1)}
-        </button>`).join("")}
+function transitsRenderNoChart() {
+  const body = $("#transits-body");
+  transitsStatus("");
+  if (!body) return;
+  // No fabricated summary, no empty card grid — one explanation and one action.
+  body.innerHTML = `<div class="tr-empty">
+    <h2>Transits need a birth chart</h2>
+    <p>Today’s Transits measures the current sky against your own placements, so it needs a saved chart to compare with.</p>
+    <p>The sky itself is available to everyone — Current Positions shows where the planets are right now, with no chart required.</p>
+    <div class="tr-empty__actions">
+      <button type="button" class="o-btn o-btn--primary" data-action="add-chart">Create your chart</button>
+      <a class="o-btn o-btn--secondary" href="#positions">View Current Positions</a>
     </div>
-    <p class="u-caption" role="status" aria-live="polite">${shown.length} of ${all.length} shown · strongest first</p>
-    <div class="tr-grid">${cards || `<div class="tr-empty"><p>No transits match that filter.</p></div>`}</div>`;
+  </div>`;
+}
+
+function transitCardHtml(t, { background = false } = {}) {
+  const r = t.reading;
+  if (!r) return "";
+  const facts = [
+    t.motion ? `<span class="tr-badge">${esc(t.motion)}</span>` : "",
+    t.intensityLabel ? "" : "",
+    r.intensity ? `<span class="tr-badge tr-badge--soft">${esc(r.intensity)}</span>` : "",
+    t.retrograde ? `<span class="tr-badge tr-badge--soft">Retrograde</span>` : "",
+  ].filter(Boolean).join("");
+  return `<article class="tr-card${background ? " tr-card--background" : ""}">
+    <h3 class="tr-card__title">${esc(r.title)}</h3>
+    <p class="tr-card__meta">${facts}<span class="tr-orb">${esc(t.orbLabel)} orb</span></p>
+    <p class="tr-card__lead">${esc(r.lead)}</p>
+    <details class="reading-card__more">
+      <summary><span>What this may emphasise</span></summary>
+      <div class="reading-card__body">
+        ${r.detail.map((d) => `<p>${esc(d)}</p>`).join("")}
+        <div class="reading-card__aside"><h4>Constructive potential</h4><p>${esc(r.constructive)}</p></div>
+        <div class="reading-card__aside"><h4>Possible tension</h4><p>${esc(r.tension)}</p></div>
+        <dl class="tr-evidence">
+          <div><dt>Transiting</dt><dd>${esc(t.transiting)} ${esc(t.transitingPosition)}</dd></div>
+          <div><dt>Your natal ${esc(t.natal)}</dt><dd>${esc(t.natalPosition)}</dd></div>
+          <div><dt>Aspect</dt><dd>${esc(t.aspect)}</dd></div>
+          <div><dt>Orb</dt><dd>${esc(t.orbLabel)}</dd></div>
+          ${t.motion ? `<div><dt>Motion</dt><dd>${esc(t.motion)}</dd></div>` : ""}
+          <div><dt>Duration</dt><dd>${esc(t.duration)}</dd></div>
+        </dl>
+      </div>
+    </details>
+  </article>`;
+}
+
+function renderTransitsWorkspace(data, chart) {
+  const body = $("#transits-body");
+  if (!body) throw new Error("renderTransitsWorkspace called without a mount point");
+  if (!data) throw new Error("renderTransitsWorkspace called without transit data");
+
+  const nameEl = $("#transits-chart-name");
+  if (nameEl) nameEl.textContent = chart?.nickname || "your chart";
+  const ctx = $("#transits-context");
+  if (ctx && data.localDate) {
+    const day = formatLocalDateKey(data.localDate);
+    const when = data.calculatedAt
+      ? new Date(data.calculatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+      : "";
+    ctx.textContent = [day, data.timezone ? `Based on ${data.timezone} local time` : "",
+                       when ? `Sky calculated for ${when}` : ""].filter(Boolean).join(" · ");
+  }
+
+  const immediate = data.immediate || [];
+  const background = data.background || [];
+  const explore = $("#transits-explore");
+  if (explore) explore.hidden = false;
+
+  if (!immediate.length && !background.length) {
+    body.innerHTML = `
+      ${data.limitation ? transitLimitationHtml(data.limitation) : ""}
+      <div class="tr-empty">
+        <h2>No major transits are in range right now</h2>
+        <p>No supported major aspect is currently within the orb Orbit Axis reports on. That is an ordinary state, not a problem — the sky is still moving.</p>
+        <div class="tr-empty__actions">
+          <a class="o-btn o-btn--secondary" href="#positions">View Current Positions</a>
+          <a class="o-btn o-btn--secondary" href="#me">Review My Chart</a>
+          <a class="o-btn o-btn--secondary" href="#home">Return Home</a>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const all = data.all || [];
+  body.innerHTML = `
+    ${data.summary ? `<section class="o-card tr-summary" aria-labelledby="tr-summary-title">
+      <h2 class="axis-section-title" id="tr-summary-title">Your transit summary</h2>
+      <p class="tr-summary__text">${esc(data.summary.text)}</p>
+    </section>` : ""}
+
+    ${data.limitation ? transitLimitationHtml(data.limitation) : ""}
+
+    ${immediate.length ? `<section class="o-card" aria-labelledby="tr-immediate-title">
+      <h2 class="axis-section-title" id="tr-immediate-title">Most active today</h2>
+      <p class="axis-section-help">Faster-moving contacts — these are what changed recently.</p>
+      <div class="tr-list">${immediate.map((t) => transitCardHtml(t)).join("")}</div>
+    </section>` : ""}
+
+    ${background.length ? `<section class="o-card" aria-labelledby="tr-background-title">
+      <h2 class="axis-section-title" id="tr-background-title">Background influences</h2>
+      <p class="axis-section-help">Slower contacts. These move gradually and stay relevant far longer — quieter day to day, not less significant.</p>
+      <div class="tr-list tr-list--background">${background.map((t) => transitCardHtml(t, { background: true })).join("")}</div>
+    </section>` : ""}
+
+    <section class="o-card" aria-labelledby="tr-technical-title">
+      <h2 class="axis-section-title" id="tr-technical-title">Complete technical details</h2>
+      <details class="chart-details">
+        <summary>All ${all.length} contact${all.length === 1 ? "" : "s"} within orb</summary>
+        <div class="table-scroll">
+          <table class="placements">
+            <thead><tr><th scope="col">Transiting</th><th scope="col">Aspect</th><th scope="col">Natal</th><th scope="col">Orb</th><th scope="col">Motion</th><th scope="col">Group</th></tr></thead>
+            <tbody>${all.map((t) => `<tr>
+              <td>${esc(t.transiting)}</td><td>${esc(t.aspect)}</td><td>${esc(t.natal)}</td>
+              <td>${esc(t.orbLabel)}</td><td>${esc(t.motion || "—")}</td>
+              <td>${t.background ? "Background" : "Immediate"}</td></tr>`).join("")}</tbody>
+          </table>
+        </div>
+        <p class="tech-sky__help">Positions come from the same shared sky as Current Positions. Orbit Axis does not publish exact-hit times or end dates for transits — those need timing it cannot calculate reliably.</p>
+        <a class="o-btn o-btn--secondary o-btn--sm" href="#positions">View Current Positions</a>
+      </details>
+    </section>`;
+}
+
+function transitLimitationHtml(l) {
+  return `<aside class="chart-limitation" role="note">
+    <h2 class="chart-limitation__title">${esc(l.title)}</h2>
+    <p>${esc(l.body)}</p>
+  </aside>`;
+}
+
+function renderTransitsSwitcher() {
+  const wrap = $("#transits-switcher");
+  const select = $("#transits-chart-select");
+  if (!wrap || !select) return;
+  const charts = state.charts || [];
+  wrap.hidden = charts.length < 2;
+  if (charts.length < 2) { select.innerHTML = ""; return; }
+  const active = activeChart();
+  select.innerHTML = charts.map((c) =>
+    `<option value="${esc(c.id)}"${c.id === active?.id ? " selected" : ""}>${esc(c.nickname || "Untitled chart")}</option>`
+  ).join("");
+}
+
+/** Kept for the route to call; the workspace loads itself. */
+function renderTransits() {
+  renderTransitsSwitcher();
+  loadTransits();
 }
 
 function wireTransits() {
   const panel = $("#panel-transits");
   if (!panel || panel._wiredTransits) return;
   panel._wiredTransits = true;
-  panel.addEventListener("click", (event) => {
-    const btn = event.target.closest(".tr-filter");
-    if (!btn) return;
-    transitState.filter = TRANSIT_FILTERS.includes(btn.dataset.filter) ? btn.dataset.filter : "all";
-    renderTransits();
+
+  const select = $("#transits-chart-select");
+  select?.addEventListener("change", async (event) => {
+    const id = event.target.value;
+    const previousId = state.activeChartId;
+    if (!id || id === previousId) return;
+    select.disabled = true;
+    // Clear before activating: the chart name updates as soon as the switch
+    // lands, and the old reading must not be sitting under it.
+    transitsClear();
+    transitsRenderLoading("");
+    try {
+      await post(`/api/charts/${id}/activate`, {});
+      await loadSavedCharts();
+      renderTransitsSwitcher();
+      await loadTransits();
+      $("#transits-title")?.focus({ preventScroll: true });
+      toast(`${activeChart()?.nickname || "Chart"} is active`);
+    } catch {
+      state.activeChartId = previousId;
+      renderTransitsSwitcher();
+      transitsRenderError("We couldn't switch charts just now. Your saved charts are safe.");
+    } finally {
+      select.disabled = false;
+    }
   });
+
+  panel.addEventListener("click", (event) => {
+    if (event.target.closest('[data-action="retry-transits"]')) loadTransits();
+  });
+  $("#transits-refresh")?.addEventListener("click", () => loadTransits());
 }
 
 /* ── Symbol Atlas (Update 5.2b) ────────────────────────────────────────────

@@ -243,8 +243,11 @@ test("switching charts reloads saved charts, not just the sky", () => {
   // refreshes the current sky and nothing else. Activation succeeded server-
   // side while the page kept rendering the previous chart — showing a Rising
   // sign and full houses for a chart that has no birth time at all.
-  const from = appJs.indexOf('select?.addEventListener("change"');
-  assert.ok(from > -1, "the switcher change handler must exist");
+  // Anchored on Home's own select id: Dev Update 1.8 added a second chart
+  // switcher on Transits, and a bare `select?.addEventListener("change"` match
+  // now finds whichever appears first in the file.
+  const from = appJs.indexOf('$("#chart-switcher-select")');
+  assert.ok(from > -1, "Home's switcher change handler must exist");
   const handler = appJs.slice(from, appJs.indexOf("panel.addEventListener", from));
   assert.match(handler, /await loadSavedCharts\(\)/,
     "state.charts must be refreshed before the active chart is re-read");

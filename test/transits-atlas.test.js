@@ -147,58 +147,76 @@ test("ordering is deterministic across repeated sorts", () => {
   }
 });
 
-test("the implementation states the same ordering rules", () => {
-  assert.match(appJs, /applying before separating/i);
-  assert.match(appJs, /deterministic tie-break/i);
-  assert.match(appJs, /const PERSONAL_BODIES/);
+test("transit ranking lives on the server, and only there", () => {
+  // Dev Update 1.8 moved ranking into lib/transits, where it is tested against
+  // fixtures. The browser-side ranker was removed rather than left in place:
+  // two rankers are one more than the number that can be right.
+  assert.ok(!appJs.includes("const PERSONAL_BODIES"), "the client ranker is gone");
+  assert.ok(!appJs.includes("function transitRank"), "and not merely unused");
+  const mod = readFileSync(join(ROOT, "lib", "transits", "transits.js"), "utf8");
+  assert.match(mod, /export function rankTransits/);
+  assert.match(mod, /relevance/, "relevance leads the sort");
+  assert.match(mod, /pair: t\.id/, "with a deterministic final tie-break");
 });
 
-// ── Transit filters ─────────────────────────────────────────────────────────
-
-test("an unknown filter shows everything rather than an empty page", () => {
-  // A stale link should degrade to the full list, not read as "no transits".
-  assert.match(appJs, /default: return list;/);
-  assert.match(appJs, /TRANSIT_FILTERS\.includes\(btn\.dataset\.filter\)/,
-    "an unrecognised filter should fall back rather than be stored");
+test("the fortune three-factor path is gone, with no hidden fallback", () => {
+  // The old page read AXIS.lastFortune.factors and filtered type === "transit".
+  // The fortune engine emits transits.slice(0, 3), so it could never show more
+  // than three contacts. A fallback would hide a broken endpoint behind three
+  // plausible cards.
+  assert.ok(!appJs.includes("transitsFromFortune"), "the fortune-derived reader is removed");
+  assert.ok(!/lastFortune\?\.factors/.test(appJs.slice(appJs.indexOf("const TRANSITS ="))),
+    "the transits workspace must not reach for fortune factors");
+  assert.match(appJs, /\/api\/charts\/\$\{chart\.id\}\/transits/,
+    "it consumes the dedicated endpoint");
 });
 
-test("the five filters are exactly the documented set", () => {
-  const m = /const TRANSIT_FILTERS = \[([^\]]+)\]/.exec(appJs);
-  assert.ok(m, "the filter list should be declared once");
-  const filters = m[1].split(",").map((s) => s.trim().replace(/"/g, "")).filter(Boolean);
-  assert.deepEqual(filters, ["all", "applying", "separating", "personal", "long-term"]);
+test("client-side transit filters are gone, replaced by ranked groups", () => {
+  // Five filter buttons asked the reader to do the sorting. Ranked immediate
+  // and background groups do it for them.
+  assert.ok(!appJs.includes("TRANSIT_FILTERS"), "the filter set is removed");
+  assert.ok(!appJs.includes("filterTransits"), "and its filter function");
+  assert.match(appJs, /Most active today/);
+  assert.match(appJs, /Background influences/);
 });
 
-// ── Honesty about an unknown birth time ─────────────────────────────────────
-
-test("an unknown birth time withholds houses instead of inventing them", () => {
-  assert.match(appJs, /time_accuracy !== "unknown"/);
-  assert.match(appJs, /house and angle contacts are not shown/i);
-  assert.match(appJs, /Planet-to-planet transits below are unaffected/i,
-    "the page must stay useful rather than blank");
+test("an unknown birth time cannot receive a house or angle contact at all", () => {
+  // Stronger than the old filter: angles and houses are absent from the natal
+  // target set entirely, so there is no filter left to forget.
+  const mod = readFileSync(join(ROOT, "lib", "transits", "transits.js"), "utf8");
+  const set = mod.slice(mod.indexOf("export const TRANSITING_BODIES"), mod.indexOf("export const ASPECTS"));
+  for (const forbidden of ["Ascendant", "Midheaven", "MC", "house"]) {
+    assert.ok(!set.includes(forbidden), `${forbidden} must not be a natal target`);
+  }
+  assert.match(mod, /export function birthTimeNotice/, "and a concise notice explains the omission");
 });
-
-// ── The engine does the geometry ────────────────────────────────────────────
 
 test("the browser never computes aspect geometry", () => {
-  const start = appJs.indexOf("Personal Transits (Update 5.2b)");
-  const end = appJs.indexOf("Symbol Atlas (Update 5.2b)");
-  const source = appJs.slice(start, end);
+  const start = appJs.indexOf("const TRANSITS = {");
+  const end = appJs.indexOf("/* ── Symbol Atlas");
+  const source = appJs.slice(start, end > start ? end : undefined);
   for (const forbidden of ["Math.abs", "longitude", "Math.cos", "Math.sin", "% 360"]) {
     assert.ok(!source.includes(forbidden),
       `the transits view must not calculate geometry (${forbidden})`);
   }
-  assert.match(source, /factors \|\| \[\]/, "it consumes engine factors instead");
+  assert.match(source, /await get\(`\/api\/charts\//, "it consumes the server response instead");
 });
 
-test("viewing transits performs no write", () => {
-  const start = appJs.indexOf("Personal Transits (Update 5.2b)");
-  const end = appJs.indexOf("Symbol Atlas (Update 5.2b)");
+test("opening transits performs no write", () => {
+  // Scoped to the LOAD path. Switching charts legitimately POSTs to /activate —
+  // that is a deliberate user action, not the act of opening the page. The old
+  // slice anchors were removed in Dev Update 1.8, and an unanchored indexOf
+  // returns -1, which silently scans the whole file.
+  const start = appJs.indexOf("async function loadTransits()");
+  assert.ok(start > -1, "the load path must exist to be scoped");
+  const end = appJs.indexOf("function transitsRenderSignedOut");
+  assert.ok(end > start, "and its end must be found, not defaulted");
   const source = appJs.slice(start, end);
   for (const write of ["post(", "put(", "patch(", "del(", 'method: "POST"']) {
     assert.ok(!source.includes(write),
       `opening Transits must not ${write} — it would create history records`);
   }
+  assert.match(source, /await get\(/, "it reads and nothing more");
 });
 
 // ── Symbol Atlas data ───────────────────────────────────────────────────────
@@ -270,7 +288,10 @@ test("the atlas states where each symbol appears in Orbit", () => {
 // ── Cross-linking ───────────────────────────────────────────────────────────
 
 test("transit details link to the Symbol Atlas, and the atlas links back to Tools", () => {
-  assert.match(appJs, /href="#symbol-atlas"[^>]*>\s*What do these symbols mean\?/);
+  // Dev Update 1.8 moved this into the workspace's Continue-exploring section,
+  // so it is markup rather than a template string, with a label that names the
+  // destination instead of asking a question.
+  assert.match(html, /href="#symbol-atlas"[\s\S]{0,160}Open Symbol Atlas/);
   // The way back points at where the atlas is reached from, not at Home — a
   // back action that skips the page you came from is a dead end wearing an
   // arrow.

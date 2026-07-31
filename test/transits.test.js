@@ -262,3 +262,177 @@ test("formatting is stable and human", () => {
   assert.equal(formatOrb(0), "0°00′");
   assert.equal(formatOrb(2.9999), "3°00′", "rounding to 60 minutes carries the degree");
 });
+
+// ── Interpretation ──────────────────────────────────────────────────────────
+
+import { composeTransit, composeAll, ASPECT_DYNAMIC, TRANSIT_ACTION,
+         intensity, NEVER_RETROGRADE, RETROGRADE_MODIFIER } from "../lib/transits/interpretation.js";
+
+test("every aspect carries both a constructive and a tension reading", () => {
+  // The same structural guard the natal corpus uses: no aspect can be graded
+  // good or bad because both readings are always present.
+  assert.deepEqual(Object.keys(ASPECT_DYNAMIC).sort(),
+    ["Conjunction", "Opposition", "Sextile", "Square", "Trine"]);
+  for (const [name, d] of Object.entries(ASPECT_DYNAMIC)) {
+    assert.ok(d.constructive, `${name} needs a constructive reading`);
+    assert.ok(d.tension, `${name} needs a tension reading`);
+    assert.ok(d.verb && d.detail, `${name} incomplete`);
+  }
+  for (const b of TRANSITING_BODIES) assert.ok(TRANSIT_ACTION[b], `${b} has no transit action`);
+});
+
+test("natal roles are imported, never restated", () => {
+  const src = readFileSync(new URL("../lib/transits/interpretation.js", import.meta.url), "utf8");
+  assert.match(src, /from "\.\.\/interpretation\/planets\.js"/);
+  const planets = readFileSync(new URL("../lib/interpretation/planets.js", import.meta.url), "utf8");
+  for (const b of ["Mercury", "Saturn", "Neptune", "Pluto"]) {
+    const r = composeTransit({ id: "x", transiting: "Sun", natal: b, aspect: "Trine", orb: 1 });
+    assert.ok(planets.includes(r.targetRole), `${b}'s role must match My Chart exactly`);
+  }
+});
+
+test("the retrograde modifier applies to the transiting body only", () => {
+  const retro = composeTransit({ id: "x", transiting: "Saturn", natal: "Moon", aspect: "Square", orb: 1, retrograde: true });
+  assert.ok(retro.detail.some((d) => d === RETROGRADE_MODIFIER));
+  const direct = composeTransit({ id: "y", transiting: "Saturn", natal: "Moon", aspect: "Square", orb: 1, retrograde: false });
+  assert.ok(!direct.detail.some((d) => d === RETROGRADE_MODIFIER));
+  // The Sun and Moon never retrograde, so the modifier can never attach.
+  const sun = composeTransit({ id: "z", transiting: "Sun", natal: "Mars", aspect: "Trine", orb: 1, retrograde: true });
+  assert.ok(!sun.detail.some((d) => d === RETROGRADE_MODIFIER));
+  assert.deepEqual([...NEVER_RETROGRADE], ["Sun", "Moon"]);
+  // And it never claims anything about NATAL retrograde.
+  assert.ok(!RETROGRADE_MODIFIER.toLowerCase().includes("born"));
+  assert.ok(!RETROGRADE_MODIFIER.toLowerCase().includes("natal"));
+});
+
+test("intensity bands are deterministic and stated as fact", () => {
+  assert.equal(intensity(0.2).label, "Exact");
+  assert.equal(intensity(1.0).label, "Close");
+  assert.equal(intensity(2.5).label, "Wide");
+  assert.equal(intensity(null), null);
+});
+
+test("a malformed transit becomes a missing card, not a sentence about nothing", () => {
+  assert.equal(composeTransit(null), null);
+  assert.equal(composeTransit({ transiting: "Nibiru", natal: "Sun", aspect: "Trine" }), null);
+  assert.equal(composeTransit({ transiting: "Sun", natal: "Nibiru", aspect: "Trine" }), null);
+  assert.equal(composeTransit({ transiting: "Sun", natal: "Moon", aspect: "Quincunx" }), null);
+  // One bad entry does not destroy the valid ones beside it.
+  const mixed = composeAll([
+    { id: "ok", transiting: "Mars", natal: "Moon", aspect: "Square", orb: 1 },
+    { id: "bad", transiting: "Nibiru", natal: "Moon", aspect: "Square", orb: 1 },
+  ]);
+  assert.equal(mixed.length, 1);
+  assert.equal(mixed[0].id, "ok");
+});
+
+test("transit interpretation is deterministic and free of AI or randomness", () => {
+  const t = { id: "x", transiting: "Mars", natal: "Moon", aspect: "Square", orb: 1.02, retrograde: false, duration: "A fast-moving influence" };
+  const once = JSON.stringify(composeTransit(t));
+  for (let i = 0; i < 20; i += 1) assert.equal(JSON.stringify(composeTransit(t)), once);
+  const src = readFileSync(new URL("../lib/transits/interpretation.js", import.meta.url), "utf8");
+  for (const banned of ["Math.random", "Date.now(", "fetch(", "openai", "anthropic", "ollama"]) {
+    assert.ok(!src.toLowerCase().includes(banned.toLowerCase()), `${banned} must not appear`);
+  }
+});
+
+test("no transit reading predicts, grades, or diagnoses", () => {
+  const readings = [];
+  for (const a of Object.keys(ASPECT_DYNAMIC)) {
+    for (const b of TRANSITING_BODIES) {
+      const r = composeTransit({ id: "x", transiting: b, natal: "Moon", aspect: a, orb: 1, retrograde: true });
+      if (r) readings.push([r.title, r.lead, ...r.detail, r.constructive, r.tension].join(" "));
+    }
+  }
+  assert.ok(readings.length > 40);
+  for (const text of readings) {
+    assert.doesNotMatch(text, /\b(will definitely|guaranteed|destined|you must|doomed|dangerous)\b/i);
+    assert.doesNotMatch(text, /\b(diagnos|depression|anxiety disorder|medication|lawsuit|invest)\b/i);
+  }
+});
+
+// ── The workspace ───────────────────────────────────────────────────────────
+
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const HTML = readFileSync(join(ROOT, "public", "index.html"), "utf8");
+const APP = readFileSync(join(ROOT, "public", "app.js"), "utf8");
+const API = readFileSync(join(ROOT, "lib", "charts", "api.js"), "utf8");
+
+test("the workspace consumes the dedicated endpoint, never fortune factors", () => {
+  assert.match(API, /action === "transits" && method === "GET"/, "the endpoint exists");
+  assert.match(API, /findTransits\(sky, chart\)/, "and calculates server-side");
+  assert.match(APP, /\/api\/charts\/\$\{chart\.id\}\/transits/);
+  assert.ok(!APP.includes("transitsFromFortune"), "no fortune-derived reader survives");
+  // Bounded to the workspace block: AXIS.lastFortune is Home's, declared later
+  // in the file, and an unbounded slice runs to EOF and catches it.
+  const ws = APP.slice(APP.indexOf("const TRANSITS = {"), APP.indexOf("/* ── Symbol Atlas"));
+  assert.ok(!ws.includes("lastFortune"), "and no hidden fallback to it");
+});
+
+test("the workspace renders the hierarchy in order", () => {
+  const ws = APP.slice(APP.indexOf("function renderTransitsWorkspace"));
+  const order = ["tr-summary-title", "tr-immediate-title", "tr-background-title", "tr-technical-title"];
+  const at = order.map((id) => { const i = ws.indexOf(id); assert.ok(i > -1, `${id} missing`); return i; });
+  for (let i = 1; i < at.length; i += 1) assert.ok(at[i] > at[i - 1], `${order[i]} must follow ${order[i - 1]}`);
+  assert.ok(HTML.indexOf('id="transits-explore"') > HTML.indexOf('id="transits-body"'));
+});
+
+test("aspect, orb, and motion are visible text, not glyphs or colour", () => {
+  const card = APP.slice(APP.indexOf("function transitCardHtml"), APP.indexOf("function renderTransitsWorkspace"));
+  assert.match(card, /esc\(t\.motion\)/, "Applying/Separating is rendered as text");
+  assert.match(card, /esc\(t\.orbLabel\)/, "the orb is text");
+  assert.match(card, /esc\(t\.aspect\)/, "the aspect is named");
+  assert.match(card, /Retrograde/, "retrograde state is a word");
+});
+
+test("rapid chart switching cannot let a slow response paint over a newer one", () => {
+  const fn = APP.slice(APP.indexOf("async function loadTransits"), APP.indexOf("function transitsRenderSignedOut"));
+  assert.match(fn, /const token = \+\+TRANSITS\.token/);
+  assert.match(fn, /if \(token !== TRANSITS\.token\) return;/);
+  // Clearing happens before the request, not after it returns.
+  const clearAt = fn.indexOf("transitsClear()");
+  const fetchAt = fn.indexOf("/transits?tz=");
+  assert.ok(clearAt > -1 && clearAt < fetchAt, "the old reading clears before the new request");
+});
+
+test("signed out and chartless states render nothing personal", () => {
+  const fn = APP.slice(APP.indexOf("async function loadTransits"), APP.indexOf("function transitsRenderSignedOut"));
+  assert.match(fn, /state\.auth\.restoring \|\| !authSignedIn\(\)/,
+    "unresolved is not treated as signed out");
+  const noChart = APP.slice(APP.indexOf("function transitsRenderNoChart"), APP.indexOf("function transitCardHtml"));
+  assert.match(noChart, /needs a saved chart/i);
+  assert.match(noChart, /data-action="add-chart"/, "one Create Chart action");
+  assert.match(noChart, /href="#positions"/, "and the shared sky is still offered");
+  assert.ok(!noChart.includes("tr-summary"), "no fabricated personal summary");
+});
+
+test("failures are announced, retryable, and never silent", () => {
+  assert.match(APP, /data-action="retry-transits"/);
+  assert.match(APP, /stage: "render"/, "a render defect is not reported as a network problem");
+  const codeOnly = APP.split("\n").filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*")).join("\n");
+  assert.ok(!codeOnly.includes("catch {}"), "no silent catch");
+});
+
+test("the workspace links only to routes that exist", () => {
+  // Bounded to THIS panel: Symbol Atlas is many panels further down, so slicing
+  // to it sweeps up every workspace in between.
+  const from = HTML.indexOf('id="panel-transits"');
+  const panel = HTML.slice(from, HTML.indexOf('class="workspace-panel"', from + 50));
+  const registry = APP.slice(APP.indexOf("const WORKSPACES"), APP.indexOf("const RETIRED_ROUTES"));
+  const registered = [...registry.matchAll(/id: "([a-z-]+)"/g)].map((m) => m[1]);
+  const links = [...panel.matchAll(/href="#([a-z-]+)"/g)].map((m) => m[1]);
+  assert.ok(links.length >= 4);
+  for (const l of links) assert.ok(registered.includes(l), `#${l} is not a workspace`);
+  assert.ok(!panel.includes('href="#transits"'), "the page does not link to itself");
+});
+
+test("no exact-hit time or end date reaches the rendered workspace", () => {
+  const ws = APP.slice(APP.indexOf("const TRANSITS = {"), APP.indexOf("/* ── Symbol Atlas"));
+  for (const banned of ["becomes exact", "ends on", "exact at", "days remaining"]) {
+    assert.ok(!ws.toLowerCase().includes(banned), `"${banned}" is an unsupported timing claim`);
+  }
+  assert.match(ws, /does not publish exact-hit times or end dates/,
+    "and the page says so where a reader would look for them");
+});

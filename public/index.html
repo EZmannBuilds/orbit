@@ -180,10 +180,43 @@
             </div>
           </div>
 
-          <!-- Update 5.2b: personal transits against the active chart. The
-               generic sky-events tiles that were here showed the same facts as
-               Technical Sky, which is duplication rather than depth. -->
+          <!-- ── The personal reading ───────────────────────────────────
+               Positions owns the shared sky; this page owns the intersection
+               with ONE chart. Immediate influences lead because they are what
+               changed today; background influences follow because they matter
+               without being news. -->
+          <p class="u-meta" id="transits-context"></p>
+
+          <div class="tr-switcher" id="transits-switcher" hidden>
+            <label class="tr-switcher__label" for="transits-chart-select">Viewing chart</label>
+            <select class="tr-switcher__select" id="transits-chart-select"></select>
+          </div>
+
+          <div class="tr-status" id="transits-status" role="status" aria-live="polite"></div>
+
           <div id="transits-body"></div>
+
+          <section class="o-card" id="transits-explore" aria-labelledby="transits-explore-title" hidden>
+            <h2 class="axis-section-title" id="transits-explore-title">Continue exploring</h2>
+            <div class="axis-explore">
+              <a class="axis-explore__link" href="#positions">
+                <span class="axis-explore__label">View Current Positions</span>
+                <span class="axis-explore__help">Where every planet is in the zodiac right now.</span>
+              </a>
+              <a class="axis-explore__link" href="#me">
+                <span class="axis-explore__label">Review My Chart</span>
+                <span class="axis-explore__help">The natal placements these transits are contacting.</span>
+              </a>
+              <a class="axis-explore__link" href="#symbol-atlas">
+                <span class="axis-explore__label">Open Symbol Atlas</span>
+                <span class="axis-explore__help">What the planet and aspect symbols mean.</span>
+              </a>
+              <a class="axis-explore__link" href="#home">
+                <span class="axis-explore__label">Back to Home</span>
+                <span class="axis-explore__help">Your daily reading and the Moon.</span>
+              </a>
+            </div>
+          </section>
 
           <div class="o-card">
             <div class="o-card-head"><h3 class="u-card-title">Upcoming Sky Events</h3><span class="u-meta" id="events-count"></span></div>
