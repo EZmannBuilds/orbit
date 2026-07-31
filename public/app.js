@@ -1936,7 +1936,9 @@ function wireSavedCharts() {
       try {
         const r = await get(`/api/sky/current?tz=${encodeURIComponent(tz)}`);
         AXIS.lastSky = r.sky;
-        axisRenderSky(r.sky);
+        AXIS.lastHighlights = r.highlights || [];
+        AXIS.lastMoon = r.moon || null;
+        axisRenderSky(r.sky, { highlights: r.highlights, moon: r.moon });
       } catch {
         axisRenderSkyError("We still couldn't reach the current sky. Your reading above is unaffected.");
       }
@@ -2926,6 +2928,8 @@ const AXIS = {
   detail: "Simple",
   lastFortune: null,
   lastSky: null,
+  lastHighlights: [],
+  lastMoon: null,
   currentTimezoneOverride: null, // session-only, set by "Use my current location"
   // Set once Today has been loaded, so startup doesn't fetch the fortune twice
   // (session restore already loads it for a signed-in returning user).
@@ -3027,7 +3031,7 @@ function axisApplyDetail(rerender = true) {
   document.documentElement.setAttribute("data-detail", "Advanced");
   if (rerender) {
     if (AXIS.lastFortune) axisRenderFortune(AXIS.lastFortune);
-    if (AXIS.lastSky) axisRenderSky(AXIS.lastSky);
+    if (AXIS.lastSky) axisRenderSky(AXIS.lastSky, { highlights: AXIS.lastHighlights, moon: AXIS.lastMoon });
   }
 }
 async function axisSetDetail(level) {
@@ -3114,8 +3118,10 @@ async function axisLoadToday() {
   get(`/api/sky/current?tz=${encodeURIComponent(tz)}`)
     .then(r => {
       AXIS.lastSky = r.sky;
+      AXIS.lastHighlights = r.highlights || [];
+      AXIS.lastMoon = r.moon || null;
       try {
-        axisRenderSky(r.sky);
+        axisRenderSky(r.sky, { highlights: r.highlights, moon: r.moon });
       } catch (error) {
         // A render defect is ours, and must not be reported as a network problem.
         console.error("[orbit] current sky failed to render", { stage: "render", message: error?.message });
@@ -3280,93 +3286,125 @@ function axisFortuneTitle(F) {
 }
 
 // ── Current Sky: one unified panel (Moon + Sun + season + local time) ──────
-function axisRenderSky(sky) {
+function axisRenderSky(sky, extras = {}) {
   if (!sky || !$("#today-sky")) return;
-  const moonSvg = renderMoonSVG({ illumination: sky.moon.illumination_percent, waxing: sky.moon.waxing, phaseName: sky.moon.phase_name });
-  const localTime = sky.local_time_iso
-    ? new Date(sky.local_time_iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : "";
+
+  // The visible day is the fortune's local-day key, never a UTC date.
   const localDateLabel = formatLocalDateKey(sky.local_date || "");
   if (localDateLabel) {
     $("#today-date").textContent = localDateLabel;
     $("#topnav-date").textContent = new Date(`${sky.local_date}T12:00:00.000Z`)
-      .toLocaleDateString("en-US", {
-        weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
-      });
+      .toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
   }
-  const nextFullLabel = formatLocalDateKey(sky.next_full_moon?.local_date || "");
-  const nextNewLabel = formatLocalDateKey(sky.next_new_moon?.local_date || "");
+  const tzLabel = sky.timezone_name ? `Based on ${sky.timezone_name} local time` : "";
+  const tzEl = $("#today-timezone");
+  if (tzEl) { tzEl.textContent = tzLabel; tzEl.hidden = !tzLabel; }
 
-  const chips = [
-    // "Cancer Season" and "Sun in Cancer" are the same fact. The season reads
-    // better and the Sun's exact degree lives in the Technical Sky table below,
-    // where it is actually useful.
-    `<span class="sky-chip"><span class="dot"></span>${esc(sky.zodiac_season)} Season</span>`,
-    `<span class="sky-chip"><span class="dot"></span>Moon in ${esc(sky.moon.sign)}</span>`,
-    `<span class="sky-chip"><span class="dot"></span>${esc(sky.moon.phase_name)} · ${Math.round(sky.moon.illumination_percent)}% lit</span>`,
-    ...(sky.retrogrades || []).map(r => `<span class="sky-chip retro"><span class="dot"></span>${esc(r)} retrograde</span>`),
-  ].join("");
+  axisRenderMoon(extras.moon || null, sky);
+  axisRenderHighlights(extras.highlights || []);
+  axisRenderTechnicalSky(sky);
+}
 
-  const theme = (sky.retrogrades || []).includes("Mercury")
-    ? "A slow-down-and-review kind of sky — good for tidying and second drafts."
-    : `${sky.moon.waxing ? "A building, lean-in" : "A settling, wind-down"} sky today.`;
+/**
+ * The Moon, from the server-composed `moonState()`.
+ *
+ * This section is about the CURRENT transiting Moon and says so. The natal
+ * Moon belongs to My Chart and depends on a birth time; this one depends on
+ * nothing but the clock, so it stays available on every chart including
+ * unknown-time ones.
+ */
+function axisRenderMoon(moon, sky) {
+  const section = $("#today-moon");
+  const body = $("#today-moon-body");
+  if (!section || !body) return;
+  if (!moon) { section.hidden = true; body.innerHTML = ""; return; }
+  section.hidden = false;
 
-  // Update 5.2: every reader gets the complete technical view. The advanced
-  // factor phrasing is the one shown, because "Sun 28°14′ Cancer" is the point
-  // of this section — the plain-language version already appeared in the
-  // fortune above, and repeating it here would say the same thing twice.
-  const transitFactors = (AXIS.lastFortune?.factors || []).filter(f => f.type === "transit").slice(0, 3);
-  const personal = transitFactors.length ? `
-    <div class="current-sky__personal">
-      <div class="u-eyebrow">Active transits for ${esc(state.activeChartName)}</div>
-      <ul class="current-sky__transit-list">${transitFactors.map(f => `<li>${esc(f.advanced ?? f.simple)}</li>`).join("")}</ul>
-    </div>` : "";
-
-  let advanced = "";
-  if (sky.planets) {
-    const rows = Object.values(sky.planets).map(p => `<tr><td>${esc(p.name)}</td><td>${esc(p.sign)} ${p.degrees}°${String(p.minutes).padStart(2, "0")}′</td><td>${p.retrograde ? `<abbr title="Retrograde">℞</abbr>` : ""}</td></tr>`).join("");
-    advanced = `
-      <div class="sky-technical">
-        <h3 class="sky-technical__title">Positions right now</h3>
-        <p class="sky-technical__help">Each body's exact position. Degrees are measured within the sign; ℞ means the planet appears to move backwards from Earth.</p>
-        <div class="sky-technical__scroll">
-          <table class="placements">
-            <thead><tr><th scope="col">Body</th><th scope="col">Position</th><th scope="col"><span class="sr-only">Retrograde</span><span aria-hidden="true">℞</span></th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-      </div>`;
-  }
-
-  const summary = `${sky.moon.phase_name} Moon, ${Math.round(sky.moon.illumination_percent)}% illuminated and ${sky.moon.waxing ? "waxing" : "waning"}, in ${sky.moon.sign}. ${sky.zodiac_season} season.${(sky.retrogrades || []).length ? ` ${sky.retrogrades.join(", ")} retrograde.` : ""}`;
-
-  $("#today-sky").innerHTML = `
-    <div class="current-sky">
-      <div class="current-sky__moon" aria-hidden="true">${moonSvg}</div>
-      <div class="current-sky__body">
-        <h2>Technical Sky</h2>
-        <p class="sr-only">${esc(summary)}</p>
-        ${localTime ? `<div class="current-sky__local">${esc(localTime)} · your local time</div>` : ""}
-        <div class="sky-facts">${chips}</div>
-        <div class="sky-next-events" aria-label="Next lunar events">
-          <span>Next full moon <strong>${esc(nextFullLabel)}</strong></span>
-          <span>Next new moon <strong>${esc(nextNewLabel)}</strong></span>
-        </div>
-        <div class="sky-theme">${theme}</div>
-        ${personal}
-        <!-- Update 5.2b: the two secondary destinations, reached from the
-             section whose content they explain. Text labels, not icons. -->
-        <div class="sky-actions">
-          <a class="o-btn o-btn--secondary sky-action" href="#transits">View Today’s Transits</a>
-          <a class="o-btn o-btn--secondary sky-action" href="#symbol-atlas">Open Symbol Atlas</a>
-        </div>
-        <div class="current-sky__location">
-          <span class="u-caption" id="current-sky-location-status">Using your device timezone. Sharing your location can refine this to where you are right now.</span>
-          <button type="button" class="o-btn o-btn--ghost o-btn--sm" id="current-sky-use-location">Use my current location</button>
-        </div>
-        ${advanced}
+  const svg = renderMoonSVG({
+    illumination: moon.illumination, waxing: moon.waxing, phaseName: moon.phase,
+  });
+  const alt = `${moon.phase}, ${moon.illumination}% lit, ${moon.direction}`;
+  const next = moon.nextEvent
+    ? `<p class="moon-state__next">Next ${esc(moon.nextEvent.kind)} ${esc(moon.nextEvent.when)}.</p>`
+    : `<p class="moon-state__next">The next lunar event isn’t available right now.</p>`;
+  body.innerHTML = `
+    <div class="moon-state">
+      <div class="moon-state__visual" role="img" aria-label="${esc(alt)}">${svg}</div>
+      <div class="moon-state__text">
+        <p class="moon-state__phase">${esc(moon.phase)}${moon.sign ? ` in ${esc(moon.sign)}` : ""}</p>
+        <p class="moon-state__facts">${esc(String(moon.illumination))}% lit · ${esc(moon.direction)}</p>
+        <p class="moon-state__meaning">${esc(moon.meaning)}</p>
+        ${next}
+        <p class="moon-state__note">This is the Moon in the sky right now — not the Moon in your birth chart.</p>
+        <a class="o-btn o-btn--secondary o-btn--sm" href="#transits">See the transit details</a>
       </div>
     </div>`;
+}
+
+/** Ranked sky highlights, composed and ordered on the server. */
+function axisRenderHighlights(highlights) {
+  const section = $("#today-highlights");
+  const body = $("#today-highlights-body");
+  if (!section || !body) return;
+  if (!highlights.length) { section.hidden = true; body.innerHTML = ""; return; }
+  section.hidden = false;
+  body.innerHTML = `<ul class="sky-highlights">${highlights.map((h) => `
+    <li class="sky-highlight sky-highlight--${esc(h.kind)}">
+      <span class="sky-highlight__label">${esc(h.label)}</span>
+      <span class="sky-highlight__detail">${esc(h.detail)}</span>
+      <a class="sky-highlight__link" href="${esc(h.href)}">${
+        h.href === "#symbol-atlas" ? "Learn about this sign" : "See the transit details"
+      }</a>
+    </li>`).join("")}</ul>`;
+}
+
+/**
+ * Technical Sky: a compact banner and a folded disclosure.
+ *
+ * The full body-by-body positions table used to render here. It is the densest
+ * content in the product and it sat on the page people open first — and it is
+ * the Positions workspace, which Dev Update 1.7 owns. Home now states the two
+ * positions a reader actually asks for and links to the workspace that carries
+ * the rest.
+ */
+function axisRenderTechnicalSky(sky) {
+  const el = $("#today-sky");
+  if (!el) return;
+  // Degrees, not sign names. "Leo season" is already stated once in the
+  // highlights above, and an earlier update deliberately removed the second
+  // telling of that same fact. What a technical section adds is PRECISION —
+  // 8°14′ Leo is a different statement from "Leo season", not a repeat of it.
+  const pos = (b) => `${b.degrees}°${String(b.minutes).padStart(2, "0")}′ ${b.sign}`;
+  const sun = sky.sun ? `Sun ${pos(sky.sun)}` : "";
+  const moon = sky.moon ? `Moon ${pos(sky.moon)}` : "";
+  const updated = sky.local_time_iso
+    ? new Date(sky.local_time_iso).toLocaleString("en-US",
+        { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "";
+  const retro = (sky.retrogrades || []).filter(Boolean);
+  el.innerHTML = `
+    <section class="tech-sky" aria-labelledby="tech-sky-title">
+      <h2 class="axis-section-title" id="tech-sky-title">Technical Sky</h2>
+      <p class="tech-sky__summary">${[sun, moon].filter(Boolean).map(esc).join(" · ")}</p>
+      <details class="tech-sky__more">
+        <summary><span>How this was calculated</span></summary>
+        <div class="tech-sky__body">
+          <dl class="tech-sky__facts">
+            ${sun ? `<div><dt>Sun</dt><dd>${esc(pos(sky.sun))}</dd></div>` : ""}
+            ${moon ? `<div><dt>Moon</dt><dd>${esc(pos(sky.moon))}</dd></div>` : ""}
+            ${sky.timezone_name ? `<div><dt>Local time</dt><dd>${esc(sky.timezone_name)}</dd></div>` : ""}
+            ${updated ? `<div><dt>Calculated</dt><dd>${esc(updated)}</dd></div>` : ""}
+            ${retro.length ? `<div><dt>Retrograde</dt><dd>${esc(retro.join(", "))}</dd></div>` : ""}
+          </dl>
+          <p class="tech-sky__help">Every position on this page is calculated by Orbit’s own astronomy engine. Nothing here is written by an AI model.</p>
+          <a class="o-btn o-btn--secondary o-btn--sm" href="#transits">See every position in Today’s Transits</a>
+        </div>
+      </details>
+      <div class="current-sky__location">
+        <span class="u-caption" id="current-sky-location-status">Using your device timezone. Sharing your location can refine this to where you are right now.</span>
+        <button type="button" class="o-btn o-btn--ghost o-btn--sm" id="current-sky-use-location">Use my current location</button>
+      </div>
+    </section>`;
 }
 
 /**

@@ -81,6 +81,7 @@
               <h1 class="axis-wordmark" id="home-title">Orbit Axis</h1>
               <div class="axis-subtitle">Your sky today, in plain language.</div>
               <div class="axis-reading-for" id="today-reading-for" hidden>Reading for: <strong id="today-chart-name">My Chart</strong></div>
+              <div class="axis-timezone" id="today-timezone" hidden></div>
             </div>
             <div class="axis-today-head__right">
               <div class="axis-today-date" id="today-date"></div>
@@ -106,8 +107,61 @@
                explains it and therefore sits below it — putting planetary
                positions above the fortune made the app open on the most
                technical thing it does. -->
+          <!-- ── The briefing ────────────────────────────────────────────
+               Home answers three questions in order: what does today mean for
+               me, what is the sky doing, and where do I go next. The personal
+               reading leads because it is the reason someone opens the app;
+               the sky that produced it follows; the technical detail sits last
+               and folded away, because a reader who wants degrees can ask for
+               them and a reader who does not should never have to scroll past
+               a table to reach the end of the page. -->
+
+          <!-- 2. Daily celestial reading -->
           <div id="today-fortune" class="axis-rise-2"><div class="axis-shimmer" style="height:240px"></div></div>
-          <div id="today-sky" class="axis-card axis-rise-3"><div class="axis-shimmer" style="height:180px"></div></div>
+
+          <!-- 3. Moon state -->
+          <section class="axis-card axis-rise-3" id="today-moon" aria-labelledby="today-moon-title" hidden>
+            <h2 class="axis-section-title" id="today-moon-title">The Moon right now</h2>
+            <div id="today-moon-body"></div>
+          </section>
+
+          <!-- 4. Current sky highlights -->
+          <section class="axis-card axis-rise-3" id="today-highlights" aria-labelledby="today-highlights-title" hidden>
+            <h2 class="axis-section-title" id="today-highlights-title">In the sky today</h2>
+            <p class="axis-section-help">A few things worth noticing, most personally relevant first.</p>
+            <div id="today-highlights-body"></div>
+          </section>
+
+          <!-- 5. Technical Sky (secondary, folded) -->
+          <div id="today-sky" class="axis-card axis-rise-3"><div class="axis-shimmer" style="height:120px"></div></div>
+
+          <!-- 6. Continue exploring -->
+          <section class="axis-card axis-rise-3" id="today-explore" aria-labelledby="today-explore-title">
+            <h2 class="axis-section-title" id="today-explore-title">Continue exploring</h2>
+            <div class="axis-explore">
+              <a class="axis-explore__link" href="#me">
+                <span class="axis-explore__label">View My Chart</span>
+                <span class="axis-explore__help">Your birth chart, explained placement by placement.</span>
+              </a>
+              <a class="axis-explore__link" href="#transits">
+                <span class="axis-explore__label">Explore Today’s Transits</span>
+                <span class="axis-explore__help">How the moving sky meets your chart.</span>
+              </a>
+              <a class="axis-explore__link" href="#symbol-atlas">
+                <span class="axis-explore__label">Learn the symbols</span>
+                <span class="axis-explore__help">Every glyph Orbit Axis uses, in plain language.</span>
+              </a>
+              <a class="axis-explore__link" href="#tools">
+                <span class="axis-explore__label">Open Tools</span>
+                <span class="axis-explore__help">Reading history, exports, and settings.</span>
+              </a>
+            </div>
+          </section>
+
+          <!-- 7. Secondary context -->
+          <p class="axis-secondary-note" id="today-secondary" hidden>
+            <a href="#history">See your recent readings</a>
+          </p>
         </section>
 
         <!-- ── Transits ─────────────────────────────────────────────── -->

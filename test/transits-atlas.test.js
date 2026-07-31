@@ -24,8 +24,15 @@ test("Home offers both destinations from Technical Sky", () => {
   // Today's Transits is primary navigation as of Dev Update 1.3, but Technical
   // Sky still links to it: the section explains what the page expands on, and
   // the link uses the same canonical name the tab does.
-  assert.match(appJs, /href="#transits"[^>]*>View Today’s Transits|>View Today’s Transits</);
-  assert.match(appJs, /href="#symbol-atlas"[^>]*>Open Symbol Atlas|>Open Symbol Atlas</);
+  // Dev Update 1.6 moved these out of Technical Sky into a dedicated
+  // "Continue exploring" section, so they are markup rather than template
+  // strings now. Both destinations are still reachable from Home, which is
+  // what this test has always been about.
+  assert.match(html, /href="#transits"[\s\S]{0,120}Explore Today’s Transits/);
+  assert.match(html, /href="#symbol-atlas"[\s\S]{0,120}Learn the symbols/);
+  assert.match(html, /href="#me"[\s\S]{0,120}View My Chart/);
+  // No route may be linked that does not exist. Positions arrives in 1.7.
+  assert.ok(!html.includes('href="#positions"'), "Current Positions does not exist yet");
 });
 
 test("the actions are inside Technical Sky, not above the fortune", () => {
@@ -37,10 +44,11 @@ test("the actions are inside Technical Sky, not above the fortune", () => {
   // Matched with the opening paren: `axisRenderSkyError` is a real function in
   // this file and a bare "function axisRenderSky" prefix-matches it, slicing
   // the wrong body and failing for a reason that has nothing to do with layout.
-  const skyStart = appJs.indexOf("function axisRenderSky(");
-  const skyEnd = appJs.indexOf("\nfunction ", skyStart + 40);
-  const skySource = appJs.slice(skyStart, skyEnd > skyStart ? skyEnd : undefined);
-  assert.ok(skySource.includes("sky-actions"), "the actions belong to the sky renderer");
+  // The destinations now live in their own section BELOW the fortune, which
+  // is the same guarantee stated structurally: the reading comes first.
+  const exploreAt = html.indexOf('id="today-explore"');
+  const fortuneAt = html.indexOf('id="today-fortune"');
+  assert.ok(exploreAt > fortuneAt, "Continue exploring sits below the reading");
 
   const fortuneMount = html.indexOf('id="today-fortune"');
   const skyMount = html.indexOf('id="today-sky"');

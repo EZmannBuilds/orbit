@@ -190,3 +190,106 @@ test("internal sky plumbing is never surfaced as a highlight", () => {
     assert.ok(!text.includes(leak), `${leak} must not reach the reader`);
   }
 });
+
+// ── Dev Update 1.6 :: the Home interface ────────────────────────────────────
+
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const HTML = readFileSync(join(ROOT, "public", "index.html"), "utf8");
+const APP = readFileSync(join(ROOT, "public", "app.js"), "utf8");
+
+test("Home renders the seven-section hierarchy in order", () => {
+  // The reading leads because it is why someone opens the app; the sky that
+  // produced it follows; the technical detail is folded away near the end.
+  const order = ["today-reading-for", "today-fortune", "today-moon",
+                 "today-highlights", "today-sky", "today-explore", "today-secondary"];
+  const at = order.map((id) => {
+    const i = HTML.indexOf(`id="${id}"`);
+    assert.ok(i > -1, `${id} is missing from Home`);
+    return i;
+  });
+  for (let i = 1; i < at.length; i += 1) {
+    assert.ok(at[i] > at[i - 1], `${order[i]} must follow ${order[i - 1]}`);
+  }
+});
+
+test("the visible day is the fortune's local day, never a UTC date", () => {
+  assert.match(APP, /formatLocalDateKey\(sky\.local_date/, "the header date comes from local_date");
+  // Scoped to the Home renderer. `getUTCDate()` also appears in birth-date
+  // validation, where it exists precisely to catch impossible days like
+  // 31 February — nothing to do with presenting a day to a reader.
+  const start = APP.indexOf("function axisRenderSky(");
+  const homeRender = APP.slice(start, APP.indexOf("\nfunction axisRenderTechnicalSky"));
+  assert.ok(!/toUTCString|getUTCDate\(\)|new Date\(\)\.getDate/.test(homeRender),
+    "Home must not present a UTC date as the user's day");
+  assert.match(APP, /Based on \$\{sky\.timezone_name\} local time/, "and the timezone is readable");
+});
+
+test("Home composes nothing itself — highlights and Moon come from the server", () => {
+  assert.match(APP, /axisRenderHighlights\(extras\.highlights/);
+  assert.match(APP, /axisRenderMoon\(extras\.moon/);
+  // No second ranker, no second Moon calculation in the client.
+  for (const banned of ["isGenerational", "rankSkyAspects", "moon_phase_name", "phase_fraction"]) {
+    assert.ok(!APP.includes(banned), `${banned} belongs to lib/home, not the browser`);
+  }
+});
+
+test("the current Moon is never confused with the natal Moon", () => {
+  assert.match(APP, /This is the Moon in the sky right now — not the Moon in your birth chart/);
+  // And it carries a real text alternative rather than a bare image.
+  assert.match(APP, /role="img" aria-label="\$\{esc\(alt\)\}"/);
+  assert.match(APP, /\$\{moon\.phase\}, \$\{moon\.illumination\}% lit, \$\{moon\.direction\}/);
+});
+
+test("Technical Sky is secondary, folded, and free of internal plumbing", () => {
+  const start = APP.indexOf("function axisRenderTechnicalSky(");
+  const src = APP.slice(start, APP.indexOf("\nfunction ", start + 40));
+  assert.ok(src.includes("<details"), "it is a disclosure, not an open panel");
+  for (const leak of ["snapshot_hash", "context_version", "sky_version", "engine_version",
+                      "source.", "instant_utc", "calculated_at_utc"]) {
+    assert.ok(!src.includes(leak), `${leak} must never reach the reader`);
+  }
+});
+
+test("no calculation claim is hardcoded in the client", () => {
+  // The Dev Update 1.5 rule, applied to Home: the sky payload states no zodiac
+  // system, so Home does not assert one.
+  assert.ok(!APP.includes("Tropical"), "Home must not hardcode a zodiac claim");
+  assert.ok(!APP.includes("Placidus"), "nor a house system");
+});
+
+test("Home links only to routes that exist, and never to Positions", () => {
+  const registry = APP.slice(APP.indexOf("const WORKSPACES"), APP.indexOf("const RETIRED_ROUTES"));
+  const registered = [...registry.matchAll(/id: "([a-z-]+)"/g)].map((m) => m[1]);
+  const homeStart = HTML.indexOf('id="panel-home"');
+  const homeHtml = HTML.slice(homeStart, HTML.indexOf('id="panel-transits"'));
+  for (const m of homeHtml.matchAll(/href="#([a-z-]+)"/g)) {
+    assert.ok(registered.includes(m[1]), `Home links to #${m[1]}, which is not a workspace`);
+  }
+  assert.ok(!homeHtml.includes("#positions"), "Current Positions arrives in Dev Update 1.7");
+  assert.ok(!/Coming Soon/i.test(homeHtml), "no placeholder destinations");
+});
+
+test("sky and fortune fail independently, and neither failure is swallowed", () => {
+  // Checked against code, not comments: the fix is explained in a comment that
+  // quotes the very pattern it removed.
+  const codeOnly = APP.split("\n").filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*")).join("\n");
+  assert.ok(!codeOnly.includes(".catch(() => {})"), "the silent sky catch must stay gone");
+  assert.match(APP, /axisRenderSkyError/, "the sky has its own failure state");
+  assert.match(APP, /data-action="retry-sky"/, "with its own retry");
+  assert.match(APP, /stage: "render"/, "a render defect is logged as a render defect");
+  // The retry must not tear down the personal reading.
+  const retry = APP.slice(APP.indexOf('action === "retry-sky"'), APP.indexOf('action === "retry-sky"') + 700);
+  assert.ok(!retry.includes("axisLoadToday"), "retrying the sky must not reload the fortune");
+});
+
+test("Home introduces no AI provider and no randomness", () => {
+  const homeSrc = readFileSync(join(ROOT, "lib", "home", "highlights.js"), "utf8");
+  for (const src of [homeSrc, APP]) {
+    for (const ai of ["openai", "anthropic", "ollama", "api.openai", "generativelanguage"]) {
+      assert.ok(!src.toLowerCase().includes(ai), `${ai} must not appear in the Home flow`);
+    }
+  }
+  assert.ok(!homeSrc.includes("Math.random"), "highlight composition is deterministic");
+});

@@ -180,3 +180,78 @@
 }
 .axis-section-error p { margin: 0; max-width: 60ch; color: var(--color-secondary); }
 .axis-section-error .o-btn { min-height: 44px; }
+
+/* ── Home celestial hierarchy (Dev Update 1.6) ───────────────────────────── */
+.axis-timezone { font-size: 13px; color: var(--color-secondary); margin-top: 4px; }
+.axis-section-title { margin: 0 0 4px; font-size: 17px; }
+.axis-section-help { margin: 0 0 12px; font-size: 13px; color: var(--color-secondary); max-width: 60ch; }
+
+/* Moon — one visual, its facts beside it, and a note that keeps the current
+   Moon from being mistaken for the natal one. */
+.moon-state { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: start; }
+.moon-state__visual { width: 76px; flex: 0 0 auto; }
+.moon-state__visual svg { width: 100%; height: auto; display: block; }
+.moon-state__text { display: grid; gap: 6px; min-width: 0; }
+.moon-state__phase { margin: 0; font-size: 18px; font-weight: 600; }
+.moon-state__facts { margin: 0; font-size: 13px; color: var(--color-secondary); }
+.moon-state__meaning, .moon-state__next { margin: 0; max-width: 60ch; line-height: 1.5; }
+.moon-state__note { margin: 2px 0 6px; font-size: 13px; color: var(--color-secondary); max-width: 60ch; }
+.moon-state .o-btn { justify-self: start; min-height: 44px; }
+
+/* Highlights — a short ranked list, never a wall. */
+.sky-highlights { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.sky-highlight {
+  display: grid; gap: 4px; padding: 12px 14px;
+  border: 1px solid var(--color-border); border-radius: 8px;
+  background: var(--color-surface-elevated); min-width: 0;
+}
+.sky-highlight__label { font-weight: 600; }
+.sky-highlight__detail { font-size: 14px; color: var(--color-secondary); line-height: 1.5; max-width: 60ch; }
+.sky-highlight__link { font-size: 13px; justify-self: start; min-height: 44px; display: inline-flex; align-items: center; }
+
+/* Technical Sky — a summary line and a fold. Never a table. */
+.tech-sky__summary { margin: 0 0 4px; font-size: 15px; }
+.tech-sky__more > summary {
+  display: flex; align-items: center; gap: 8px; min-height: 44px;
+  cursor: pointer; font-size: 14px; font-weight: 600;
+  color: var(--axis-lavender, inherit); list-style: none;
+}
+.tech-sky__more > summary::-webkit-details-marker { display: none; }
+.tech-sky__more > summary::before { content: "＋"; font-weight: 700; }
+.tech-sky__more[open] > summary::before { content: "－"; }
+.tech-sky__more > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 4px; }
+.tech-sky__body { display: grid; gap: 12px; padding-top: 8px; }
+.tech-sky__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 18px; margin: 0; }
+.tech-sky__facts dt { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-secondary); }
+.tech-sky__facts dd { margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+.tech-sky__help { margin: 0; font-size: 13px; color: var(--color-secondary); max-width: 62ch; }
+.tech-sky__body .o-btn { justify-self: start; min-height: 44px; }
+
+/* Continue exploring — text destinations, no icon-only controls. */
+.axis-explore { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.axis-explore__link {
+  display: grid; gap: 2px; padding: 12px 14px; min-height: 44px;
+  border: 1px solid var(--color-border); border-radius: 8px;
+  background: var(--color-surface-elevated); text-decoration: none; color: inherit;
+}
+.axis-explore__link:hover { border-color: color-mix(in oklab, var(--axis-lavender, #8f8fd9) 45%, var(--color-border)); }
+.axis-explore__link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.axis-explore__label { font-weight: 600; }
+.axis-explore__help { font-size: 13px; color: var(--color-secondary); }
+.axis-secondary-note { margin: 4px 0 0; font-size: 14px; }
+
+@media (min-width: 700px) {
+  .axis-explore { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sky-highlights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px), (max-height: 460px) {
+  .moon-state { grid-template-columns: 1fr; }
+  .sky-highlights, .axis-explore { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tech-sky__more > summary::before { transition: none; }
+}
+@media (forced-colors: active) {
+  .sky-highlight, .axis-explore__link { border: 1px solid CanvasText; }
+  .tech-sky__more > summary { color: LinkText; }
+}

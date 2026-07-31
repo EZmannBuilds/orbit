@@ -352,10 +352,17 @@ test("no swipe or arrow-key handler remains for the fortune", () => {
 });
 
 test("Tonight's Moon (the standalone Home card) is gone; Current Sky is unified", () => {
-  assert.ok(!html.includes('id="today-moon"'), "the separate Tonight's Moon mount point should be removed");
-  assert.ok(!appJs.includes("axisRenderMoon"), "the standalone moon renderer should be removed");
+  // Dev Update 1.6 deliberately REVERSES the earlier merge. The Moon was folded
+  // into Current Sky when Current Sky was one big card; now that Home is a
+  // hierarchy, the Moon is its own section again — it is the fact people check
+  // most and it does not belong buried in a technical card.
+  assert.ok(html.includes('id="today-moon"'), "the Moon has its own section again");
+  assert.ok(appJs.includes("axisRenderMoon"), "and its own renderer");
   assert.ok(appJs.includes("axisRenderSky"));
-  assert.ok(html.includes('id="today-sky"'), "the unified Current Sky mount point should exist");
+  assert.ok(html.includes('id="today-sky"'), "Technical Sky keeps its mount point");
+  // What must NOT come back is a second Moon calculation.
+  assert.ok(!appJs.includes("moon_phase_name"), "the client must not read the mirrored Moon fields");
+  assert.match(appJs, /axisRenderMoon\(extras\.moon/, "the Moon comes from the server-composed moonState");
 });
 
 test("the procedural Moon module is imported and never calls an external image API", () => {
@@ -389,7 +396,21 @@ test("Home puts Today's Fortune above Technical Sky", () => {
 
 test("Technical Sky is named as such and shows positions without a mode switch", () => {
   assert.ok(appJs.includes("Technical Sky"), "the section should be named Technical Sky");
-  assert.ok(appJs.includes("sky-technical__title"), "positions table should always render");
+  // Dev Update 1.6 removes the full body-by-body table from Home. It is the
+  // densest content in the product, it sat on the page opened first, and it is
+  // the Positions workspace that Dev Update 1.7 owns.
+  assert.ok(!appJs.includes("sky-technical__title"), "the duplicated positions table is gone from Home");
+  // Scoped to the Home renderer: My Chart legitimately renders tables of its
+  // own (Dev Update 1.5), and a whole-file scan would flag those instead.
+  const techStart = appJs.indexOf("function axisRenderTechnicalSky(");
+  assert.ok(techStart > -1, "Technical Sky has its own renderer");
+  const techEnd = appJs.indexOf("\nfunction ", techStart + 40);
+  const techSource = appJs.slice(techStart, techEnd > techStart ? techEnd : undefined);
+  assert.ok(!techSource.includes("<table"), "Home emits no positions table");
+  assert.ok(!techSource.includes("<tbody"), "and no table body");
+  assert.ok(appJs.includes("tech-sky__more"), "Technical Sky is a folded disclosure");
+  assert.match(appJs, /See every position in Today’s Transits/,
+    "and points at the workspace that carries the full list");
   // The old gate read AXIS.detail === "Advanced" before showing positions.
   assert.ok(!appJs.includes('AXIS.detail === "Advanced"'),
     "positions must not be gated behind a detail level any more");
@@ -397,9 +418,15 @@ test("Technical Sky is named as such and shows positions without a mode switch",
 
 test("the season is stated once, not twice", () => {
   // "Cancer Season" and "Sun in Cancer" were the same fact in two chips.
+  // Still true, and now for a second component: Technical Sky states degrees
+  // ("Sun 8°14′ Leo"), which is precision the season chip does not carry —
+  // not the same fact told twice.
   assert.ok(!/Sun in \$\{esc\(sky\.sun\.sign\)\}/.test(appJs),
     "the redundant 'Sun in <sign>' chip should be gone");
-  assert.ok(appJs.includes("Season</span>"), "the season chip should remain");
+  const highlights = readFileSync(join(ROOT, "lib", "home", "highlights.js"), "utf8");
+  assert.match(highlights, /\$\{sky\.zodiac_season\} season/, "the season is stated once, in the highlights");
+  assert.match(appJs, /Sun \$\{pos\(sky\.sun\)\}|pos\(sky\.sun\)/,
+    "Technical Sky states the Sun by degree, not by sign name");
 });
 
 test("no Simple/Advanced control survives anywhere", () => {
