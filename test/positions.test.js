@@ -353,8 +353,9 @@ test("Positions loads on arrival, like every other secondary destination", () =>
   // renders its heading and nothing else until something else happens to
   // refresh — which is exactly what happened the first time.
   const rr = APP.slice(APP.indexOf("function renderRoute()"), APP.indexOf("const ws = WORKSPACES.find"));
-  assert.match(rr, /if \(id === "positions"\) \{ wirePositions\(\); loadPositions\(\); \}/,
-    "Positions must load from renderRoute, on arrival");
+  const block = rr.slice(rr.indexOf('if (id === "positions")'));
+  assert.match(block, /loadPositions\(\)/, "Positions must load from renderRoute, on arrival");
+  assert.match(block, /wirePositions\(\)/);
   assert.match(rr, /if \(id === "symbol-atlas"\)/, "alongside the other secondary destinations");
 });
 
@@ -363,4 +364,83 @@ test("every Positions control meets the 44px guidance", () => {
   assert.match(css, /#panel-positions button[\s\S]{0,140}min-height: 44px/,
     "the sizing rule must name the Positions panel, not just Home");
   assert.match(css, /#panel-positions \.o-btn/, "including the link-styled buttons");
+});
+
+// ── Signed-out gating (Dev Update 1.7 correction) ───────────────────────────
+
+test("Positions never renders behind the sign-in gate", () => {
+  // It first did. The route loaded on arrival regardless of auth, so a
+  // signed-out visitor got a heading, a ten-row planetary list, a live region
+  // and a refresh control sitting under the modal. `aria-modal` on the gate is
+  // not a licence to build that.
+  const fn = APP.slice(APP.indexOf("async function loadPositions"), APP.indexOf("function clearPositions"));
+  assert.match(fn, /state\.auth\.restoring \|\| !authSignedIn\(\)/,
+    "the load must wait for session resolution and require a signed-in user");
+  assert.match(fn, /\{ clearPositions\(\); return; \}/,
+    "and clear rather than leave whatever was there");
+  // The guard precedes the request.
+  const guardAt = fn.indexOf("authSignedIn()");
+  const fetchAt = fn.indexOf("/api/sky/current");
+  assert.ok(guardAt > -1 && guardAt < fetchAt,
+    "no private-shell request may be made before authentication resolves");
+});
+
+test("clearing empties every rendered Positions region", () => {
+  const fn = APP.slice(APP.indexOf("function clearPositions"), APP.indexOf("function positionsRenderSkeleton"));
+  for (const region of ["#positions-summary-body", "#positions-list-body",
+                        "#positions-calc-body", "#positions-time", "#positions-status"]) {
+    assert.ok(fn.includes(region), `${region} must be cleared`);
+  }
+  assert.match(fn, /POSITIONS\.data = null/, "cached data is dropped too");
+});
+
+test("signing out clears the workspace with the rest of the private state", () => {
+  const fn = APP.slice(APP.indexOf("function clearPrivateState"), APP.indexOf("function clearPrivateState") + 700);
+  assert.match(fn, /clearPositions\(\)/,
+    "Positions must not survive a sign-out in the DOM or the accessibility tree");
+});
+
+test("arriving at Positions moves focus to its heading", () => {
+  const rr = APP.slice(APP.indexOf("function renderRoute()"), APP.indexOf("const ws = WORKSPACES.find"));
+  assert.match(rr, /#positions-title"\)\?\.focus/, "focus moves to the workspace heading");
+  assert.match(HTML, /id="positions-title" tabindex="-1"/, "which is focusable for that purpose");
+});
+
+test("Positions stays authenticated — this update does not move the public boundary", () => {
+  // Making #positions public would change authentication, navigation, indexing,
+  // rate limiting and free-tier design. None of that belongs to Dev Update 1.7.
+  const registry = APP.slice(APP.indexOf("const WORKSPACES"), APP.indexOf("const RETIRED_ROUTES"));
+  assert.match(registry, /id: "positions"/);
+  // Checked against code, not the comment that explains the decision.
+  const fn = APP.slice(APP.indexOf("async function loadPositions"), APP.indexOf("function clearPositions"));
+  const codeOnly = fn.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+  for (const bypass of ["allowAnonymous", "skipAuth", "publicRoute", "requireAuth = false"]) {
+    assert.ok(!codeOnly.includes(bypass), `${bypass} would move the public boundary`);
+  }
+  assert.match(codeOnly, /!authSignedIn\(\)/, "the workspace remains authenticated");
+});
+
+test("the signed-out workspace renders nothing and cannot take focus", () => {
+  // Two mechanisms, both verified in a browser.
+  //
+  // 1. loadPositions refuses to run before the session resolves, so no rows,
+  //    no summary and no timestamp are ever built.
+  const fn = APP.slice(APP.indexOf("async function loadPositions"), APP.indexOf("function clearPositions"));
+  assert.match(fn, /state\.auth\.restoring \|\| !authSignedIn\(\)/);
+
+  // 2. The gate is a focus-trapping aria-modal dialog AND openModal already
+  //    marks `.app-shell` inert and aria-hidden — which contains every
+  //    workspace, Positions included. A per-panel `inert` was tried and
+  //    removed once this was found: it was redundant, and shipping it would
+  //    have meant a test passing on code that did nothing.
+  assert.match(HTML, /id="auth-gate"[\s\S]{0,120}aria-modal="true"/);
+  const inertFn = APP.slice(APP.indexOf("function setBackgroundInert"), APP.indexOf("function setBackgroundInert") + 400);
+  assert.match(inertFn, /setAttribute\("inert", ""\)/);
+  assert.match(inertFn, /setAttribute\("aria-hidden", "true"\)/);
+  assert.match(APP.slice(APP.indexOf("function backgroundRegions"), APP.indexOf("function setBackgroundInert")),
+    /\$\$\("\.app-shell"\)/, "the shell containing every workspace is what goes inert");
+
+  // No per-panel duplicate of that mechanism ships.
+  const posCode = APP.slice(APP.indexOf("const POSITIONS = {"));
+  assert.ok(!posCode.includes('setAttribute("inert"'), "Positions does not re-implement it");
 });

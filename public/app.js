@@ -887,7 +887,14 @@ function renderRoute() {
   // a refresh lands on a populated page rather than an empty one.
   if (id === "symbol-atlas") { wireSymbolAtlas(); loadSymbolAtlas(); }
   if (id === "transits") { wireTransits(); renderTransits(); }
-  if (id === "positions") { wirePositions(); loadPositions(); }
+  if (id === "positions") {
+    wirePositions();
+    loadPositions();
+    // Focus the heading only for a signed-in user. Moving focus into a
+    // workspace that is sitting behind the sign-in gate would fight the gate's
+    // own focus trap.
+    if (authSignedIn()) $("#positions-title")?.focus({ preventScroll: true });
+  }
   if (id === "history") axisLoadHistory($("#history-scope")?.value || "active");
   const ws = WORKSPACES.find(w => w.id === id);
 
@@ -1343,6 +1350,7 @@ function wireAccountPasswordReset() {
  */
 function clearPrivateState({ purgeLocalData = false } = {}) {
   state.auth.user = null;
+  clearPositions();
   state.charts = [];
   state.activeChartId = null;
   state.activeProfile = null;
@@ -1511,6 +1519,7 @@ async function restoreSession() {
       state.activeProfile = null;
       state.activeNatalChart = null;
       state.chartsStatus = "idle";
+      clearPositions();
       showAuthGate();
       renderAccount();
       renderSavedCharts();
@@ -3546,6 +3555,14 @@ boot().catch(err => {
 const POSITIONS = { loading: false, lastAt: null, data: null };
 
 async function loadPositions({ manual = false } = {}) {
+  // Current Positions is general sky data, but it is an AUTHENTICATED
+  // workspace for now — making it public would change Orbit's public/private
+  // boundary, which is a product decision this update does not own. So the
+  // request is not made and nothing is rendered until the session resolves.
+  // Rendering behind the gate would put a heading, a ten-row list, a live
+  // region and a refresh button into the page for someone who has not signed
+  // in, and `aria-modal` on the gate is not a reason to build that.
+  if (state.auth.restoring || !authSignedIn()) { clearPositions(); return; }
   // A second click while the first request is in flight would race two
   // responses into the same DOM; the newer is not guaranteed to land last.
   if (POSITIONS.loading) return;
@@ -3577,6 +3594,29 @@ async function loadPositions({ manual = false } = {}) {
     POSITIONS.loading = false;
     if (btn) { btn.disabled = false; btn.textContent = "Refresh"; }
   }
+}
+
+/**
+ * Empty every Positions region.
+ *
+ * Called when signed out and on sign-out, so nothing survives in the DOM or
+ * the accessibility tree for the next visitor to this tab.
+ */
+function clearPositions() {
+  POSITIONS.data = null;
+
+  for (const sel of ["#positions-summary-body", "#positions-list-body", "#positions-calc-body"]) {
+    const el = $(sel);
+    if (el) el.innerHTML = "";
+  }
+  for (const sel of ["#positions-summary", "#positions-calc"]) {
+    const el = $(sel);
+    if (el) el.hidden = true;
+  }
+  const time = $("#positions-time");
+  if (time) time.textContent = "";
+  const status = $("#positions-status");
+  if (status) status.textContent = "";
 }
 
 function positionsRenderSkeleton() {
