@@ -1,0 +1,264 @@
+// Orbit Axis :: Dev Update 1.8 — transit-to-natal calculation.
+//
+// The load-bearing test is the orb one. A flat orb across bodies is the single
+// decision that would quietly ruin this page, and it is not visible from the
+// output on any one day — only from how long a contact stays on screen.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+import {
+  findTransits, rankTransits, transitRank, groupTransits, summarise,
+  suppressDuplicates, motionState, orbLimitFor, formatOrb, birthTimeNotice, planetRole,
+  ORB_LIMITS, SPEED_CLASS, TRANSITING_BODIES, NATAL_BODIES, ASPECTS,
+  EXACT_TIMING_SUPPORTED, IMMEDIATE_LIMIT, DURATION,
+} from "../lib/transits/transits.js";
+
+const body = (sign, deg, min, lon, speed = 1, retro = false) =>
+  ({ sign, degrees: deg, minutes: min, longitude: lon, speed, retrograde: retro });
+
+// Sky shaped like GET /api/sky/current; chart like a stored natal chart.
+const SKY = Object.freeze({ planets: {
+  Sun: body("Leo", 8, 0, 128.0, 0.956), Moon: body("Pisces", 4, 0, 334.0, 12.57),
+  Mercury: body("Cancer", 19, 0, 109.0, 0.78), Venus: body("Virgo", 24, 0, 174.0, 1.04),
+  Mars: body("Gemini", 23, 0, 83.0, 0.68), Jupiter: body("Leo", 7, 0, 127.0, 0.22),
+  Saturn: body("Aries", 14, 0, 14.0, -0.008, true), Uranus: body("Gemini", 5, 0, 65.0, 0.03),
+  Neptune: body("Aries", 4, 0, 4.0, -0.013, true), Pluto: body("Aquarius", 4, 0, 304.0, -0.023, true),
+}});
+const CHART = Object.freeze({ time_known: true, time_accuracy: "exact", planets: {
+  Sun: body("Cancer", 23, 0, 113.0), Moon: body("Aries", 27, 0, 27.0),
+  Mercury: body("Leo", 7, 0, 127.2), Venus: body("Gemini", 24, 0, 84.0),
+  Mars: body("Taurus", 2, 0, 32.0), Jupiter: body("Cancer", 22, 0, 112.0),
+  Saturn: body("Capricorn", 21, 0, 291.0), Uranus: body("Capricorn", 6, 0, 276.0),
+  Neptune: body("Capricorn", 12, 0, 282.0), Pluto: body("Scorpio", 14, 0, 224.0),
+}});
+
+// ── The orb rule ────────────────────────────────────────────────────────────
+
+test("orb narrows as the transiting body slows, or outer planets never leave", () => {
+  // A flat 3° orb is right for the fast bodies and meaningless for the slow
+  // ones. Pluto covers ~0.018°/day, so 3° of orb is roughly a YEAR on screen;
+  // the Moon crosses the same 3° in about five hours. Same number, two totally
+  // different features.
+  const daysInOrb = (b, orb) => {
+    const speed = { Moon: 13.18, Sun: 0.9856, Mars: 0.524, Saturn: 0.0717, Pluto: 0.0178 }[b];
+    return (2 * orb) / speed;           // in and out again
+  };
+  assert.ok(daysInOrb("Pluto", 3) > 300, "a flat 3° orb would park Pluto on the page for most of a year");
+  assert.ok(daysInOrb("Moon", 3) < 1, "while the Moon would come and go inside a day");
+
+  // With the real limits the spread is far narrower.
+  const withRealLimits = TRANSITING_BODIES.map((b) => orbLimitFor(b));
+  assert.ok(Math.max(...withRealLimits) / Math.min(...withRealLimits) <= 3);
+  assert.equal(orbLimitFor("Moon"), 3);
+  assert.equal(orbLimitFor("Pluto"), 1);
+  assert.ok(daysInOrb("Pluto", orbLimitFor("Pluto")) < daysInOrb("Pluto", 3) / 2);
+  // Every body has an explicit limit; nothing falls through to a default.
+  for (const b of TRANSITING_BODIES) assert.ok(ORB_LIMITS[b], `${b} has no documented orb`);
+});
+
+test("orb limits and speed classes agree with each other", () => {
+  for (const b of TRANSITING_BODIES) {
+    assert.ok(SPEED_CLASS[b], `${b} has no speed class`);
+    assert.ok(DURATION[SPEED_CLASS[b]], `${SPEED_CLASS[b]} has no duration phrasing`);
+  }
+  // Slower class never gets a wider orb than a faster one.
+  const order = { fast: 0, social: 1, background: 2 };
+  for (const a of TRANSITING_BODIES) for (const b of TRANSITING_BODIES) {
+    if (order[SPEED_CLASS[a]] < order[SPEED_CLASS[b]]) {
+      assert.ok(orbLimitFor(a) >= orbLimitFor(b), `${a} should not have a tighter orb than ${b}`);
+    }
+  }
+});
+
+// ── Applying and separating ─────────────────────────────────────────────────
+
+test("motion is a real comparison, because only one body moves", () => {
+  // Natal is fixed, so projecting the transiting body forward by its own daily
+  // speed and re-measuring is a genuine test — not an inference from orb or
+  // from a retrograde flag.
+  assert.equal(motionState(126.0, 1.0, 128.0, 0), "Applying");    // closing on a conjunction
+  assert.equal(motionState(130.0, 1.0, 128.0, 0), "Separating");  // moving away
+  // A retrograde body closing the gap is still applying.
+  assert.equal(motionState(130.0, -1.0, 128.0, 0), "Applying");
+  const src = readFileSync(new URL("../lib/transits/transits.js", import.meta.url), "utf8");
+  const fn = src.slice(src.indexOf("export function motionState"), src.indexOf("export function orbLimitFor"));
+  assert.ok(!/retrograde/.test(fn), "motion must not be inferred from the retrograde flag");
+});
+
+test("motion is omitted rather than guessed when speed is missing", () => {
+  assert.equal(motionState(126.0, null, 128.0, 0), null);
+  assert.equal(motionState(126.0, undefined, 128.0, 0), null);
+  const noSpeed = { planets: { ...SKY.planets, Mars: { ...SKY.planets.Mars, speed: null } } };
+  const mars = findTransits(noSpeed, CHART).find((t) => t.transiting === "Mars");
+  if (mars) assert.equal(mars.motion, null, "no placeholder is substituted");
+});
+
+// ── Calculation ─────────────────────────────────────────────────────────────
+
+test("only the five engine-supported aspects are used, and none is invented", () => {
+  assert.deepEqual(ASPECTS.map((a) => a.name).sort(),
+    ["Conjunction", "Opposition", "Sextile", "Square", "Trine"]);
+  const found = new Set(findTransits(SKY, CHART).map((t) => t.aspect));
+  for (const a of found) assert.ok(ASPECTS.some((x) => x.name === a));
+  const src = readFileSync(new URL("../lib/transits/transits.js", import.meta.url), "utf8");
+  for (const minor of ["Quincunx", "Semisquare", "Sesquiquadrate", "Semisextile", "Quintile"]) {
+    assert.ok(!src.includes(minor), `${minor} would be a silent expansion of the aspect system`);
+  }
+});
+
+test("every transit carries the evidence its interpretation rests on", () => {
+  const list = findTransits(SKY, CHART);
+  assert.ok(list.length > 0, "the fixture must produce transits");
+  for (const t of list) {
+    assert.ok(TRANSITING_BODIES.includes(t.transiting));
+    assert.ok(NATAL_BODIES.includes(t.natal));
+    assert.ok(Number.isFinite(t.orb) && t.orb <= orbLimitFor(t.transiting));
+    assert.match(t.orbLabel, /^\d+°\d{2}′$/);
+    assert.ok(t.transitingPosition && t.natalPosition, "both positions are shown");
+    assert.ok(t.duration, "a duration category, never a date");
+    assert.equal(typeof t.background, "boolean");
+  }
+});
+
+test("one aspect per transiting-natal pair, not several readings of the same thing", () => {
+  const list = findTransits(SKY, CHART);
+  const pairs = list.map((t) => `${t.transiting}|${t.natal}`);
+  assert.equal(new Set(pairs).size, pairs.length);
+  // And suppression keeps that true after ranking.
+  const dupes = [
+    { id: "a", transiting: "Mars", natal: "Moon", aspect: "Square", orb: 0.5, aspectWeight: 4, background: false },
+    { id: "b", transiting: "Mars", natal: "Moon", aspect: "Trine", orb: 2.0, aspectWeight: 2, background: false },
+  ];
+  const kept = suppressDuplicates(rankTransits(dupes));
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].aspect, "Square", "the stronger contact survives");
+});
+
+// ── Ranking and grouping ────────────────────────────────────────────────────
+
+test("relevance outranks orb, so a permanent outer contact cannot lead", () => {
+  const list = [
+    { id: "p", transiting: "Pluto", natal: "Neptune", aspect: "Trine", orb: 0.05, aspectWeight: 2, background: true },
+    { id: "m", transiting: "Moon", natal: "Sun", aspect: "Conjunction", orb: 2.8, aspectWeight: 5, background: false },
+  ];
+  assert.equal(rankTransits(list)[0].id, "m",
+    "a Moon-Sun conjunction at 2.8° leads a Pluto-Neptune trine at 0.05°");
+  const k = transitRank(list[0]);
+  assert.deepEqual(Object.keys(k), ["relevance", "weight", "orb", "pair"]);
+});
+
+test("ranking is deterministic and finally tie-broken", () => {
+  const list = findTransits(SKY, CHART);
+  const first = JSON.stringify(rankTransits(list).map((t) => t.id));
+  for (let i = 0; i < 20; i += 1) {
+    assert.equal(JSON.stringify(rankTransits(list).map((t) => t.id)), first);
+  }
+  // Identical scores still order stably by pair.
+  const a = { id: "aaa", transiting: "Venus", natal: "Mars", aspect: "Trine", orb: 1, aspectWeight: 2, background: false };
+  const b = { id: "bbb", transiting: "Venus", natal: "Mars", aspect: "Trine", orb: 1, aspectWeight: 2, background: false };
+  assert.equal(rankTransits([b, a])[0].id, "aaa");
+});
+
+test("background influences are separated but never discarded", () => {
+  const g = groupTransits(findTransits(SKY, CHART));
+  for (const t of g.immediate) assert.equal(t.background, false);
+  for (const t of g.background) assert.equal(t.background, true);
+  assert.ok(g.immediate.length <= IMMEDIATE_LIMIT);
+  // The complete set stays available even when the groups are capped.
+  assert.ok(g.all.length >= g.immediate.length + g.background.length);
+  // Slow transits must not be able to push immediate ones off the page.
+  const flooded = [
+    ...Array.from({ length: 12 }, (_, i) => ({ id: `bg${i}`, transiting: "Pluto", natal: NATAL_BODIES[i % 10],
+      aspect: "Square", orb: 0.1, aspectWeight: 4, background: true })),
+    { id: "now", transiting: "Moon", natal: "Sun", aspect: "Conjunction", orb: 2.9, aspectWeight: 5, background: false },
+  ];
+  assert.equal(groupTransits(flooded).immediate[0].id, "now",
+    "twelve tight outer contacts must not bury the one immediate transit");
+});
+
+// ── Summary ─────────────────────────────────────────────────────────────────
+
+test("the summary is reproducible from the ranked set, not invented beside it", () => {
+  const g = groupTransits(findTransits(SKY, CHART));
+  const s = summarise(g);
+  assert.ok(s.text.length > 20);
+  assert.equal(s.immediateCount, g.immediate.length);
+  assert.equal(s.backgroundCount, g.background.length);
+  if (g.immediate.length) {
+    assert.ok(s.text.includes(g.immediate[0].transiting), "it names the closest contact it counted");
+  }
+  // No forecast, no grading, no promise.
+  assert.doesNotMatch(s.text, /\b(will|guarantee|destined|lucky|unlucky|dangerous|avoid)\b/i);
+  assert.equal(summarise({ immediate: [], background: [] }), null);
+});
+
+// ── What is deliberately absent ─────────────────────────────────────────────
+
+test("no exact-hit time and no end date are ever produced", () => {
+  assert.equal(EXACT_TIMING_SUPPORTED, false);
+  const src = readFileSync(new URL("../lib/transits/transits.js", import.meta.url), "utf8");
+  for (const banned of ["exactAt", "becomesExact", "endsOn", "daysRemaining", "peaksOn"]) {
+    assert.ok(!src.includes(banned), `${banned} would be an unsupported timing claim`);
+  }
+  const text = JSON.stringify(findTransits(SKY, CHART));
+  assert.doesNotMatch(text, /\b\d{1,2}:\d{2}\s?(AM|PM)\b/i, "no clock time reaches a transit");
+});
+
+test("time-sensitive natal targets are never contacted", () => {
+  // Angles and houses are not in the natal set at all, so an unknown-time
+  // chart cannot receive one by accident.
+  for (const forbidden of ["Ascendant", "Midheaven", "MC", "house"]) {
+    assert.ok(!NATAL_BODIES.includes(forbidden));
+  }
+  const unknown = { ...CHART, time_known: false, time_accuracy: "unknown" };
+  const list = findTransits(SKY, unknown);
+  assert.ok(list.length > 0, "planet-to-planet transits still work without a birth time");
+  for (const t of list) assert.ok(NATAL_BODIES.includes(t.natal));
+});
+
+test("the birth-time notice appears once, and only when it applies", () => {
+  assert.equal(birthTimeNotice(CHART), null, "an exact-time chart needs no notice");
+  const unknown = birthTimeNotice({ time_known: false });
+  assert.match(unknown.body, /do not depend on the time of day/);
+  const approx = birthTimeNotice({ time_accuracy: "approximate" });
+  assert.match(approx.title, /approximate/i);
+  assert.notEqual(unknown.title, approx.title, "the two states say different things");
+});
+
+test("planet roles are reused from the interpretation corpus", () => {
+  assert.ok(planetRole("Mars"));
+  const planets = readFileSync(new URL("../lib/interpretation/planets.js", import.meta.url), "utf8");
+  for (const b of ["Mercury", "Saturn", "Neptune", "Pluto"]) {
+    assert.ok(planets.includes(planetRole(b)), `${b}'s role must match My Chart's wording exactly`);
+  }
+  const src = readFileSync(new URL("../lib/transits/transits.js", import.meta.url), "utf8");
+  assert.match(src, /from "\.\.\/interpretation\/planets\.js"/);
+});
+
+test("nothing here is random, clock-dependent, networked, or generated", () => {
+  const src = readFileSync(new URL("../lib/transits/transits.js", import.meta.url), "utf8");
+  for (const banned of ["Math.random", "Date.now(", "new Date(", "fetch(", "import("]) {
+    assert.ok(!src.includes(banned), `${banned} would break determinism`);
+  }
+  for (const ai of ["openai", "anthropic", "ollama", "gpt-", "claude-"]) {
+    assert.ok(!src.toLowerCase().includes(ai), `${ai} must never appear in the transit path`);
+  }
+  const once = JSON.stringify(findTransits(SKY, CHART));
+  for (let i = 0; i < 10; i += 1) assert.equal(JSON.stringify(findTransits(SKY, CHART)), once);
+});
+
+test("a missing chart or sky yields nothing rather than throwing", () => {
+  assert.deepEqual(findTransits(null, CHART), []);
+  assert.deepEqual(findTransits(SKY, null), []);
+  assert.deepEqual(findTransits({}, {}), []);
+  assert.deepEqual(findTransits(SKY, { planets: { Sun: { sign: "Leo" } } }), [],
+    "a placement without a longitude is skipped, not half-rendered");
+});
+
+test("formatting is stable and human", () => {
+  assert.equal(formatOrb(1.0333), "1°02′");
+  assert.equal(formatOrb(0), "0°00′");
+  assert.equal(formatOrb(2.9999), "3°00′", "rounding to 60 minutes carries the degree");
+});
