@@ -410,6 +410,7 @@ const WORKSPACES = [
 
   // Secondary destinations. Reached from Tools, More, or Technical Sky — they
   // are real pages with real headings, they simply do not earn a sixth tab.
+  { id: "positions", label: "Current Positions", crumb: "The sky right now", icon: "atlas", primary: false },
   { id: "history", label: "History", crumb: "Past readings", icon: "history", primary: false },
   { id: "symbol-atlas", label: "Symbol Atlas", crumb: "What the symbols mean", icon: "atlas", primary: false },
   { id: "settings", label: "Settings", crumb: "Appearance", icon: "settings", primary: false },
@@ -516,6 +517,9 @@ function refreshSecondaryRoute() {
   const id = currentWorkspace();
   if (id === "transits") renderTransits();
   if (id === "symbol-atlas") loadSymbolAtlas();
+  // Positions describes the shared sky, so it loads for anyone who opens it —
+  // no active chart, and no chart at all, are both fine.
+  if (id === "positions") { wirePositions(); loadPositions(); }
 }
 
 function renderTransits() {
@@ -883,6 +887,7 @@ function renderRoute() {
   // a refresh lands on a populated page rather than an empty one.
   if (id === "symbol-atlas") { wireSymbolAtlas(); loadSymbolAtlas(); }
   if (id === "transits") { wireTransits(); renderTransits(); }
+  if (id === "positions") { wirePositions(); loadPositions(); }
   if (id === "history") axisLoadHistory($("#history-scope")?.value || "active");
   const ws = WORKSPACES.find(w => w.id === id);
 
@@ -2338,6 +2343,7 @@ async function boot() {
   wireSavedCharts();
   wireChartModal();
   wireChartReading();
+  wirePositions();
   wireHomeChartActions();
 
   $("#topnav-date").textContent = new Date().toLocaleDateString("en-US", {
@@ -3431,7 +3437,7 @@ function axisRenderTechnicalSky(sky) {
             ${retro.length ? `<div><dt>Retrograde</dt><dd>${esc(retro.join(", "))}</dd></div>` : ""}
           </dl>
           <p class="tech-sky__help">Every position on this page is calculated by Orbit’s own astronomy engine. Nothing here is written by an AI model.</p>
-          <a class="o-btn o-btn--secondary o-btn--sm" href="#transits">See every position in Today’s Transits</a>
+          <a class="o-btn o-btn--secondary o-btn--sm" href="#positions">See every position in Current Positions</a>
         </div>
       </details>
       <div class="current-sky__location">
@@ -3527,3 +3533,159 @@ boot().catch(err => {
        <strong>Orbit failed to load.</strong> ${esc(err.message)}
      </div>`);
 });
+
+/* ── Current Positions ──────────────────────────────────────────────────────
+   The shared sky. No birth chart is involved and none is required, which is
+   the whole distinction from Today's Transits — and the page says so in its
+   own words rather than relying on the reader to infer it.
+
+   Everything rendered here is composed server-side in lib/positions. The
+   browser formats and lays out; it does not recalculate astrology and it does
+   not author meaning. */
+
+const POSITIONS = { loading: false, lastAt: null, data: null };
+
+async function loadPositions({ manual = false } = {}) {
+  // A second click while the first request is in flight would race two
+  // responses into the same DOM; the newer is not guaranteed to land last.
+  if (POSITIONS.loading) return;
+  POSITIONS.loading = true;
+  const btn = $("#positions-refresh");
+  const status = $("#positions-status");
+  if (btn) { btn.disabled = true; btn.textContent = manual ? "Refreshing…" : "Refresh"; }
+  if (status) status.textContent = manual ? "Refreshing the sky…" : "Loading the current sky…";
+  if (!POSITIONS.data) positionsRenderSkeleton();
+
+  try {
+    const tz = axisResolveTimezone();
+    const r = await get(`/api/sky/current?tz=${encodeURIComponent(tz)}`);
+    POSITIONS.data = r;
+    try {
+      renderPositions(r);
+      if (status) status.textContent = manual ? "Sky updated." : "";
+    } catch (error) {
+      // Ours, not the network's. Saying "check your connection" here would
+      // hide a rendering defect behind a plausible excuse.
+      console.error("[orbit] positions failed to render", { stage: "render", message: error?.message });
+      positionsRenderError("We couldn't show the current positions just now.");
+    }
+  } catch {
+    positionsRenderError(POSITIONS.data
+      ? "We couldn't refresh the sky. The positions below are the last ones we loaded."
+      : "We couldn't reach the current sky just now.");
+  } finally {
+    POSITIONS.loading = false;
+    if (btn) { btn.disabled = false; btn.textContent = "Refresh"; }
+  }
+}
+
+function positionsRenderSkeleton() {
+  const body = $("#positions-list-body");
+  if (body) body.innerHTML = `<div class="axis-shimmer" style="height:320px" role="status" aria-live="polite" aria-label="Loading planetary positions"></div>`;
+}
+
+function positionsRenderError(message) {
+  const status = $("#positions-status");
+  if (status) status.textContent = "";
+  // Keep any positions we already have — a failed refresh is not a reason to
+  // blank data the reader was looking at. It is labelled as older instead.
+  const target = POSITIONS.data ? $("#positions-status") : $("#positions-list-body");
+  if (!target) return;
+  target.innerHTML = `<div class="axis-section-error" role="alert">
+    <p>${esc(message)}</p>
+    <button type="button" class="o-btn o-btn--secondary o-btn--sm" data-action="retry-positions">Try again</button>
+  </div>`;
+}
+
+function renderPositions(payload) {
+  const sky = payload?.sky;
+  const positions = payload?.positions || [];
+  if (!sky) throw new Error("renderPositions called without a sky");
+
+  const time = $("#positions-time");
+  if (time) {
+    const when = sky.local_time_iso
+      ? new Date(sky.local_time_iso).toLocaleString("en-US", { hour: "numeric", minute: "2-digit" })
+      : "";
+    time.textContent = when && sky.timezone_name
+      ? `Calculated for ${when} in ${sky.timezone_name}`
+      : "";
+  }
+
+  const summary = payload.summary;
+  const sumSection = $("#positions-summary");
+  const sumBody = $("#positions-summary-body");
+  if (sumSection && sumBody) {
+    sumSection.hidden = !summary;
+    if (summary) {
+      sumBody.innerHTML = `<ul class="positions-summary">
+        ${summary.sun ? `<li><span class="positions-summary__label">Sun</span><span>${esc(summary.sun)}</span></li>` : ""}
+        ${summary.moon ? `<li><span class="positions-summary__label">Moon</span><span>${esc(summary.moon)}</span></li>` : ""}
+        <li><span class="positions-summary__label">Retrograde</span><span>${esc(summary.retrogradeLabel)}</span></li>
+        <li><span class="positions-summary__label">Stations</span><span>${esc(summary.nearStationLabel)}</span></li>
+        <li><span class="positions-summary__label">Sign boundaries</span><span>${esc(summary.boundaryLabel)}</span></li>
+      </ul>`;
+    }
+  }
+
+  const listBody = $("#positions-list-body");
+  if (listBody) {
+    listBody.innerHTML = positions.length
+      ? `<ul class="positions-list">${positions.map(positionRowHtml).join("")}</ul>`
+      : `<p class="me-muted">No planetary positions are available from the current calculation.</p>`;
+  }
+
+  const calcSection = $("#positions-calc");
+  const calcBody = $("#positions-calc-body");
+  const rows = payload.calculation || [];
+  if (calcSection && calcBody) {
+    calcSection.hidden = !rows.length;
+    calcBody.innerHTML = `<details class="tech-sky__more">
+      <summary><span>How these positions were calculated</span></summary>
+      <div class="tech-sky__body">
+        <dl class="tech-sky__facts">
+          ${rows.map((r) => `<div><dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join("")}
+        </dl>
+        <p class="tech-sky__help">Positions come from Orbit’s own astronomy engine. Movement descriptions are worked out from each planet’s speed relative to how fast it usually travels. Nothing on this page is written by an AI model.</p>
+      </div>
+    </details>`;
+  }
+}
+
+function positionRowHtml(p) {
+  const glyph = PLACEMENT_GLYPHS[p.name] || "";
+  const signGlyph = SIGN_GLYPH[p.sign] || "";
+  // Direction is always spelled out. A reader must never have to know that a
+  // missing symbol means "direct".
+  const movement = p.movement
+    ? `<span class="positions-row__movement">${esc(p.movement.label)}</span>`
+    : "";
+  const boundary = p.approachingBoundary
+    ? `<span class="positions-row__note">Approaching the end of ${esc(p.sign)}</span>` : "";
+  return `<li class="positions-row${p.retrograde ? " is-retrograde" : ""}">
+    <span class="positions-row__glyph" aria-hidden="true">${esc(glyph)}</span>
+    <span class="positions-row__main">
+      <span class="positions-row__name">${esc(p.name)}</span>
+      <span class="positions-row__position">
+        <span aria-hidden="true">${esc(signGlyph)}</span>
+        <span>${esc(p.position)}</span>
+      </span>
+      ${p.role ? `<span class="positions-row__role">${esc(p.role)}</span>` : ""}
+      ${boundary}
+    </span>
+    <span class="positions-row__state">
+      <span class="positions-row__direction${p.retrograde ? " is-retrograde" : ""}">${esc(p.direction)}</span>
+      ${movement}
+    </span>
+  </li>`;
+}
+
+function wirePositions() {
+  const panel = $("#panel-positions");
+  if (!panel || panel._positionsWired) return;
+  panel._positionsWired = true;
+  $("#positions-refresh")?.addEventListener("click", () => loadPositions({ manual: true }));
+  panel.addEventListener("click", (event) => {
+    if (event.target.closest('[data-action="retry-positions"]')) loadPositions({ manual: true });
+  });
+}

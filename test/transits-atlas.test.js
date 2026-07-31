@@ -31,8 +31,20 @@ test("Home offers both destinations from Technical Sky", () => {
   assert.match(html, /href="#transits"[\s\S]{0,120}Explore Today’s Transits/);
   assert.match(html, /href="#symbol-atlas"[\s\S]{0,120}Learn the symbols/);
   assert.match(html, /href="#me"[\s\S]{0,120}View My Chart/);
-  // No route may be linked that does not exist. Positions arrives in 1.7.
-  assert.ok(!html.includes('href="#positions"'), "Current Positions does not exist yet");
+  // Dev Update 1.7 built Positions, so the rule this asserted — never link a
+  // route that does not exist — now permits it. Checked against the registry
+  // rather than a hardcoded exclusion, so it stays true as routes are added.
+  const registry = appJs.slice(appJs.indexOf("const WORKSPACES"), appJs.indexOf("const RETIRED_ROUTES"));
+  const registered = [...registry.matchAll(/id: "([a-z-]+)"/g)].map((m) => m[1]);
+  // In-page anchors (the skip link targets #workspace-title) are not routes,
+  // so they are excluded by checking whether the fragment names an element id.
+  const elementIds = new Set([...html.matchAll(/id="([a-zA-Z0-9_-]+)"/g)].map((m) => m[1]));
+  for (const m of html.matchAll(/href="#([a-z-]+)"/g)) {
+    if (elementIds.has(m[1])) continue;
+    assert.ok(registered.includes(m[1]),
+      `markup links to #${m[1]}, which is neither a workspace nor an in-page anchor`);
+  }
+  assert.ok(registered.includes("positions"), "Positions is a real workspace as of Dev Update 1.7");
 });
 
 test("the actions are inside Technical Sky, not above the fortune", () => {

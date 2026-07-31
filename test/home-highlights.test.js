@@ -159,7 +159,11 @@ test("every highlight destination is a workspace that actually exists", () => {
   for (const href of HIGHLIGHT_DESTINATIONS) {
     assert.ok(registered.includes(href), `${href} is not a registered workspace`);
   }
-  assert.ok(!HIGHLIGHT_DESTINATIONS.includes("#positions"), "Positions does not exist until 1.7");
+  // Highlights still route to Transits and Symbol Atlas. Positions exists as of
+  // Dev Update 1.7, but a sky HIGHLIGHT is an invitation to interpretation, not
+  // a request for exact degrees — the degree link belongs to Technical Sky.
+  assert.ok(!HIGHLIGHT_DESTINATIONS.includes("#positions"),
+    "highlights lead to meaning; Technical Sky leads to degrees");
   for (const h of composeHighlights(SKY)) {
     assert.ok(registered.includes(h.href), `highlight "${h.label}" links to a dead route`);
   }
@@ -259,7 +263,7 @@ test("no calculation claim is hardcoded in the client", () => {
   assert.ok(!APP.includes("Placidus"), "nor a house system");
 });
 
-test("Home links only to routes that exist, and never to Positions", () => {
+test("Home links only to routes that exist, Positions included", () => {
   const registry = APP.slice(APP.indexOf("const WORKSPACES"), APP.indexOf("const RETIRED_ROUTES"));
   const registered = [...registry.matchAll(/id: "([a-z-]+)"/g)].map((m) => m[1]);
   const homeStart = HTML.indexOf('id="panel-home"');
@@ -267,7 +271,11 @@ test("Home links only to routes that exist, and never to Positions", () => {
   for (const m of homeHtml.matchAll(/href="#([a-z-]+)"/g)) {
     assert.ok(registered.includes(m[1]), `Home links to #${m[1]}, which is not a workspace`);
   }
-  assert.ok(!homeHtml.includes("#positions"), "Current Positions arrives in Dev Update 1.7");
+  // Reversed by Dev Update 1.7: the route now exists, so Home may — and does —
+  // link to it. The guarantee this test protects is unchanged: every Home link
+  // resolves to a registered workspace.
+  assert.ok(homeHtml.includes("#positions"), "Home links to the Positions workspace");
+  assert.ok(registered.includes("positions"), "and Positions is registered");
   assert.ok(!/Coming Soon/i.test(homeHtml), "no placeholder destinations");
 });
 

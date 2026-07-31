@@ -409,8 +409,13 @@ test("Technical Sky is named as such and shows positions without a mode switch",
   assert.ok(!techSource.includes("<table"), "Home emits no positions table");
   assert.ok(!techSource.includes("<tbody"), "and no table body");
   assert.ok(appJs.includes("tech-sky__more"), "Technical Sky is a folded disclosure");
-  assert.match(appJs, /See every position in Today’s Transits/,
+  // Dev Update 1.7 built the workspace this was standing in for. Technical Sky
+  // now points at Current Positions, which is where every position actually
+  // lives; Today's Transits keeps the personal-chart interactions.
+  assert.match(appJs, /See every position in Current Positions/,
     "and points at the workspace that carries the full list");
+  assert.ok(!appJs.includes("See every position in Today’s Transits"),
+    "the interim wording is retired now that Positions exists");
   // The old gate read AXIS.detail === "Advanced" before showing positions.
   assert.ok(!appJs.includes('AXIS.detail === "Advanced"'),
     "positions must not be gated behind a detail level any more");

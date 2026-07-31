@@ -147,6 +147,10 @@
                 <span class="axis-explore__label">Explore Today’s Transits</span>
                 <span class="axis-explore__help">How the moving sky meets your chart.</span>
               </a>
+              <a class="axis-explore__link" href="#positions">
+                <span class="axis-explore__label">See Current Positions</span>
+                <span class="axis-explore__help">Where every planet is in the zodiac right now.</span>
+              </a>
               <a class="axis-explore__link" href="#symbol-atlas">
                 <span class="axis-explore__label">Learn the symbols</span>
                 <span class="axis-explore__help">Every glyph Orbit Axis uses, in plain language.</span>
@@ -185,6 +189,68 @@
             <div class="o-card-head"><h3 class="u-card-title">Upcoming Sky Events</h3><span class="u-meta" id="events-count"></span></div>
             <div class="o-timeline" id="events-timeline"></div>
           </div>
+        </section>
+
+        <!-- ── Current Positions ────────────────────────────────────────
+             The shared sky, with no birth chart involved. Today's Transits is
+             where that sky meets one person's chart; keeping the two apart is
+             why this workspace exists at all. -->
+        <section class="workspace-panel" id="panel-positions" role="region" aria-labelledby="positions-title" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title" id="positions-title" tabindex="-1">Current Positions</h1>
+              <p class="u-caption">Where the planets are in the zodiac right now.</p>
+              <p class="u-meta" id="positions-time"></p>
+            </div>
+            <div class="o-section-head__actions">
+              <button type="button" class="o-btn o-btn--secondary" id="positions-refresh">Refresh</button>
+            </div>
+          </div>
+
+          <div class="positions-status" id="positions-status" role="status" aria-live="polite"></div>
+
+          <section class="o-card" id="positions-general" aria-labelledby="positions-general-title">
+            <h2 class="axis-section-title" id="positions-general-title">This is the sky everyone shares</h2>
+            <p class="positions-general__text">These positions are the same for everyone right now. Today’s Transits shows how this sky meets your own birth chart.</p>
+            <a class="o-btn o-btn--secondary o-btn--sm" href="#transits" id="positions-transits-link">See how this affects my chart</a>
+          </section>
+
+          <section class="o-card" id="positions-summary" aria-labelledby="positions-summary-title" hidden>
+            <h2 class="axis-section-title" id="positions-summary-title">Sky summary</h2>
+            <div id="positions-summary-body"></div>
+          </section>
+
+          <section class="o-card" id="positions-list" aria-labelledby="positions-list-title">
+            <h2 class="axis-section-title" id="positions-list-title">Planetary positions</h2>
+            <div id="positions-list-body"></div>
+          </section>
+
+          <section class="o-card" id="positions-calc" aria-labelledby="positions-calc-title" hidden>
+            <h2 class="axis-section-title" id="positions-calc-title">Calculation details</h2>
+            <div id="positions-calc-body"></div>
+          </section>
+
+          <section class="o-card" id="positions-explore" aria-labelledby="positions-explore-title">
+            <h2 class="axis-section-title" id="positions-explore-title">Continue exploring</h2>
+            <div class="axis-explore">
+              <a class="axis-explore__link" href="#transits">
+                <span class="axis-explore__label">Explore Today’s Transits</span>
+                <span class="axis-explore__help">How this sky meets your chart.</span>
+              </a>
+              <a class="axis-explore__link" href="#symbol-atlas">
+                <span class="axis-explore__label">Open Symbol Atlas</span>
+                <span class="axis-explore__help">What every planet and sign symbol means.</span>
+              </a>
+              <a class="axis-explore__link" href="#me">
+                <span class="axis-explore__label">View My Chart</span>
+                <span class="axis-explore__help">Your birth chart, placement by placement.</span>
+              </a>
+              <a class="axis-explore__link" href="#home">
+                <span class="axis-explore__label">Back to Home</span>
+                <span class="axis-explore__help">Your daily reading and the Moon.</span>
+              </a>
+            </div>
+          </section>
         </section>
 
         <!-- ── Symbol Atlas ─────────────────────────────────────────────

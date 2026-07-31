@@ -693,3 +693,78 @@
   .reading-card__more > summary,
   .chart-details > summary { color: LinkText; }
 }
+
+/* ══ Current Positions (Dev Update 1.7) ══════════════════════════════════════
+   Rows, not a table. A ten-row table is the fastest way to make a phone scroll
+   sideways, and the exact degree is the one value a reader came for — it has to
+   survive at 375px without being the thing that breaks the layout. */
+
+.positions-status:empty { display: none; }
+.positions-status { margin: 0 0 4px; color: var(--color-secondary); font-size: 14px; }
+.positions-general__text { margin: 0 0 12px; max-width: 62ch; line-height: 1.55; }
+.positions-general .o-btn { min-height: 44px; }
+
+.positions-summary { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.positions-summary li { display: grid; gap: 2px; }
+.positions-summary__label {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--color-secondary);
+}
+
+.positions-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.positions-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-elevated);
+  min-width: 0;
+}
+.positions-row__glyph {
+  grid-row: 1 / span 2;
+  font-size: 22px; line-height: 1;
+  color: var(--axis-lavender, inherit);
+}
+.positions-row__main { display: grid; gap: 3px; min-width: 0; }
+.positions-row__name { font-weight: 600; font-size: 16px; }
+.positions-row__position {
+  display: flex; align-items: baseline; gap: 6px;
+  font-size: 17px; font-variant-numeric: tabular-nums;
+}
+.positions-row__role { font-size: 13px; color: var(--color-secondary); max-width: 52ch; }
+.positions-row__note { font-size: 13px; color: var(--color-secondary); }
+.positions-row__state {
+  grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px 10px;
+  align-items: center; margin-top: 4px;
+}
+.positions-row__direction {
+  font-size: 12px; font-weight: 600; letter-spacing: 0.03em;
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: color-mix(in oklab, var(--axis-indigo, #4b4b8f) 10%, transparent);
+}
+/* Retrograde is carried by the word, never by the colour alone. */
+.positions-row__direction.is-retrograde {
+  border-color: color-mix(in oklab, var(--gold, #c9a227) 45%, var(--color-border));
+  background: color-mix(in oklab, var(--gold, #c9a227) 12%, transparent);
+}
+.positions-row__movement { font-size: 13px; color: var(--color-secondary); }
+
+@media (min-width: 700px) {
+  .positions-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; }
+  .positions-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .positions-row__glyph { grid-row: auto; }
+  .positions-row__state { grid-column: auto; margin-top: 0; justify-content: flex-end; }
+}
+@media (max-width: 420px), (max-height: 460px) {
+  .positions-summary { grid-template-columns: 1fr; }
+}
+@media (forced-colors: active) {
+  .positions-row { border: 1px solid CanvasText; }
+  .positions-row__direction { border: 1px solid CanvasText; background: Canvas; }
+}
