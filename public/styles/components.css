@@ -448,7 +448,8 @@
 .o-modal__head h2 { font-size: var(--text-card-title); color: var(--color-primary); }
 
 .o-modal__close {
-  width: 40px; height: 40px; flex: none;
+  /* 44px, because this is the control someone reaches for when they want out. */
+  width: 44px; height: 44px; flex: none;
   display: grid; place-items: center;
   color: var(--color-secondary);
   background: var(--color-surface-sunken);
@@ -493,7 +494,8 @@
   -webkit-overflow-scrolling: touch;
   display: grid;
   gap: var(--space-4);
-  padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+  /* No bottom padding here: it would sit BELOW the sticky action bar and let
+     the last field show through underneath it. The bar owns that space. */
 }
 
 /* The actions sit at the end of the scrolling content rather than pinned, so a
@@ -501,9 +503,12 @@
 .o-modal__panel--form .o-modal__actions {
   position: sticky;
   bottom: 0;
-  padding: var(--space-3) 0 var(--space-1);
+  z-index: 1;
+  padding: var(--space-3) 0 max(var(--space-3), env(safe-area-inset-bottom));
   background: var(--color-surface-elevated);
-  box-shadow: 0 -8px 12px -8px rgba(0, 0, 0, 0.35);
+  /* The fade tells you there is more form above, without a hard rule. */
+  box-shadow: 0 -10px 14px -8px var(--color-surface-elevated),
+              0 -1px 0 0 var(--color-border);
 }
 .o-modal__panel--form .o-modal__actions .o-btn { min-height: 44px; }
 
