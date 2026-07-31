@@ -165,7 +165,10 @@
 }
 
 /* ── Accessibility: comfortable sizing, visible focus ─────────────────────── */
-#panel-home button, #panel-history button { min-height: 40px; }
+/* 44px, not 40. This is the global sizing rule for every button on Home and
+   History, so raising it here fixes the whole surface instead of patching the
+   two controls that happened to be measured. */
+#panel-home button, #panel-history button { min-height: 44px; }
 #panel-home a:focus-visible, #panel-home button:focus-visible,
 #panel-history a:focus-visible, #panel-history button:focus-visible {
   outline: 2px solid var(--axis-blue); outline-offset: 2px; border-radius: 8px;

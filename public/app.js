@@ -3043,6 +3043,23 @@ async function axisSetDetail(level) {
   } catch { /* best effort */ }
 }
 
+/**
+ * Clear only the chart-dependent half of Home.
+ *
+ * Sky-only sections stay exactly where they are. Blanking them on a chart
+ * switch would make the whole page flash for a change that does not affect
+ * them, and the Moon does not care whose chart is active.
+ */
+function axisClearPersonalReading() {
+  AXIS.lastFortune = null;
+  const el = $("#today-fortune");
+  if (el) {
+    el.innerHTML = `<div class="axis-shimmer" style="height:240px" role="status" aria-live="polite" aria-label="Loading your reading"></div>`;
+  }
+  const secondary = $("#today-secondary");
+  if (secondary) secondary.hidden = true;
+}
+
 function axisWireChartPicker() {
   const select = $("#today-chart-select");
   if (!select || select._axisWired) return;
@@ -3052,6 +3069,12 @@ function axisWireChartPicker() {
     const previousId = state.activeChartId;
     if (!id || id === previousId) return;
     select.disabled = true;
+    // The chart NAME updates as soon as the new chart is active, but the
+    // fortune is a second round trip. Without this the old reading sits under
+    // the new name for as long as that takes — the same stale-content defect
+    // My Chart had. Only the personal reading is cleared: the Moon and the sky
+    // highlights describe the sky, not the chart, and must not flicker.
+    axisClearPersonalReading();
     try {
       await post(`/api/charts/${id}/activate`, {});
       await loadSavedCharts();
@@ -3276,13 +3299,24 @@ function formatLocalDateKey(raw) {
  * reading. Derived, never invented — and never technical, because `mood` is
  * already plain language.
  */
-function axisFortuneTitle(F) {
-  const text = String(F.mood || "").trim();
-  if (!text) return "Today";
-  const firstSentence = text.split(/(?<=[.!?])\s/)[0] || text;
-  const clause = firstSentence.split(/[,;—]/)[0].trim().replace(/\.$/, "");
-  const title = clause.length >= 8 && clause.length <= 72 ? clause : firstSentence.replace(/\.$/, "");
-  return title.length > 80 ? `${title.slice(0, 77)}…` : title;
+/**
+ * The reading's title.
+ *
+ * Deliberately NOT derived from the mood text. The old version cut the mood at
+ * its first comma, which works when the comma separates clauses and fails when
+ * it separates coordinate adjectives: "A reflective, share-what-you've-learned
+ * kind of day" became the headline "A reflective". Tightening the heuristic
+ * only moved the failure — "A steady, grounded day" breaks the same way — and
+ * the whole approach was trying to do grammar with string splitting.
+ *
+ * It was also a truncated copy of the Overall card immediately beneath it. So
+ * the title names the reading, and the mood is printed once, in full, in the
+ * card written for it. The engine supplies no headline field, and writing one
+ * here would be the only place in Orbit where reading text is not traceable to
+ * engine evidence.
+ */
+function axisFortuneTitle() {
+  return "Your reading for today";
 }
 
 // ── Current Sky: one unified panel (Moon + Sun + season + local time) ──────

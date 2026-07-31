@@ -293,3 +293,30 @@ test("Home introduces no AI provider and no randomness", () => {
   }
   assert.ok(!homeSrc.includes("Math.random"), "highlight composition is deterministic");
 });
+
+test("switching charts clears the reading but never the sky", () => {
+  const start = APP.indexOf('select.addEventListener("change"');
+  const handler = APP.slice(start, APP.indexOf("\nfunction ", start));
+  const clearAt = handler.indexOf("axisClearPersonalReading()");
+  const activateAt = handler.indexOf("/activate");
+  assert.ok(clearAt > -1 && clearAt < activateAt,
+    "the old reading is cleared before activation is requested, not after it returns");
+  // Only the personal half is cleared.
+  const clearFn = APP.slice(APP.indexOf("function axisClearPersonalReading"), APP.indexOf("function axisWireChartPicker"));
+  assert.ok(clearFn.includes("#today-fortune"), "the fortune is cleared");
+  for (const skyOnly of ["#today-moon", "#today-highlights", "#today-sky"]) {
+    assert.ok(!clearFn.includes(skyOnly), `${skyOnly} describes the sky and must not flicker on a chart switch`);
+  }
+  assert.match(clearFn, /aria-live="polite"/, "the loading state is announced");
+});
+
+test("the reading title is never a mangled fragment of the mood text", () => {
+  // "A reflective, share-what-you've-learned kind of day" once produced the
+  // headline "A reflective" by cutting at the first comma.
+  const fn = APP.slice(APP.indexOf("function axisFortuneTitle"), APP.indexOf("function axisRenderSky("));
+  assert.ok(!fn.includes("split(/[,;—]/)"), "the title must not be cut out of the mood text");
+  assert.ok(!fn.includes("F.mood"), "and must not be derived from it at all");
+  assert.match(fn, /return "Your reading for today"/);
+  // The mood still appears, once, in the card written for it.
+  assert.match(APP, /body: F\.mood/, "the Overall card carries the mood in full");
+});
