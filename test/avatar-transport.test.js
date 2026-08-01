@@ -110,7 +110,7 @@ test("the session cookie survives on both response paths", () => {
 
 test("the read action sets private, version-keyed, nosniff headers", () => {
   const action = block(API, 'if (action === "avatar")', 'if (action === "activate"');
-  assert.match(action, /avatarCacheHeaders\(chart\.avatar_version/);
+  assert.match(action, /avatarCacheHeaders\(profile\.avatar_version/);
   assert.match(action, /if-none-match/);
   assert.match(action, /status: 304/);
   assert.match(action, /binary: true/);
@@ -119,7 +119,7 @@ test("the read action sets private, version-keyed, nosniff headers", () => {
 test("no avatar response or error carries a storage path", () => {
   const action = block(API, 'if (action === "avatar")', 'if (action === "activate"');
   // The path is computed and used, never returned.
-  assert.match(action, /const path = avatarObjectPath\(owner, chart\.id\)/);
+  assert.match(action, /const path = avatarObjectPath\(owner, profile\.id\)/);
   assert.ok(!/body: \{[^}]*path/.test(action));
   assert.match(action, /publicIdentity\(/, "responses carry public identity only");
   // Error bodies name codes, not internals.
@@ -130,7 +130,7 @@ test("no avatar response or error carries a storage path", () => {
 
 test("ownership is established before any storage call", () => {
   const action = block(API, 'if (action === "avatar")', 'if (action === "activate"');
-  const ownedAt = action.indexOf("await svc.get(owner, id)");
+  const ownedAt = action.indexOf("await svc.profileFor(owner, id)");
   const storeAt = action.indexOf("createAvatarStore(auth)");
   assert.ok(ownedAt > -1 && ownedAt < storeAt,
     "a chart belonging to someone else fails before Storage is touched");

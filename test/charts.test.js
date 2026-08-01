@@ -187,7 +187,7 @@ test("custom nicknames persist and don't need to be legal names", async () => {
   const svc = createChartService(store);
   await svc.create(OWNER, INPUT);
   for (const n of ["Jordan", "Creative Partner", "Ezra Launch Chart"]) {
-    const { profile } = await svc.create(OWNER, { ...INPUT, nickname: n });
+    const { profile } = await svc.create(OWNER, { ...INPUT, nickname: n, relationship_type: "friend" });
     assert.equal(profile.nickname, n);
   }
 });
@@ -233,7 +233,7 @@ test("active chart can be switched and persists", async () => {
   const store = memStore();
   const svc = createChartService(store);
   const a = await svc.create(OWNER, INPUT);
-  const b = await svc.create(OWNER, { ...INPUT, nickname: "Partner" });
+  const b = await svc.create(OWNER, { ...INPUT, nickname: "Partner", relationship_type: "partner" });
   assert.equal(await store.getActiveId(OWNER), a.profile.id, "additional charts do not replace the active chart");
   assert.equal(b.profile.last_active_at, undefined);
   await svc.activate(OWNER, b.profile.id);
@@ -257,7 +257,7 @@ test("deleting the active chart selects a safe replacement (primary preferred)",
   const store = memStore();
   const svc = createChartService(store);
   const primary = await svc.create(OWNER, INPUT);              // My Chart, primary, active
-  const friend = await svc.create(OWNER, { ...INPUT, nickname: "Friend" });
+  const friend = await svc.create(OWNER, { ...INPUT, nickname: "Friend", relationship_type: "friend" });
   await svc.activate(OWNER, friend.profile.id);                // active = friend
   const res = await svc.remove(OWNER, friend.profile.id);
   assert.equal(res.active_chart_id, primary.profile.id);       // fell back to primary
