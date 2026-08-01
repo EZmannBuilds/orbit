@@ -727,8 +727,9 @@ function renderTransitsSwitcher() {
   if (charts.length < 2) { select.innerHTML = ""; return; }
   const active = activeChart();
   select.innerHTML = charts.map((c) =>
-    `<option value="${esc(c.id)}"${c.id === active?.id ? " selected" : ""}>${esc(c.nickname || "Untitled chart")}</option>`
+    `<option value="${esc(c.id)}"${c.id === active?.id ? " selected" : ""}>${esc(chartOptionLabel(c))}</option>`
   ).join("");
+  renderPickerAvatar("#transits-chart-avatar");
 }
 
 /** Kept for the route to call; the workspace loads itself. */
@@ -1163,6 +1164,36 @@ function chartAvatarHtml(chart, { size = "" } = {}) {
 document.addEventListener("error", (event) => {
   if (event.target?.classList?.contains("chart-avatar__img")) event.target.remove();
 }, true);
+
+/**
+ * What a chart is called inside a native <select>.
+ *
+ * A select option cannot carry a picture, so the words do the distinguishing:
+ * two charts named Alex differ by their relationship label, and the active
+ * one says so in text — never in colour, which an option doesn't have anyway.
+ */
+function chartOptionLabel(chart) {
+  const rel = relationshipDisplay(chart.relationship_type ?? null);
+  const parts = [chart.nickname || "Untitled Chart", rel.label];
+  if (chart.id === state.activeChartId) parts.push("Active");
+  return parts.join(" · ");
+}
+
+/** Fills a picker's avatar slot with the ACTIVE chart's face (or hides it). */
+function renderPickerAvatar(slotSelector) {
+  const slot = $(slotSelector);
+  if (!slot) return;
+  const active = state.charts.find((c) => c.id === state.activeChartId) || null;
+  if (!active) {
+    slot.hidden = true;
+    slot.innerHTML = "";
+    return;
+  }
+  slot.hidden = false;
+  slot.innerHTML = `${esc(chartInitials(active.nickname))}${active.has_avatar
+    ? `<img class="chart-avatar__img" src="${esc(avatarUrl(active))}" alt="" decoding="async">`
+    : ""}`;
+}
 
 /* ── Modal utility ─────────────────────────────────────────────────────────
    One shared dialog behavior for the chart form, the delete confirmation, and
@@ -1820,6 +1851,7 @@ const CHART_MODES = {
     defaultName: "My Chart",
     showRelationship: false,
     showNames: true,
+    showAvatar: true,
   },
   add: {
     title: "Add a saved chart",
@@ -1831,6 +1863,7 @@ const CHART_MODES = {
     defaultName: "",
     showRelationship: true,
     showNames: true,
+    showAvatar: true,
   },
   edit: {
     title: "Edit saved chart",
@@ -1842,11 +1875,58 @@ const CHART_MODES = {
     defaultName: "",
     showRelationship: true,
     showNames: true,
+    // Changing a picture is an identity edit; this form edits birth data.
+    showAvatar: false,
   },
 };
 
 /** Live state of the open form. `mode` is what the copy and submit key off. */
 const chartForm = { mode: "add", chartId: null, submitting: false, openedBy: null };
+
+/* The form's optional picture. Normalized immediately on selection so the
+   preview IS the bytes that will upload — never the original file, which is
+   discarded (with its EXIF) as soon as the normalizer returns. */
+const chartFormAvatar = { blob: null, preview: null };
+
+function resetChartFormAvatar() {
+  chartFormAvatar.preview?.release();
+  chartFormAvatar.preview = null;
+  chartFormAvatar.blob = null;
+  renderChartFormAvatar();
+  const note = $("#cm-avatar-note");
+  if (note) note.textContent = "";
+}
+
+function renderChartFormAvatar() {
+  const holder = $("#cm-avatar");
+  if (!holder) return;
+  const initials = chartInitials($("#cm-nickname")?.value?.trim() || "");
+  const img = chartFormAvatar.preview
+    ? `<img class="chart-avatar__img" src="${esc(chartFormAvatar.preview.url)}" alt="">`
+    : "";
+  holder.innerHTML = `${esc(initials)}${img}`;
+  const discard = $("#cm-avatar-discard");
+  if (discard) discard.hidden = !chartFormAvatar.preview;
+}
+
+async function onChartFormFileChosen(event) {
+  const file = event.target.files?.[0];
+  event.target.value = "";                       // never retain the original File
+  if (!file) return;
+  const note = $("#cm-avatar-note");
+  if (note) note.textContent = "Preparing image…";
+  try {
+    const blob = await normalizeAvatar(file);
+    chartFormAvatar.preview?.release();
+    chartFormAvatar.blob = blob;
+    chartFormAvatar.preview = previewFor(blob);
+    renderChartFormAvatar();
+    if (note) note.textContent = `Preview, ${Math.max(1, Math.round(blob.size / 1024))} KB — uploads after the chart is saved.`;
+  } catch (error) {
+    renderChartFormAvatar();
+    if (note) note.textContent = error?.message || "Orbit couldn't prepare that image.";
+  }
+}
 
 const NAME_MAX = 80;
 
@@ -1888,7 +1968,7 @@ function fieldError(id, message) {
 }
 
 function clearChartFormErrors() {
-  for (const id of ["nickname", "date", "time", "place"]) fieldError(id, "");
+  for (const id of ["nickname", "date", "time", "place", "relationship"]) fieldError(id, "");
   const summary = $("#chart-modal-error");
   if (summary) { summary.textContent = ""; summary.hidden = true; }
 }
@@ -1925,6 +2005,17 @@ function validateChartForm() {
     fail("time", "Enter a birth time, or choose Unknown above.");
   }
 
+  // Additional charts must say how they relate — the server refuses the save
+  // without it, and finding that out at the field beats a round trip. The
+  // first chart's field is hidden and defaults to Self. In edit mode an empty
+  // control means "a legacy value is stored"; leaving it empty preserves that
+  // value, so it is not an error.
+  const relationshipField = $("#cm-relationship-field");
+  if (relationshipField && !relationshipField.hidden && chartForm.mode === "add"
+      && !$("#cm-relationship").value) {
+    fail("relationship", "Choose how this chart relates to you.");
+  }
+
   try {
     requireSelectedPlace("cm", { allowExisting: chartForm.mode === "edit" });
   } catch (error) {
@@ -1937,17 +2028,10 @@ function validateChartForm() {
 function chartFormPayload() {
   const accuracy = chartAccuracy();
   const placePayload = requireSelectedPlace("cm", { allowExisting: chartForm.mode === "edit" });
-  return {
+  const payload = {
     nickname: $("#cm-nickname").value.trim(),
     first_name: $("#cm-first").value.trim() || null,
     last_name: $("#cm-last").value.trim() || null,
-    // The first chart is the account owner's own by definition. Every other
-    // chart carries whatever was chosen — and "" if nothing was, which the
-    // validator refuses. The old fallback to "other" turned an unanswered
-    // question into a stored answer.
-    relationship_type: chartForm.mode === "first"
-      ? DEFAULT_FIRST_CHART_RELATIONSHIP
-      : ($("#cm-relationship").value || null),
     birth_date: $("#cm-date").value,
     // The server nulls this too when the time is unknown. Doing it here as well
     // means the request body never carries a time the user disclaimed.
@@ -1955,6 +2039,15 @@ function chartFormPayload() {
     time_accuracy: accuracy,
     ...placePayload,
   };
+  // The first chart is the account owner's own by definition. Every other
+  // mode sends a relationship ONLY when one was chosen: an empty control in
+  // edit mode means a legacy value is stored, and omitting the key is what
+  // preserves it — sending null would ask the server to unset it, which the
+  // server (correctly) refuses.
+  const relationshipChoice = $("#cm-relationship").value || "";
+  if (chartForm.mode === "first") payload.relationship_type = DEFAULT_FIRST_CHART_RELATIONSHIP;
+  else if (relationshipChoice) payload.relationship_type = relationshipChoice;
+  return payload;
 }
 
 /** Show or hide the time field and its consequences to match the certainty. */
@@ -1991,6 +2084,13 @@ function openChartForm(mode, chart = null) {
   // there implies the chart might be someone else's.
   $("#cm-relationship-field").hidden = !config.showRelationship;
 
+  // The optional picture is a create-time convenience; editing one later is
+  // the identity editor's job. Any leftover selection from a previous open is
+  // discarded with its object URL.
+  resetChartFormAvatar();
+  const avatarField = $("#cm-avatar-field");
+  if (avatarField) avatarField.hidden = !config.showAvatar;
+
   if (chart) {
     $("#cm-nickname").value = chart.nickname || "";
     $("#cm-first").value = chart.first_name || "";
@@ -2014,7 +2114,9 @@ function openChartForm(mode, chart = null) {
     else clearPlaceSelection("cm");
   } else {
     $("#cm-nickname").value = config.defaultName;
-    $("#cm-relationship").value = mode === "first" ? "self" : "other";
+    // "first" pre-answers Self (the field is hidden there); "add" starts at
+    // the empty non-choice — no default Friend, no resurrected "other".
+    $("#cm-relationship").value = mode === "first" ? "self" : "";
     clearPlaceSelection("cm");
   }
 
@@ -2132,7 +2234,7 @@ function resetIdentityWorkingState() {
   identityForm.submitting = false;
 }
 
-function openIdentityEditor(chart) {
+function openIdentityEditor(chart, { pendingBlob = null, errorMessage = null } = {}) {
   const modal = $("#identity-modal");
   if (!modal || !chart) return;
   resetIdentityWorkingState();
@@ -2148,10 +2250,18 @@ function openIdentityEditor(chart) {
   $("#identity-relationship").value =
     RELATIONSHIP_TYPES.includes(chart.relationship_type) ? chart.relationship_type : "";
   renderIdentityLegacy(chart.relationship_type ?? null);
+  // A blob handed over from the create form (its upload failed after the
+  // chart saved) arrives already normalized; Retry re-uses it as-is.
+  if (pendingBlob) {
+    identityForm.pendingBlob = pendingBlob;
+    identityForm.preview = previewFor(pendingBlob);
+  }
   renderIdentityAvatar();
-  identityAvatarNote(chart.has_avatar
-    ? "This chart has a picture."
-    : "No picture yet — Orbit shows the chart's initials.");
+  identityAvatarNote(identityForm.pendingBlob
+    ? "Preview — saved when you press Save."
+    : chart.has_avatar
+      ? "This chart has a picture."
+      : "No picture yet — Orbit shows the chart's initials.");
   openModal(modal, {
     initialFocus: $("#identity-nickname"),
     // Cancelling restores the persisted state by discarding everything the
@@ -2159,6 +2269,7 @@ function openIdentityEditor(chart) {
     // intent. Nothing was sent, so nothing needs undoing.
     onClose: resetIdentityWorkingState,
   });
+  if (errorMessage) showIdentityError(errorMessage);
 }
 
 async function onIdentityFileChosen(event) {
@@ -2354,6 +2465,13 @@ function wireChartModal() {
   for (const id of ["nickname", "date", "time"]) {
     $(`#cm-${id}`)?.addEventListener("input", () => fieldError(id, ""));
   }
+  $("#cm-relationship")?.addEventListener("change", () => fieldError("relationship", ""));
+
+  // The optional picture: normalized on selection, discardable, and the
+  // initials preview follows the name as it is typed.
+  $("#cm-avatar-file")?.addEventListener("change", onChartFormFileChosen);
+  $("#cm-avatar-discard")?.addEventListener("click", resetChartFormAvatar);
+  $("#cm-nickname")?.addEventListener("input", renderChartFormAvatar);
 
   $("#chart-modal-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -2383,9 +2501,45 @@ function wireChartModal() {
       const saved = id
         ? await patch(`/api/charts/${id}`, payload)
         : await post("/api/charts", payload);
+
+      // The chart exists from here on. A picture that fails to upload must
+      // not un-save it, duplicate it, or read as a failed creation — the
+      // retry is avatar-specific, in the identity editor, with the already
+      // normalized bytes carried over so nothing needs re-picking.
+      let avatarHandoff = null;
+      const createdProfile = !id && chartFormAvatar.blob ? saved?.profile : null;
+      if (createdProfile?.id) {
+        const pendingBlob = chartFormAvatar.blob;
+        hint.textContent = "Uploading picture…";
+        try {
+          await uploadChartAvatar(
+            { id: createdProfile.id, avatar_version: createdProfile.avatar_version || 0 },
+            pendingBlob,
+          );
+          resetChartFormAvatar();
+        } catch {
+          avatarHandoff = { chartId: createdProfile.id, blob: pendingBlob };
+          chartFormAvatar.blob = null;             // ownership moves to the editor
+          resetChartFormAvatar();
+        }
+      } else {
+        resetChartFormAvatar();
+      }
+
       hint.textContent = config.done;
       closeModal(modal);
       await afterChartSaved(chartForm.mode, saved?.chart || null);
+      if (avatarHandoff) {
+        const fresh = state.charts.find((c) => c.id === avatarHandoff.chartId);
+        if (fresh) {
+          openIdentityEditor(fresh, {
+            pendingBlob: avatarHandoff.blob,
+            errorMessage: "Your chart is saved. The picture didn't upload — Retry to try again.",
+          });
+        } else {
+          toast("Your chart is saved. The picture didn't upload — add it from Identity.");
+        }
+      }
     } catch (error) {
       hint.textContent = "";
       if (summary) { summary.textContent = error.message; summary.hidden = false; }
@@ -2622,8 +2776,9 @@ function axisRenderChartPicker() {
   if (label) label.hidden = false;
   if (manage) manage.hidden = false;
   select.innerHTML = state.charts.map(chart =>
-    `<option value="${esc(chart.id)}" ${chart.id === state.activeChartId ? "selected" : ""}>${esc(chart.nickname || "Untitled Chart")}</option>`
+    `<option value="${esc(chart.id)}" ${chart.id === state.activeChartId ? "selected" : ""}>${esc(chartOptionLabel(chart))}</option>`
   ).join("");
+  renderPickerAvatar("#today-chart-avatar");
   // One chart still shows its name via a disabled select; "+" remains active.
   select.disabled = state.charts.length <= 1;
 }
@@ -3412,8 +3567,9 @@ function renderChartSwitcher() {
   if (charts.length < 2) { select.innerHTML = ""; return; }
   const active = activeChart();
   select.innerHTML = charts.map((c) =>
-    `<option value="${esc(c.id)}"${c.id === active?.id ? " selected" : ""}>${esc(c.nickname || "Untitled chart")}</option>`
+    `<option value="${esc(c.id)}"${c.id === active?.id ? " selected" : ""}>${esc(chartOptionLabel(c))}</option>`
   ).join("");
+  renderPickerAvatar("#chart-switcher-avatar");
 }
 
 function wireChartReading() {

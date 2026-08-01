@@ -90,6 +90,9 @@
 
           <div class="axis-chart-picker" id="today-chart-picker" hidden>
             <label for="today-chart-select">Viewing</label>
+            <!-- The active chart's face. aria-hidden: the select already
+                 speaks the chart's name; the picture would repeat it. -->
+            <span class="chart-avatar chart-avatar--sm" id="today-chart-avatar" aria-hidden="true" hidden></span>
             <select id="today-chart-select"></select>
             <button type="button" class="axis-chart-add" id="today-chart-add" aria-label="Add a chart">
               <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -196,6 +199,7 @@
 
           <div class="tr-switcher" id="transits-switcher" hidden>
             <label class="tr-switcher__label" for="transits-chart-select">Viewing chart</label>
+            <span class="chart-avatar chart-avatar--sm" id="transits-chart-avatar" aria-hidden="true" hidden></span>
             <select class="tr-switcher__select" id="transits-chart-select"></select>
           </div>
 
@@ -348,6 +352,7 @@
             <div class="o-section-head__actions me-head-actions">
               <div class="chart-switcher" id="chart-switcher" hidden>
                 <label class="chart-switcher__label" for="chart-switcher-select">Viewing chart</label>
+                <span class="chart-avatar chart-avatar--sm" id="chart-switcher-avatar" aria-hidden="true" hidden></span>
                 <select class="chart-switcher__select" id="chart-switcher-select"></select>
               </div>
               <button type="button" class="o-btn o-btn--secondary" id="me-edit-chart" hidden>Edit Chart</button>
@@ -949,6 +954,23 @@
               <option value="partner">Partner</option>
             </select>
             <p class="chart-field__help" id="cm-relationship-help">How this chart relates to you. Only you can see it. Relationship type helps Orbit tailor compatibility in a future update.</p>
+            <p class="chart-field__error" id="cm-relationship-error" role="alert" hidden></p>
+          </div>
+
+          <!-- Optional picture, create modes only: the chart is saved first,
+               then the picture uploads — a failed upload keeps the valid chart
+               and retries from the identity editor. Editing a picture later
+               is the identity editor's job, not this form's. -->
+          <div class="chart-field" id="cm-avatar-field">
+            <label class="chart-field__label" for="cm-avatar-file">Chart picture (optional)</label>
+            <div class="identity-avatar-row">
+              <span class="chart-avatar chart-avatar--lg" id="cm-avatar" aria-hidden="true"></span>
+              <div class="identity-avatar-actions">
+                <input type="file" id="cm-avatar-file" accept="image/jpeg,image/png,image/webp" aria-describedby="cm-avatar-note" />
+                <p class="chart-field__help" id="cm-avatar-note" role="status" aria-live="polite"></p>
+                <button type="button" class="o-btn o-btn--secondary o-btn--sm" id="cm-avatar-discard" hidden>Discard picture</button>
+              </div>
+            </div>
           </div>
 
           <p class="chart-form__privacy">
