@@ -935,16 +935,20 @@
           </div>
 
           <div class="chart-field" id="cm-relationship-field">
-            <label class="chart-field__label" for="cm-relationship">Relationship <span class="chart-field__optional">optional</span></label>
-            <select id="cm-relationship">
-              <option value="other" selected>Not specified</option>
-              <option value="self">Myself</option>
-              <option value="partner">Partner</option>
-              <option value="friend">Friend</option>
+            <label class="chart-field__label" for="cm-relationship">Relationship</label>
+            <!-- Four values, and no pre-selected default. The empty option is
+                 not a choice: it is the absence of one, so saving without
+                 picking is refused rather than quietly stored as "other" the
+                 way the previous form did. Public figure is gone from the
+                 choices; existing rows that hold it are still shown by name. -->
+            <select id="cm-relationship" required aria-describedby="cm-relationship-help">
+              <option value="" selected disabled>Choose one…</option>
+              <option value="self">Self</option>
               <option value="family">Family</option>
-              <option value="public_figure">Public figure</option>
+              <option value="friend">Friend</option>
+              <option value="partner">Partner</option>
             </select>
-            <p class="chart-field__help">Only you can see this. It is not used for anything yet.</p>
+            <p class="chart-field__help" id="cm-relationship-help">How this chart relates to you. Only you can see it. Relationship type helps Orbit tailor compatibility in a future update.</p>
           </div>
 
           <p class="chart-form__privacy">

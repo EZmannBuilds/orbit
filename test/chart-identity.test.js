@@ -19,7 +19,7 @@ import {
   validateRelationship, validateName, chartInitials, publicIdentity,
   buildIdentityPatch, NAME_MAX, DEFAULT_FIRST_CHART_NAME,
   DEFAULT_FIRST_CHART_RELATIONSHIP, IdentityError,
-} from "../lib/charts/identity.js";
+} from "../public/chart-identity.js";
 
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const MIGRATION = readFileSync(
@@ -126,7 +126,7 @@ test("an avatar-only or name-only save never rewrites a legacy relationship", ()
 });
 
 test("nothing infers a relationship from the chart name", () => {
-  const src = readFileSync(join(ROOT, "lib", "charts", "identity.js"), "utf8");
+  const src = readFileSync(join(ROOT, "public", "chart-identity.js"), "utf8");
   const code = src.split("\n").filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//")).join("\n");
   for (const word of ["mother", "father", "sister", "brother", "wife", "husband", "mum", "dad"]) {
     assert.ok(!code.toLowerCase().includes(word), `${word} suggests name-based inference`);
@@ -179,7 +179,7 @@ test("initials are deterministic and degrade rather than throw", () => {
   assert.equal(chartInitials(""), "?");
   assert.equal(chartInitials(null), "?");
   assert.equal(chartInitials("Ada Lovelace"), chartInitials("Ada Lovelace"));
-  const src = readFileSync(join(ROOT, "lib", "charts", "identity.js"), "utf8");
+  const src = readFileSync(join(ROOT, "public", "chart-identity.js"), "utf8");
   assert.ok(!src.includes("Math.random"), "the fallback is deterministic");
 });
 

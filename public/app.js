@@ -9,6 +9,10 @@
 
 import { renderMoonSVG } from "./moon-phase.js";
 import {
+  RELATIONSHIP_TYPES, RELATIONSHIP_LABELS, DEFAULT_FIRST_CHART_RELATIONSHIP,
+  relationshipDisplay,
+} from "./chart-identity.js";
+import {
   starField, sceneInputs, illuminationLabel, moonPositionLabel,
   SHOOTING_STAR_KEY, ORIENTATION_NOTE,
 } from "./moon-scene.js";
@@ -1916,7 +1920,13 @@ function chartFormPayload() {
     nickname: $("#cm-nickname").value.trim(),
     first_name: $("#cm-first").value.trim() || null,
     last_name: $("#cm-last").value.trim() || null,
-    relationship_type: chartForm.mode === "first" ? "self" : ($("#cm-relationship").value || "other"),
+    // The first chart is the account owner's own by definition. Every other
+    // chart carries whatever was chosen — and "" if nothing was, which the
+    // validator refuses. The old fallback to "other" turned an unanswered
+    // question into a stored answer.
+    relationship_type: chartForm.mode === "first"
+      ? DEFAULT_FIRST_CHART_RELATIONSHIP
+      : ($("#cm-relationship").value || null),
     birth_date: $("#cm-date").value,
     // The server nulls this too when the time is unknown. Doing it here as well
     // means the request body never carries a time the user disclaimed.
@@ -1964,7 +1974,12 @@ function openChartForm(mode, chart = null) {
     $("#cm-nickname").value = chart.nickname || "";
     $("#cm-first").value = chart.first_name || "";
     $("#cm-last").value = chart.last_name || "";
-    $("#cm-relationship").value = chart.relationship_type || "other";
+    // A legacy value has no option to select, so the control falls back to the
+    // empty "Choose one…" state. That is correct: it shows the relationship
+    // needs choosing without pretending the stored value was one of the four,
+    // and saving other fields leaves the stored value untouched.
+    $("#cm-relationship").value =
+      RELATIONSHIP_TYPES.includes(chart.relationship_type) ? chart.relationship_type : "";
     $("#cm-date").value = chart.birth_date || "";
     $("#cm-time").value = chart.birth_time ? String(chart.birth_time).slice(0, 5) : "";
     const accuracy = chart.time_accuracy || "unknown";
