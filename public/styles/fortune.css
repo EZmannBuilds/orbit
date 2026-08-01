@@ -334,6 +334,12 @@
   .moon-scene__shoot { display: none; }
 }
 
+/* Orbit's own Motion setting, which is the one a user actually clicks. The
+   global data-motion rule already collapses every animation duration to
+   effectively zero, so the ambient layers stop — but a zeroed shooting star is
+   still a revealed element, so it is removed here the same way. */
+:root[data-motion="reduced"] .moon-scene__shoot { display: none; }
+
 @media (forced-colors: active) {
   /* Gradients disappear in forced colors, so the disc would lose its edge and
      the phase with it. An explicit boundary keeps lit and unlit readable. */

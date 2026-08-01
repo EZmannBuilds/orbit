@@ -339,3 +339,18 @@ test("a missing phase name does not leave a heading starting mid-sentence", () =
     "the sign alone still reads as a sentence");
   assert.match(render, /The phase name isn’t available right now/);
 });
+
+test("both ways of asking for less motion suppress the shooting star", () => {
+  const fn = block(APP, "function moonMaybeShootingStar", "\n/**");
+  assert.match(fn, /prefers-reduced-motion: reduce/, "the OS preference counts");
+  assert.match(fn, /dataset\.motion === "reduced"/,
+    "and so does Orbit's own Motion setting, which is the one a user clicks");
+  // Both gates return BEFORE the session marker is written, so a reduced-motion
+  // user does not silently spend their one star on an effect they never see.
+  const osAt = fn.indexOf("prefers-reduced-motion");
+  const appAt = fn.indexOf('dataset.motion === "reduced"');
+  const markerAt = fn.indexOf("setItem(SHOOTING_STAR_KEY");
+  assert.ok(osAt < markerAt && appAt < markerAt, "neither gate burns the marker");
+  assert.match(CSS, /:root\[data-motion="reduced"\] \.moon-scene__shoot \{ display: none/,
+    "and the element is removed, not merely frozen");
+});

@@ -3628,7 +3628,13 @@ function moonSceneUnavailableHtml() {
 function moonMaybeShootingStar() {
   const el = $("#moon-shoot");
   if (!el) return;
+  // Two ways to ask for less motion, and both must count. The OS preference is
+  // the obvious one; Orbit's own Motion setting is the one a user actually
+  // clicked. Checking only the media query meant someone who chose "Reduced"
+  // in Settings still had the star revealed — and, worse, silently spent their
+  // one-per-session marker on an effect they had asked not to see.
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  if (document.documentElement.dataset.motion === "reduced") return;
   let seen = true;
   try {
     seen = sessionStorage.getItem(SHOOTING_STAR_KEY) === "1";
