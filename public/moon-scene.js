@@ -88,11 +88,15 @@ export function sceneInputs(moon) {
   if (!moon || !moon.phase) return null;
   const illumination = Number.isFinite(moon.illumination) ? moon.illumination : null;
   if (illumination === null) return null;
+  // The terminator sits on one side or the other; there is no neutral way to
+  // draw it. Without a direction the disc is withheld rather than drawn waning
+  // by default, which is what an absent flag used to produce.
+  if (typeof moon.waxing !== "boolean") return null;
   return Object.freeze({
     phase: moon.phase,
     illumination,
-    waxing: moon.waxing === true,
-    direction: moon.waxing === true ? "waxing" : "waning",
+    waxing: moon.waxing,
+    direction: moon.waxing ? "waxing" : "waning",
     fraction: Math.max(0, Math.min(1, illumination / 100)),
   });
 }

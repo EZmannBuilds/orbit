@@ -2098,6 +2098,14 @@ function wireHomeChartActions() {
   $("#today-chart-manage")?.addEventListener("click", () => navigate("me"));
   $("#today-chart-retry")?.addEventListener("click", () => retryLoadSavedCharts());
   $("#moon-refresh")?.addEventListener("click", () => moonRefreshSky());
+  // One listener, no loop: a hidden tab pauses the ambient scene rather than
+  // compositing a sky nobody is looking at.
+  document.addEventListener("visibilitychange", moonSyncPaused);
+  moonSyncPaused();
+}
+
+function moonSyncPaused() {
+  document.body.classList.toggle("moon-paused", document.hidden === true);
 }
 
 function wireSavedCharts() {
@@ -3550,7 +3558,14 @@ function axisRenderMoon(moon, sky) {
     <div class="moon-state">
       ${visual}
       <div class="moon-state__text">
-        <p class="moon-state__phase">${esc(moon.phase)}${moon.sign ? ` in ${esc(moon.sign)}` : ""}</p>
+        <p class="moon-state__phase">${
+          // Without a phase name the " in Pisces" suffix used to render on its
+          // own, leaving a heading that began mid-sentence.
+          moon.phase
+            ? `${esc(moon.phase)}${moon.sign ? ` in ${esc(moon.sign)}` : ""}`
+            : (moon.sign ? `The Moon in ${esc(moon.sign)}` : "The Moon right now")
+        }</p>
+        ${moon.phase ? "" : `<p class="moon-state__facts">The phase name isn’t available right now.</p>`}
         <p class="moon-state__facts">${
           [illum, moon.direction].filter(Boolean).map(esc).join(" · ")
         }</p>

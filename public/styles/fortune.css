@@ -275,6 +275,16 @@
 .moon-scene__shoot.is-flying { animation: moon-shoot 1400ms ease-in 2600ms 1 both; }
 .moon-scene--empty .moon-scene__sky { opacity: 0.75; }
 
+/* Hidden tabs get no animation at all. Browsers throttle rAF but keep CSS
+   animations ticking, so a backgrounded tab would burn compositor work on a
+   sky nobody is looking at. One class toggled by a visibilitychange listener
+   is the whole mechanism — no loop, no timer. */
+.moon-paused .moon-scene__stars,
+.moon-paused .moon-scene__star,
+.moon-paused .moon-scene__moon,
+.moon-paused .moon-scene__shoot,
+.moon-paused .moon-scene__earth { animation-play-state: paused; }
+
 @keyframes moon-twinkle { 0%, 100% { opacity: inherit } 50% { opacity: 0.25 } }
 @keyframes moon-star-drift { from { transform: translateX(0) } to { transform: translateX(-3%) } }
 @keyframes moon-drift {
