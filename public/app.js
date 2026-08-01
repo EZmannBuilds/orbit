@@ -1343,8 +1343,13 @@ function confirmDialog({ title = "Are you sure?", body = "", confirmLabel = "Del
       cancel.removeEventListener("click", onCancel);
       resolve(value);
     };
-    const onAccept = () => { closeModal(modal); finish(true); };
-    const onCancel = () => { closeModal(modal); finish(false); };
+    // Settle BEFORE closing: closeModal fires this dialog's onClose, whose
+    // job is to catch Escape and the backdrop as "cancelled" — with the old
+    // order it settled the promise false first and the explicit confirm was
+    // a no-op, so no deletion through this dialog ever ran. Found by driving
+    // the real dialog in a real browser, not by reading it.
+    const onAccept = () => { finish(true); closeModal(modal); };
+    const onCancel = () => { finish(false); closeModal(modal); };
     accept.addEventListener("click", onAccept);
     cancel.addEventListener("click", onCancel);
     // Escape / backdrop close resolve as "cancelled".

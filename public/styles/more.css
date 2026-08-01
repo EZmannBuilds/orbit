@@ -361,3 +361,47 @@
 @media (max-width: 640px) {
   .identity-avatar-row { flex-wrap: wrap; }
 }
+
+/* A <select>'s minimum width follows its LONGEST option, and identity gave
+   options real sentences ("Legacy classification: Public figure"). Without
+   min-width: 0 the chart selectors refuse to shrink below that text, and on
+   a phone the LAYOUT VIEWPORT expands to fit them — the whole page renders
+   522px wide inside a 375px screen. Found at genuine 375px, not in a media
+   query review. Constrained selects truncate long options with an ellipsis,
+   which is the compact behaviour the switcher wants anyway. */
+#chart-switcher-select,
+#today-chart-select,
+#transits-chart-select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* The rest of that same chain. The switcher is a one-column GRID whose
+   implicit `auto` track max-content-sizes to the select, and the shell's
+   grid items keep the default `min-width: auto`, so one long option's
+   intrinsic width climbed switcher → section head → workspace panel →
+   workspace track and expanded the layout viewport itself. minmax(0, 1fr)
+   caps the switcher track; min-width: 0 stops the climb at every level the
+   chain passed through. */
+.chart-switcher,
+.tr-switcher {
+  grid-template-columns: minmax(0, 1fr);
+}
+.workspace-panel,
+.o-section-head,
+.o-section-head__actions,
+.me-head-actions {
+  min-width: 0;
+}
+
+/* The last anchor was pre-1.10: the chart-data placements TABLE, whose hard
+   min-content (~490px) expanded the mobile layout viewport long before this
+   update — 1.10's long option labels merely made the same failure obvious.
+   The table now scrolls inside its own wrapper instead of resizing the page,
+   and reading-grid items stop propagating intrinsic widths upward. */
+.me-grid > * { min-width: 0; }
+#chart-placements {
+  overflow-x: auto;
+  min-width: 0;
+  contain: inline-size;
+}
