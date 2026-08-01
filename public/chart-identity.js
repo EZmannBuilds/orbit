@@ -92,7 +92,9 @@ export function relationshipDisplay(value) {
 export function relationshipExportStatus(value) {
   if (value === "other") return "legacy_unclassified";
   if (value === "public_figure") return "legacy_classification";
-  if (value === null || value === undefined) return "unset";
+  // A row that never carried a value: unclassified, as distinct from the
+  // legacy 'other' rows the pre-1.10 application wrote by default.
+  if (value === null || value === undefined) return "unclassified";
   if (RELATIONSHIP_TYPES.includes(value)) return "set";
   return "unknown";
 }

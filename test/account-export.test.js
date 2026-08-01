@@ -330,3 +330,39 @@ test("export never requires a service-role key", async () => {
   assert.ok(!source.includes("SUPABASE_SERVICE_ROLE_KEY"),
     "the export path must work without a service-role key");
 });
+
+// ── Chart identity in the export (Dev Update 1.10) ──────────────────────────
+
+test("each chart exports identity honestly: status named, avatar reported, path withheld", async () => {
+  const { presentExportChart, AVATAR_EXPORT_LIMITATION } = await import("../lib/account/export.js");
+
+  const withAvatar = presentExportChart({
+    id: "c1", nickname: "Mom", relationship_type: "family",
+    avatar_storage_path: "owner-uuid/c1/avatar.webp", avatar_version: 4,
+    avatar_updated_at: "2026-08-01T00:00:00Z",
+  });
+  assert.equal(withAvatar.relationship_type, "family");
+  assert.equal(withAvatar.relationship_type_status, "set");
+  assert.equal(withAvatar.avatar_present, true);
+  assert.equal(withAvatar.avatar_exported, false, "binaries are not in a JSON export");
+  assert.equal(withAvatar.avatar_export_limitation, AVATAR_EXPORT_LIMITATION);
+  assert.ok(!("avatar_storage_path" in withAvatar), "the raw path names the bucket layout");
+  assert.ok(!("avatar_version" in withAvatar), "the cache key is an internal");
+  assert.ok(!JSON.stringify(withAvatar).includes("owner-uuid/"));
+
+  const statuses = [
+    [{ relationship_type: "other" }, "legacy_unclassified"],
+    [{ relationship_type: "public_figure" }, "legacy_classification"],
+    [{ relationship_type: null }, "unclassified"],
+    [{ relationship_type: "self" }, "set"],
+  ];
+  for (const [row, expected] of statuses) {
+    assert.equal(presentExportChart({ id: "x", ...row }).relationship_type_status, expected,
+      `${row.relationship_type} exports as ${expected}`);
+  }
+
+  const noAvatar = presentExportChart({ id: "c2", nickname: "Bo", relationship_type: null });
+  assert.equal(noAvatar.avatar_present, false);
+  assert.equal(noAvatar.avatar_exported, false);
+  assert.equal(noAvatar.avatar_export_limitation, null);
+});

@@ -30,10 +30,13 @@ function fakeFetch(routes) {
           ok: r.status >= 200 && r.status < 300,
           status: r.status,
           headers: { get: (h) => (h.toLowerCase() === "content-range" ? r.contentRange ?? "0-0/0" : null) },
+          // Storage listing (Dev Update 1.10) reads bodies; an undeclared
+          // route answers "empty bucket" so pre-avatar tests stay honest.
+          json: async () => r.json ?? [],
         };
       }
     }
-    return { ok: true, status: 200, headers: { get: () => "0-0/0" } };
+    return { ok: true, status: 200, headers: { get: () => "0-0/0" }, json: async () => [] };
   };
 }
 
@@ -342,4 +345,86 @@ test("the account route is declared authenticated", () => {
   assert.ok(route, "the route must exist");
   assert.equal(route.access, "authenticated");
   assert.equal(route.method, "DELETE");
+});
+
+// ── Avatar cleanup (Dev Update 1.10) ────────────────────────────────────────
+
+test("avatars are swept as the USER before sessions are revoked, and counted", async () => {
+  const calls = [];
+  const result = await withServiceKey(() => deleteAccount({
+    accessToken: "user-token",
+    confirmation: DELETION_CONFIRMATION,
+    verifyUser: okUser,
+    fetchImpl: async (url, init = {}) => {
+      const u = String(url);
+      const auth = String(init.headers?.authorization || init.headers?.Authorization || "");
+      calls.push({ url: u, auth, method: init.method || "GET" });
+      const respond = (status, json = []) => ({
+        ok: status < 300, status, json: async () => json,
+        headers: { get: () => "0-0/0" },
+      });
+      if (u.includes("/storage/v1/object/list/chart-avatars")) {
+        if (auth.includes("test-service-key")) return respond(200, []);   // verification: clean
+        const prefix = JSON.parse(init.body || "{}").prefix || "";
+        return prefix.endsWith(`${USER_ID}/`)
+          ? respond(200, [{ name: "chart-1", id: null }])                 // one chart folder
+          : respond(200, [{ name: "avatar.webp", id: "obj-1" }]);         // holding one object
+      }
+      if (u.includes("/storage/v1/object/chart-avatars/") && init.method === "DELETE") {
+        return respond(200);
+      }
+      if (u.includes("/auth/v1/logout")) return respond(204);
+      if (u.includes("/auth/v1/admin/users/")) return respond(200);
+      return respond(200);
+    },
+  }));
+
+  assert.equal(result.deleted, true);
+  assert.equal(result.avatarsRemoved, 1);
+  assert.equal(result.avatarSweepComplete, true);
+
+  const objectDelete = calls.find((c) => c.url.includes("/storage/v1/object/chart-avatars/") && c.method === "DELETE");
+  assert.ok(objectDelete, "the object was removed");
+  assert.ok(objectDelete.auth.includes("user-token"),
+    "removal runs under the user's own token and policies, never the service role");
+  const firstSweep = calls.findIndex((c) => c.url.includes("/storage/v1/object/list/"));
+  const logoutAt = calls.findIndex((c) => c.url.includes("/auth/v1/logout"));
+  assert.ok(firstSweep > -1 && firstSweep < logoutAt,
+    "the sweep must run while the user's token is still valid");
+});
+
+test("storage leftovers are survivors: verification refuses to call this success", async () => {
+  const error = await caught(() => withServiceKey(() => deleteAccount({
+    accessToken: "user-token",
+    confirmation: DELETION_CONFIRMATION,
+    verifyUser: okUser,
+    fetchImpl: fakeFetch({
+      ...CLEAN,
+      "/storage/v1/object/list/chart-avatars": (url, init) => {
+        const auth = String(init.headers?.authorization || init.headers?.Authorization || "");
+        if (!auth.includes("test-service-key")) return { status: 500 };    // the user sweep failed outright
+        const prefix = JSON.parse(init.body || "{}").prefix || "";
+        return prefix.endsWith(`${USER_ID}/`)
+          ? { status: 200, json: [{ name: "chart-9", id: null }] }
+          : { status: 200, json: [{ name: "avatar.webp", id: "leftover" }] };
+      },
+    }),
+  })));
+  assert.ok(error instanceof AccountDeletionError);
+  assert.equal(error.stage, "verification",
+    "an orphaned object reads as incomplete deletion, never as success");
+});
+
+test("an unverifiable bucket also refuses success — unknown is not clean", async () => {
+  const error = await caught(() => withServiceKey(() => deleteAccount({
+    accessToken: "user-token",
+    confirmation: DELETION_CONFIRMATION,
+    verifyUser: okUser,
+    fetchImpl: fakeFetch({
+      ...CLEAN,
+      "/storage/v1/object/list/chart-avatars": { status: 503 },
+    }),
+  })));
+  assert.ok(error instanceof AccountDeletionError);
+  assert.equal(error.stage, "verification");
 });

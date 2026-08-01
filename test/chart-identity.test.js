@@ -109,7 +109,9 @@ test("`public_figure` is preserved and named, never disguised as something else"
 test("export states the stored value honestly, with its status", () => {
   assert.equal(relationshipExportStatus("other"), "legacy_unclassified");
   assert.equal(relationshipExportStatus("public_figure"), "legacy_classification");
-  assert.equal(relationshipExportStatus(null), "unset");
+  // Distinct from legacy_unclassified: this row NEVER carried a value, while
+  // an 'other' row carries the pre-1.10 default the old application wrote.
+  assert.equal(relationshipExportStatus(null), "unclassified");
   assert.equal(relationshipExportStatus("partner"), "set");
 });
 
