@@ -10,8 +10,9 @@
 import { renderMoonSVG } from "./moon-phase.js";
 import {
   RELATIONSHIP_TYPES, RELATIONSHIP_LABELS, DEFAULT_FIRST_CHART_RELATIONSHIP,
-  relationshipDisplay,
+  relationshipDisplay, chartInitials, validateName,
 } from "./chart-identity.js";
+import { normalizeAvatar, previewFor } from "./avatar-normalize.js";
 import {
   starField, sceneInputs, illuminationLabel, moonPositionLabel,
   SHOOTING_STAR_KEY, ORIENTATION_NOTE,
@@ -1134,14 +1135,34 @@ function setActiveChartName(name) {
   state.activeChartName = name || "My Chart";
 }
 
-const REL_LABELS = {
-  self: "Self",
-  partner: "Partner",
-  friend: "Friend",
-  family: "Family",
-  public_figure: "Public Figure",
-  other: "Other",
-};
+/* ── Chart avatars (Dev Update 1.10) ─────────────────────────────────────
+   One rendering for every surface: the deterministic initials fallback is
+   ALWAYS painted, and the uploaded picture — when one exists — sits over it.
+   A picture that fails to load is simply removed, so the fallback beneath
+   shows with no relayout and no broken-image glyph. The whole component is
+   aria-hidden because the adjacent text always names the chart; announcing
+   the picture would read the name twice. */
+
+function avatarUrl(chart) {
+  // The version in the query string makes a replacement a NEW URL, so no
+  // cached bytes from the previous picture can survive a change. The server
+  // enforces freshness again with a version-keyed ETag.
+  return `/api/charts/${encodeURIComponent(chart.id)}/avatar?v=${Number(chart.avatar_version) || 0}`;
+}
+
+function chartAvatarHtml(chart, { size = "" } = {}) {
+  const cls = `chart-avatar${size ? ` chart-avatar--${size}` : ""}`;
+  const img = chart.has_avatar
+    ? `<img class="chart-avatar__img" src="${esc(avatarUrl(chart))}" alt="" loading="lazy" decoding="async">`
+    : "";
+  return `<span class="${cls}" aria-hidden="true">${esc(chartInitials(chart.nickname))}${img}</span>`;
+}
+
+// 'error' does not bubble, so the fallback swap listens in the capture phase,
+// once, for every avatar the app will ever render.
+document.addEventListener("error", (event) => {
+  if (event.target?.classList?.contains("chart-avatar__img")) event.target.remove();
+}, true);
 
 /* ── Modal utility ─────────────────────────────────────────────────────────
    One shared dialog behavior for the chart form, the delete confirmation, and
@@ -2014,6 +2035,311 @@ function openChartModal(chart = null) {
   return openChartForm(first ? "first" : "add");
 }
 
+/* ── Chart identity editor (Dev Update 1.10) ─────────────────────────────
+   Name, picture, and relationship — never birth data. Saves are minimal by
+   construction: only the fields that actually changed are sent, so a rename
+   cannot rewrite a legacy relationship value and a picture change cannot
+   touch the name. Avatar bytes go through the client normalizer (centre
+   crop, 512×512 WebP, metadata stripped) and are uploaded with the version
+   this editor read, so a concurrent change is a told-about conflict rather
+   than a silent overwrite. */
+
+const identityForm = {
+  chart: null, openedBy: null, submitting: false,
+  pendingBlob: null, preview: null, removeRequested: false,
+  textDone: false,
+};
+
+function identityAvatarNote(text) {
+  const el = $("#identity-avatar-note");
+  if (el) el.textContent = text || "";
+}
+
+function identityHint(text) {
+  const el = $("#identity-hint");
+  if (el) el.textContent = text || "";
+}
+
+function showIdentityError(message, { retry = true } = {}) {
+  const box = $("#identity-error");
+  const text = $("#identity-error-text");
+  const retryBtn = $("#identity-retry");
+  if (!box) return;
+  if (text) text.textContent = message;
+  if (retryBtn) retryBtn.hidden = !retry;
+  box.hidden = false;
+  box.focus({ preventScroll: false });
+}
+
+function hideIdentityError() {
+  const box = $("#identity-error");
+  if (box) box.hidden = true;
+}
+
+function identityFieldError(message) {
+  const el = $("#identity-nickname-error");
+  const input = $("#identity-nickname");
+  if (el) { el.textContent = message || ""; el.hidden = !message; }
+  if (input) {
+    if (message) input.setAttribute("aria-invalid", "true");
+    else input.removeAttribute("aria-invalid");
+  }
+}
+
+/** The editor's avatar: pending preview > stored picture > initials. */
+function renderIdentityAvatar() {
+  const holder = $("#identity-avatar");
+  const chart = identityForm.chart;
+  if (!holder || !chart) return;
+  const initials = chartInitials($("#identity-nickname")?.value?.trim() || chart.nickname);
+  let img = "";
+  if (identityForm.preview) {
+    img = `<img class="chart-avatar__img" src="${esc(identityForm.preview.url)}" alt="">`;
+  } else if (chart.has_avatar && !identityForm.removeRequested) {
+    img = `<img class="chart-avatar__img" src="${esc(avatarUrl(chart))}" alt="">`;
+  }
+  holder.innerHTML = `${esc(initials)}${img}`;
+  const remove = $("#identity-avatar-remove");
+  if (remove) {
+    remove.hidden = !(identityForm.preview || (chart.has_avatar && !identityForm.removeRequested));
+    remove.textContent = identityForm.preview ? "Discard new picture" : "Remove picture";
+  }
+}
+
+/** The legacy relationship state, named honestly and never remapped. */
+function renderIdentityLegacy(value) {
+  const note = $("#identity-legacy");
+  if (!note) return;
+  const display = relationshipDisplay(value ?? null);
+  if (value === "public_figure") {
+    note.textContent = `${display.label}. ${display.help}`;
+    note.hidden = false;
+  } else if (display.status === "unset") {
+    note.textContent = `${display.label}. Choose relationship when you're ready — saving other changes leaves it as it is.`;
+    note.hidden = false;
+  } else {
+    note.textContent = "";
+    note.hidden = true;
+  }
+}
+
+function resetIdentityWorkingState() {
+  identityForm.preview?.release();
+  identityForm.preview = null;
+  identityForm.pendingBlob = null;
+  identityForm.removeRequested = false;
+  identityForm.textDone = false;
+  identityForm.submitting = false;
+}
+
+function openIdentityEditor(chart) {
+  const modal = $("#identity-modal");
+  if (!modal || !chart) return;
+  resetIdentityWorkingState();
+  identityForm.chart = { ...chart };
+  identityForm.openedBy = document.activeElement;
+  $("#identity-form")?.reset();
+  identityFieldError("");
+  hideIdentityError();
+  identityHint("");
+  $("#identity-nickname").value = chart.nickname || "";
+  // A legacy value has no option to select; the control shows "Choose one…"
+  // while the note below names what is actually stored.
+  $("#identity-relationship").value =
+    RELATIONSHIP_TYPES.includes(chart.relationship_type) ? chart.relationship_type : "";
+  renderIdentityLegacy(chart.relationship_type ?? null);
+  renderIdentityAvatar();
+  identityAvatarNote(chart.has_avatar
+    ? "This chart has a picture."
+    : "No picture yet — Orbit shows the chart's initials.");
+  openModal(modal, {
+    initialFocus: $("#identity-nickname"),
+    // Cancelling restores the persisted state by discarding everything the
+    // editor was holding: the pending blob, its preview URL, the removal
+    // intent. Nothing was sent, so nothing needs undoing.
+    onClose: resetIdentityWorkingState,
+  });
+}
+
+async function onIdentityFileChosen(event) {
+  const file = event.target.files?.[0];
+  // Clearing the input means choosing the same file again still fires change,
+  // and the original File object is not retained anywhere.
+  event.target.value = "";
+  if (!file) return;
+  hideIdentityError();
+  identityAvatarNote("Preparing image…");
+  try {
+    const blob = await normalizeAvatar(file);
+    identityForm.preview?.release();
+    identityForm.pendingBlob = blob;
+    identityForm.preview = previewFor(blob);
+    identityForm.removeRequested = false;
+    renderIdentityAvatar();
+    identityAvatarNote(`Preview, ${Math.max(1, Math.round(blob.size / 1024))} KB — saved when you press Save.`);
+  } catch (error) {
+    identityAvatarNote("");
+    renderIdentityAvatar();
+    showIdentityError(error?.message || "Orbit couldn't prepare that image.", { retry: false });
+  }
+}
+
+function onIdentityRemoveClicked() {
+  hideIdentityError();
+  if (identityForm.preview) {
+    // Discarding a not-yet-saved selection just returns to the stored state.
+    identityForm.preview.release();
+    identityForm.preview = null;
+    identityForm.pendingBlob = null;
+    identityAvatarNote(identityForm.chart?.has_avatar
+      ? "This chart has a picture." : "No picture yet — Orbit shows the chart's initials.");
+  } else {
+    identityForm.removeRequested = true;
+    identityAvatarNote("Picture will be removed when you press Save.");
+  }
+  renderIdentityAvatar();
+}
+
+async function uploadChartAvatar(chart, blob) {
+  let response;
+  try {
+    response = await fetch(`/api/charts/${encodeURIComponent(chart.id)}/avatar?expectedVersion=${Number(chart.avatar_version) || 0}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "image/webp" },
+      body: blob,
+    });
+  } catch {
+    const error = new Error("Orbit could not be reached. Check your connection and try again.");
+    error.kind = "network";
+    throw error;
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    const error = new Error(data.error || "We couldn't save that picture just now.");
+    error.code = data.code;
+    error.status = response.status;
+    throw error;
+  }
+  return data.identity;
+}
+
+/**
+ * The save, resumable on retry.
+ *
+ * Text and picture are two requests. `textDone` records that the PATCH
+ * landed, so a Retry after a failed upload re-runs ONLY the upload — the
+ * rename is not sent twice. A version conflict refreshes the chart row first,
+ * so the retry carries the current version instead of repeating the stale one.
+ */
+async function saveIdentity() {
+  if (identityForm.submitting || !identityForm.chart) return;
+  const chart = identityForm.chart;
+  hideIdentityError();
+  identityFieldError("");
+
+  const typed = $("#identity-nickname").value.trim();
+  const nameChanged = typed !== (chart.nickname || "");
+  if (nameChanged) {
+    try { validateName(typed); }
+    catch (error) {
+      identityFieldError(error.message);
+      $("#identity-nickname")?.focus();
+      return;
+    }
+  }
+  const chosen = $("#identity-relationship").value;
+  const relationshipChanged = Boolean(chosen) && chosen !== chart.relationship_type;
+
+  const textPatch = {};
+  if (nameChanged) textPatch.nickname = typed;
+  if (relationshipChanged) textPatch.relationship_type = chosen;
+
+  const save = $("#identity-save");
+  identityForm.submitting = true;
+  if (save) { save.disabled = true; save.setAttribute("aria-busy", "true"); }
+
+  try {
+    if (!identityForm.textDone && Object.keys(textPatch).length) {
+      identityHint("Saving…");
+      const saved = await patch(`/api/charts/${chart.id}`, textPatch);
+      if (saved?.profile) identityForm.chart = { ...identityForm.chart, ...saved.profile };
+    }
+    identityForm.textDone = true;
+
+    if (identityForm.pendingBlob) {
+      identityHint("Uploading picture…");
+      const identity = await uploadChartAvatar(identityForm.chart, identityForm.pendingBlob);
+      identityForm.chart = {
+        ...identityForm.chart,
+        has_avatar: Boolean(identity?.hasAvatar),
+        avatar_version: Number(identity?.avatarVersion) || 0,
+      };
+      identityForm.preview?.release();
+      identityForm.preview = null;
+      identityForm.pendingBlob = null;
+    } else if (identityForm.removeRequested && identityForm.chart.has_avatar) {
+      identityHint("Removing picture…");
+      const result = await del(`/api/charts/${chart.id}/avatar`, {
+        expected_version: Number(identityForm.chart.avatar_version) || 0,
+      });
+      identityForm.chart = {
+        ...identityForm.chart,
+        has_avatar: Boolean(result?.identity?.hasAvatar),
+        avatar_version: Number(result?.identity?.avatarVersion) || 0,
+      };
+      identityForm.removeRequested = false;
+    }
+
+    identityHint("Saved.");
+    const editedId = identityForm.chart.id;
+    closeModal($("#identity-modal"));
+    toast("Chart identity saved.");
+    await loadSavedCharts();
+    // Renaming or re-picturing the ACTIVE chart updates the headline
+    // experience; editing any other chart must not activate it.
+    if (editedId === state.activeChartId) await refreshActiveExperience();
+  } catch (error) {
+    identityHint("");
+    if (error?.code === "avatar_stale_write" || error?.status === 409) {
+      // Someone (or another tab) changed this picture since the editor read
+      // it. Refresh to the current version so Retry is a fresh attempt.
+      try {
+        await loadSavedCharts();
+        const fresh = state.charts.find((c) => c.id === chart.id);
+        if (fresh) {
+          identityForm.chart = { ...identityForm.chart, has_avatar: fresh.has_avatar, avatar_version: fresh.avatar_version };
+        }
+      } catch { /* the retry will surface any load failure */ }
+      renderIdentityAvatar();
+      showIdentityError("This chart's picture changed somewhere else. Orbit refreshed it — Retry to apply your change to the current version.");
+    } else {
+      showIdentityError(error?.message || "We couldn't save those changes just now.");
+    }
+  } finally {
+    identityForm.submitting = false;
+    if (save) { save.disabled = false; save.removeAttribute("aria-busy"); }
+  }
+}
+
+function wireIdentityEditor() {
+  const modal = $("#identity-modal");
+  if (!modal) return;
+  $("#identity-modal-close")?.addEventListener("click", () => closeModal(modal));
+  $("#identity-cancel")?.addEventListener("click", () => closeModal(modal));
+  $("#identity-file")?.addEventListener("change", onIdentityFileChosen);
+  $("#identity-avatar-remove")?.addEventListener("click", onIdentityRemoveClicked);
+  $("#identity-retry")?.addEventListener("click", () => saveIdentity());
+  $("#identity-nickname")?.addEventListener("input", () => {
+    identityFieldError("");
+    renderIdentityAvatar();          // initials preview follows the typing
+  });
+  $("#identity-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    saveIdentity();
+  });
+}
+
 function wireChartModal() {
   const modal = $("#chart-modal");
   if (!modal) return;
@@ -2181,9 +2507,16 @@ async function handleSavedChartAction(button, chart) {
     return;
   }
 
-  // Edit/rename opens the shared chart modal.
+  // Edit birth data opens the shared chart modal.
   if (button.dataset.action === "edit") {
     openChartModal(chart);
+    return;
+  }
+
+  // Identity — name, picture, relationship — is its own editor, so an
+  // identity change can never touch a birth field even by accident.
+  if (button.dataset.action === "identity") {
+    openIdentityEditor(chart);
     return;
   }
 
@@ -2335,8 +2668,11 @@ function savedChartCardHtml(chart) {
   const summary = chart.summary || {};
   const rising = summary.time_known === false || !summary.rising ? "Rising needs birth time" : `Rising ${esc(summary.rising)}`;
   const legalName = [chart.first_name, chart.last_name].filter(Boolean).join(" ");
+  // relationshipDisplay is the one honest namer of stored values: the four
+  // current ones by label, 'other'/NULL as "Relationship not set", and
+  // 'public_figure' as its legacy classification — never silently remapped.
   const meta = [
-    REL_LABELS[chart.relationship_type] || chart.relationship_type || "Other",
+    relationshipDisplay(chart.relationship_type ?? null).label,
     legalName,
     chart.birth_date ? formatBirthDate(chart.birth_date) : "",
     chart.birthplace_name,
@@ -2344,7 +2680,10 @@ function savedChartCardHtml(chart) {
   const timeInfo = timeAccuracyInfo(chart.time_accuracy || (summary.time_known === false ? "unknown" : "exact"));
   return `<article class="saved-chart-card" data-active="${chart.is_active}">
     <div class="saved-chart-card__top">
-      <div class="saved-chart-card__name">${esc(chart.nickname || "Untitled Chart")}</div>
+      <div class="saved-chart-card__lead">
+        ${chartAvatarHtml(chart)}
+        <div class="saved-chart-card__name">${esc(chart.nickname || "Untitled Chart")}</div>
+      </div>
       <div class="saved-chart-card__badges">
         ${chart.is_active ? '<span class="o-pill o-pill--success">Active</span>' : ""}
         ${chart.is_primary ? '<span class="o-badge">Primary</span>' : ""}
@@ -2355,7 +2694,8 @@ function savedChartCardHtml(chart) {
     <div class="saved-chart-card__summary">Sun ${esc(summary.sun || "—")} · Moon ${esc(summary.moon || "—")} · ${rising}</div>
     <div class="saved-chart-card__actions">
       <button type="button" data-action="activate" data-id="${esc(chart.id)}" ${chart.is_active ? "disabled" : ""}>${chart.is_active ? "Active" : "Set active"}</button>
-      <button type="button" data-action="edit" data-id="${esc(chart.id)}">Edit</button>
+      <button type="button" data-action="identity" data-id="${esc(chart.id)}">Identity</button>
+      <button type="button" data-action="edit" data-id="${esc(chart.id)}">Edit birth data</button>
       <button type="button" data-action="delete" data-id="${esc(chart.id)}">Delete</button>
     </div>
   </article>`;
@@ -2540,6 +2880,7 @@ async function boot() {
   setupPlaceSearch("cm");
   wireSavedCharts();
   wireChartModal();
+  wireIdentityEditor();
   wireChartReading();
   wirePositions();
   wireHomeChartActions();
@@ -3119,7 +3460,12 @@ function wireChartReading() {
     const retry = event.target.closest('[data-action="retry-reading"]');
     if (retry) { loadChartReading(activeChart()); return; }
     const edit = event.target.closest("#me-edit-chart");
-    if (edit?.dataset.id) openChartForm("edit", edit.dataset.id);
+    if (edit?.dataset.id) {
+      // The form needs the chart RECORD; handing it the bare id string left
+      // every field blank and, worse, saved as a brand-new chart.
+      const chart = state.charts.find((c) => c.id === edit.dataset.id);
+      if (chart) openChartForm("edit", chart);
+    }
   });
 }
 

@@ -262,3 +262,102 @@
     forced-color-adjust: none;
   }
 }
+
+/* ══ Chart identity (Dev Update 1.10) ════════════════════════════════════════
+   The avatar component and the identity editor.
+
+   The fallback face is DETERMINISTIC BY OMISSION: one accent treatment for
+   every chart, initials from chart-identity.js, nothing random and nothing
+   hashed. The design system keeps one calm blue on purpose, and identity is
+   carried by the initials plus the adjacent name and relationship text —
+   never by a colour assignment. Identical input renders identically forever. */
+
+.chart-avatar {
+  --avatar-size: 40px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  flex: 0 0 auto;
+  border-radius: var(--radius-full);
+  border: var(--border-width) solid var(--color-accent-border);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+  font-size: calc(var(--avatar-size) * 0.34);
+  letter-spacing: var(--tracking-wide);
+  overflow: hidden;
+  user-select: none;
+}
+.chart-avatar--sm { --avatar-size: 26px; }
+.chart-avatar--lg { --avatar-size: 72px; }
+
+/* The uploaded picture sits over the initials; if it fails to load it is
+   removed and the fallback beneath is already painted — no layout shift. */
+.chart-avatar__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (forced-colors: active) {
+  .chart-avatar {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    forced-color-adjust: none;
+  }
+}
+
+/* Card layout: avatar leads the row, text keeps its own block. */
+.saved-chart-card__lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-right: auto;
+}
+.saved-chart-card__lead .saved-chart-card__name { margin-right: 0; }
+
+/* ── Identity editor ── */
+.identity-avatar-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin: var(--space-3) 0 var(--space-4);
+}
+.identity-avatar-actions {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+/* A native file input stays keyboard-reachable and announces itself; it is
+   styled, not replaced. */
+#identity-file {
+  max-width: 100%;
+  color: var(--color-secondary);
+  font-size: var(--text-caption);
+}
+#identity-file::file-selector-button {
+  min-height: 44px;
+  margin-right: var(--space-2);
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+#identity-avatar-remove { justify-self: start; }
+.identity-legacy { color: var(--color-muted); }
+
+.chart-form-error { display: grid; gap: var(--space-2); justify-items: start; }
+
+@media (max-width: 640px) {
+  .identity-avatar-row { flex-wrap: wrap; }
+}

@@ -183,6 +183,28 @@ test("initials are deterministic and degrade rather than throw", () => {
   assert.ok(!src.includes("Math.random"), "the fallback is deterministic");
 });
 
+test("initials keep whole graphemes: emoji, ZWJ sequences, combining marks", () => {
+  // An emoji name yields the emoji, not half a surrogate pair.
+  assert.equal(chartInitials("🌙 Chart"), "🌙C");
+  // A ZWJ family stays one visible symbol instead of decomposing.
+  assert.equal(chartInitials("👨‍👩‍👧‍👦 Fam"), "👨‍👩‍👧‍👦F");
+  // A combining accent travels with its base letter.
+  assert.equal(chartInitials("éva"), "é".toUpperCase());
+  // Unicode words work like any others.
+  assert.equal(chartInitials("Ólafur Grímsson"), "ÓG");
+});
+
+test("initials are safe for punctuation-leading and hostile-ish names", () => {
+  for (const name of ["'Round Midnight", "…ellipsis", "-dash", "«quoted»", "。start"]) {
+    const initials = chartInitials(name);
+    assert.ok(initials.length > 0, `${name} yields something visible`);
+    assert.equal(initials, chartInitials(name), `${name} is deterministic`);
+  }
+  // Whitespace-only legacy nicknames degrade to the placeholder, not a crash.
+  assert.equal(chartInitials("   "), "?");
+  assert.equal(chartInitials(undefined), "?");
+});
+
 // ── What leaves the server ──────────────────────────────────────────────────
 
 test("the storage path never reaches a chart API response", () => {

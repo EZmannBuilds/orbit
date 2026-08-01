@@ -159,19 +159,37 @@ export function validateName(raw) {
 }
 
 /**
+ * The first visible grapheme of a word.
+ *
+ * Grapheme, not code point: a combining-mark name ("é" spelled e + U+0301)
+ * keeps its accent, and a ZWJ emoji sequence stays one visible symbol instead
+ * of decomposing into its first component. The code-point path is the fallback
+ * for engines without Intl.Segmenter, where losing a combining mark is the
+ * graceful degradation rather than the design.
+ */
+function firstGrapheme(word) {
+  if (typeof Intl !== "undefined" && typeof Intl.Segmenter === "function") {
+    for (const part of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(word)) {
+      return part.segment;
+    }
+    return "";
+  }
+  return [...word][0] ?? "";
+}
+
+/**
  * Deterministic initials for the fallback avatar.
  *
  * Two charts sharing a name share initials — that is correct, and it is why
  * the fallback is never the only thing distinguishing them: the relationship
- * label sits beside it. Uses code points so an emoji name yields the emoji
- * rather than half a surrogate pair.
+ * label sits beside it.
  */
 export function chartInitials(name) {
   const words = String(name ?? "").trim().split(/\s+/).filter(Boolean);
   if (!words.length) return "?";
-  const first = [...words[0]][0] ?? "?";
+  const first = firstGrapheme(words[0]) || "?";
   if (words.length === 1) return first.toUpperCase();
-  const second = [...words[words.length - 1]][0] ?? "";
+  const second = firstGrapheme(words[words.length - 1]);
   return (first + second).toUpperCase();
 }
 

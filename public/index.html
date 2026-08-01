@@ -969,6 +969,73 @@
     </div>
   </div>
 
+  <!-- ── Chart identity editor ─────────────────────────────────────────
+       Name, picture, and relationship only. Birth data is deliberately not
+       editable here — that is the other form's job, and keeping them apart is
+       what guarantees an identity edit can never move a planet. -->
+  <div class="o-modal" id="identity-modal" hidden role="dialog" aria-modal="true" aria-labelledby="identity-modal-title">
+    <div class="o-modal__backdrop" data-modal-close></div>
+    <div class="o-modal__panel o-modal__panel--form">
+      <header class="o-modal__head">
+        <h2 id="identity-modal-title">Chart identity</h2>
+        <button type="button" class="o-modal__close" id="identity-modal-close" aria-label="Close">&times;</button>
+      </header>
+      <form id="identity-form" novalidate>
+        <p class="chart-form__intro" id="identity-modal-intro">
+          The name, picture, and relationship for this saved chart.
+          Birth details aren't changed here.
+        </p>
+
+        <div class="identity-avatar-row">
+          <!-- aria-hidden: the picture never carries information the adjacent
+               text doesn't; announcing it would read the name twice. -->
+          <span class="chart-avatar chart-avatar--lg" id="identity-avatar" aria-hidden="true"></span>
+          <div class="identity-avatar-actions">
+            <label class="chart-field__label" for="identity-file" id="identity-file-label">Chart picture (optional)</label>
+            <input type="file" id="identity-file" accept="image/jpeg,image/png,image/webp"
+              aria-describedby="identity-avatar-note" />
+            <p class="chart-field__help" id="identity-avatar-note" role="status" aria-live="polite"></p>
+            <button type="button" class="o-btn o-btn--secondary o-btn--sm" id="identity-avatar-remove" hidden>Remove picture</button>
+          </div>
+        </div>
+
+        <div class="chart-field">
+          <label class="chart-field__label" for="identity-nickname">Chart name</label>
+          <input id="identity-nickname" type="text" autocomplete="off" maxlength="120" />
+          <p class="chart-field__error" id="identity-nickname-error" role="alert" hidden></p>
+        </div>
+
+        <div class="chart-field">
+          <label class="chart-field__label" for="identity-relationship">Relationship</label>
+          <select id="identity-relationship" aria-describedby="identity-relationship-help identity-legacy">
+            <option value="" selected disabled>Choose one…</option>
+            <option value="self">Self</option>
+            <option value="family">Family</option>
+            <option value="friend">Friend</option>
+            <option value="partner">Partner</option>
+          </select>
+          <p class="chart-field__help" id="identity-relationship-help">
+            How this chart relates to you. Only you can see it.
+            Relationship type helps Orbit tailor compatibility in a future update.
+          </p>
+          <!-- Legacy stored values ('other', 'public_figure', or nothing) are
+               named here honestly rather than mapped onto a current choice. -->
+          <p class="chart-field__help identity-legacy" id="identity-legacy" hidden></p>
+        </div>
+
+        <div class="o-modal__actions">
+          <button type="button" class="o-btn o-btn--secondary" id="identity-cancel">Cancel</button>
+          <button type="submit" class="o-btn o-btn--primary" id="identity-save">Save</button>
+        </div>
+        <p class="chart-form-hint" id="identity-hint" role="status" aria-live="polite"></p>
+        <div class="chart-form-error" id="identity-error" role="alert" tabindex="-1" hidden>
+          <span id="identity-error-text"></span>
+          <button type="button" class="o-btn o-btn--secondary o-btn--sm" id="identity-retry" hidden>Retry</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ── Confirm dialog (delete) ──────────────────────────────────────── -->
   <div class="o-modal" id="confirm-modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-body">
     <div class="o-modal__backdrop" data-modal-close></div>
