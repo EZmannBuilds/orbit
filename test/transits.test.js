@@ -184,14 +184,33 @@ test("the summary is reproducible from the ranked set, not invented beside it", 
   const g = groupTransits(findTransits(SKY, CHART));
   const s = summarise(g);
   assert.ok(s.text.length > 20);
-  assert.equal(s.immediateCount, g.immediate.length);
-  assert.equal(s.backgroundCount, g.background.length);
+  assert.equal(s.immediateCount, g.immediateTotal);
+  assert.equal(s.backgroundCount, g.backgroundTotal);
   if (g.immediate.length) {
     assert.ok(s.text.includes(g.immediate[0].transiting), "it names the closest contact it counted");
   }
   // No forecast, no grading, no promise.
   assert.doesNotMatch(s.text, /\b(will|guarantee|destined|lucky|unlucky|dangerous|avoid)\b/i);
   assert.equal(summarise({ immediate: [], background: [] }), null);
+});
+
+test("the summary counts what is in orb, not what fits on the page", () => {
+  // More immediate contacts than IMMEDIATE_LIMIT. Reporting the sliced length
+  // would contradict the technical table rendered on the same screen.
+  const many = Array.from({ length: IMMEDIATE_LIMIT + 3 }, (_, i) => ({
+    id: `im${i}`, transiting: "Mercury", natal: NATAL_BODIES[i % 10],
+    aspect: "Trine", orb: 0.4 + i * 0.1, aspectWeight: 2, background: false,
+    orbLabel: "0°24′",
+  }));
+  const g = groupTransits(many);
+  const s = summarise(g);
+  assert.equal(g.immediate.length, IMMEDIATE_LIMIT, "the page is still capped");
+  assert.equal(g.immediateTotal, IMMEDIATE_LIMIT + 3, "the count is not capped");
+  assert.equal(s.immediateCount, IMMEDIATE_LIMIT + 3);
+  assert.ok(s.text.includes(`${IMMEDIATE_LIMIT + 3} active contacts`),
+    "the summary states the real total");
+  assert.ok(s.text.includes(`The ${IMMEDIATE_LIMIT} closest are shown below`),
+    "and says plainly that the list below is a subset");
 });
 
 // ── What is deliberately absent ─────────────────────────────────────────────
@@ -395,6 +414,23 @@ test("rapid chart switching cannot let a slow response paint over a newer one", 
   const clearAt = fn.indexOf("transitsClear()");
   const fetchAt = fn.indexOf("/transits?tz=");
   assert.ok(clearAt > -1 && clearAt < fetchAt, "the old reading clears before the new request");
+  // The subtitle names the incoming chart while loading. Left alone it keeps
+  // the previous chart's name above an empty body and a status line naming a
+  // different chart.
+  const nameAt = fn.indexOf("transitsChartName(chart.nickname)");
+  assert.ok(nameAt > -1 && nameAt < fetchAt, "the subtitle renames before the request resolves");
+});
+
+test("the explore links are the last thing on the page", () => {
+  const explore = HTML.indexOf('id="transits-explore"');
+  const panelEnd = HTML.indexOf('id="panel-positions"');
+  assert.ok(explore > -1 && explore < panelEnd);
+  // Upcoming Sky Events is shared-sky content, so it belongs above the exits
+  // rather than trailing after them.
+  const events = HTML.indexOf('id="events-timeline"');
+  assert.ok(events > -1 && events < explore,
+    "Upcoming Sky Events precedes Continue exploring");
+  assert.ok(events < panelEnd, "and still lives inside the transits panel");
 });
 
 test("signed out and chartless states render nothing personal", () => {

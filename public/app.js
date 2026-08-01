@@ -497,6 +497,11 @@ function transitsStatus(text) {
   if (el) el.textContent = text || "";
 }
 
+function transitsChartName(nickname) {
+  const el = $("#transits-chart-name");
+  if (el) el.textContent = nickname || "your chart";
+}
+
 async function loadTransits() {
   // Same three-state session model as Positions: unresolved is not signed out,
   // and neither renders anything.
@@ -510,6 +515,10 @@ async function loadTransits() {
   TRANSITS.chartId = chart.id;
   TRANSITS.loading = true;
   transitsClear();
+  // Name the INCOMING chart immediately. Leaving the previous name in the
+  // subtitle while the status line announces a different one is the same
+  // stale-attribution problem as showing its cards, in one line of text.
+  transitsChartName(chart.nickname);
   transitsRenderLoading(chart.nickname);
   transitsStatus(`Loading transits for ${chart.nickname || "your chart"}…`);
 
@@ -614,8 +623,7 @@ function renderTransitsWorkspace(data, chart) {
   if (!body) throw new Error("renderTransitsWorkspace called without a mount point");
   if (!data) throw new Error("renderTransitsWorkspace called without transit data");
 
-  const nameEl = $("#transits-chart-name");
-  if (nameEl) nameEl.textContent = chart?.nickname || "your chart";
+  transitsChartName(chart?.nickname);
   const ctx = $("#transits-context");
   if (ctx && data.localDate) {
     const day = formatLocalDateKey(data.localDate);
@@ -663,7 +671,10 @@ function renderTransitsWorkspace(data, chart) {
 
     ${background.length ? `<section class="o-card" aria-labelledby="tr-background-title">
       <h2 class="axis-section-title" id="tr-background-title">Background influences</h2>
-      <p class="axis-section-help">Slower contacts. These move gradually and stay relevant far longer — quieter day to day, not less significant.</p>
+      <p class="axis-section-help">Slower contacts. These move gradually and stay relevant far longer — quieter day to day, not less significant.${
+        data.summary && data.summary.backgroundCount > background.length
+          ? ` Showing the ${background.length} closest of ${data.summary.backgroundCount}.`
+          : ""}</p>
       <div class="tr-list tr-list--background">${background.map((t) => transitCardHtml(t, { background: true })).join("")}</div>
     </section>` : ""}
 
