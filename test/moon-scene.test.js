@@ -15,7 +15,7 @@ import {
   starField, STAR_COUNT, STAR_SEED, SHOOTING_STAR, SHOOTING_STAR_KEY,
   sceneInputs, illuminationLabel, moonPositionLabel, MOTION,
   OBSERVER_ORIENTATION_SUPPORTED, SCALE_ACCURATE, ORIENTATION_NOTE,
-} from "../lib/home/moon-scene.js";
+} from "../public/moon-scene.js";
 import { moonState } from "../lib/home/highlights.js";
 import { moonPhasePathD, moonAccessibleLabel } from "../public/moon-phase.js";
 
@@ -47,7 +47,7 @@ test("stars stay out of the band where the Earth arc and text live", () => {
 });
 
 test("nothing in the scene layer is random or clock-dependent", () => {
-  const src = readFileSync(join(ROOT, "lib", "home", "moon-scene.js"), "utf8");
+  const src = readFileSync(join(ROOT, "public", "moon-scene.js"), "utf8");
   const code = src.split("\n").filter((l) => !l.trim().startsWith("*") && !l.trim().startsWith("//") && !l.trim().startsWith("/*")).join("\n");
   assert.ok(!code.includes("Math.random"), "no Math.random in the scene layer");
   assert.ok(!code.includes("Date.now"), "no clock-dependent geometry");

@@ -8,6 +8,10 @@
    ========================================================================== */
 
 import { renderMoonSVG } from "./moon-phase.js";
+import {
+  starField, sceneInputs, illuminationLabel, moonPositionLabel,
+  SHOOTING_STAR_KEY, ORIENTATION_NOTE,
+} from "./moon-scene.js";
 import { decideStartupView, STARTUP_VIEW } from "./startup-state.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -2093,6 +2097,7 @@ function wireHomeChartActions() {
   $("#today-chart-add")?.addEventListener("click", () => openChartModal(null));
   $("#today-chart-manage")?.addEventListener("click", () => navigate("me"));
   $("#today-chart-retry")?.addEventListener("click", () => retryLoadSavedCharts());
+  $("#moon-refresh")?.addEventListener("click", () => moonRefreshSky());
 }
 
 function wireSavedCharts() {
@@ -3530,25 +3535,141 @@ function axisRenderMoon(moon, sky) {
   if (!moon) { section.hidden = true; body.innerHTML = ""; return; }
   section.hidden = false;
 
-  const svg = renderMoonSVG({
-    illumination: moon.illumination, waxing: moon.waxing, phaseName: moon.phase,
-  });
-  const alt = `${moon.phase}, ${moon.illumination}% lit, ${moon.direction}`;
+  const scene = sceneInputs(moon);
+  // No canonical phase means no Moon drawn. Rendering a default disc here
+  // would look identical to a working scene while being wrong.
+  const visual = scene ? moonSceneHtml(scene) : moonSceneUnavailableHtml();
+
+  const illum = illuminationLabel(moon.illumination);
+  const position = moonPositionLabel(moon);
   const next = moon.nextEvent
     ? `<p class="moon-state__next">Next ${esc(moon.nextEvent.kind)} ${esc(moon.nextEvent.when)}.</p>`
     : `<p class="moon-state__next">The next lunar event isn’t available right now.</p>`;
+
   body.innerHTML = `
     <div class="moon-state">
-      <div class="moon-state__visual" role="img" aria-label="${esc(alt)}">${svg}</div>
+      ${visual}
       <div class="moon-state__text">
         <p class="moon-state__phase">${esc(moon.phase)}${moon.sign ? ` in ${esc(moon.sign)}` : ""}</p>
-        <p class="moon-state__facts">${esc(String(moon.illumination))}% lit · ${esc(moon.direction)}</p>
+        <p class="moon-state__facts">${
+          [illum, moon.direction].filter(Boolean).map(esc).join(" · ")
+        }</p>
+        ${position ? `<p class="moon-state__position">${esc(position)}</p>` : ""}
         <p class="moon-state__meaning">${esc(moon.meaning)}</p>
         ${next}
         <p class="moon-state__note">This is the Moon in the sky right now — not the Moon in your birth chart.</p>
-        <a class="o-btn o-btn--secondary o-btn--sm" href="#transits">See the transit details</a>
+        <p class="moon-state__orientation">${esc(ORIENTATION_NOTE)}</p>
+        <div class="moon-state__actions">
+          <a class="o-btn o-btn--secondary o-btn--sm" href="#positions">View Current Positions</a>
+          <a class="o-btn o-btn--secondary o-btn--sm" href="#transits">See the transit details</a>
+        </div>
       </div>
     </div>`;
+  moonMaybeShootingStar();
+}
+
+/**
+ * The scene. Every layer inside is decorative and hidden from assistive
+ * technology: the phase, illumination and direction are all stated as text in
+ * the panel beside it, so exposing forty-six stars and a clipped disc to a
+ * screen reader would add noise and no information.
+ */
+function moonSceneHtml(scene) {
+  const stars = starField().map((s) => `<span class="moon-scene__star" style="left:${s.x}%;top:${s.y}%;width:${s.r * 2}px;height:${s.r * 2}px;opacity:${s.o};animation-delay:${s.delay}ms"></span>`).join("");
+  const svg = renderMoonSVG({
+    illumination: scene.illumination, waxing: scene.waxing, phaseName: scene.phase,
+  });
+  return `
+    <div class="moon-scene" aria-hidden="true">
+      <div class="moon-scene__sky"></div>
+      <div class="moon-scene__stars">${stars}</div>
+      <div class="moon-scene__shoot" id="moon-shoot" hidden></div>
+      <div class="moon-scene__moon">${svg}</div>
+      <div class="moon-scene__earth" id="moon-earth"></div>
+    </div>`;
+}
+
+/**
+ * The scene keeps its shape when the Moon is unavailable, so the card does not
+ * collapse and the page does not jump. It shows sky and Earth — the frame —
+ * and deliberately no disc.
+ */
+function moonSceneUnavailableHtml() {
+  return `
+    <div class="moon-scene moon-scene--empty" aria-hidden="true">
+      <div class="moon-scene__sky"></div>
+      <div class="moon-scene__earth"></div>
+    </div>`;
+}
+
+/**
+ * One shooting star per browser session.
+ *
+ * Bound to sessionStorage rather than a module flag so that navigating away
+ * and back does not replay it, and a refresh does not either. If storage is
+ * unavailable — private modes, blocked storage — the effect is skipped
+ * entirely rather than shown every time.
+ */
+function moonMaybeShootingStar() {
+  const el = $("#moon-shoot");
+  if (!el) return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  let seen = true;
+  try {
+    seen = sessionStorage.getItem(SHOOTING_STAR_KEY) === "1";
+    if (!seen) sessionStorage.setItem(SHOOTING_STAR_KEY, "1");
+  } catch {
+    return;   // storage unavailable: no marker means no way to show it once
+  }
+  if (seen) return;
+  el.hidden = false;
+  el.classList.add("is-flying");
+}
+
+/**
+ * Refreshing the sky, with the Earth turn bound to the request lifecycle.
+ *
+ * The motion is evidence that something is happening, not decoration that runs
+ * regardless: it starts when the request starts and is removed in a `finally`,
+ * so a failure cannot leave the Earth turning for ever. `MOON.refreshing`
+ * blocks a second request rather than queuing one, because two in-flight sky
+ * loads can resolve out of order and paint the older one last.
+ */
+const MOON = { refreshing: false };
+
+async function moonRefreshSky() {
+  if (MOON.refreshing) return;
+  const button = $("#moon-refresh");
+  const earth = $("#moon-earth");
+  MOON.refreshing = true;
+  if (button) { button.disabled = true; button.setAttribute("aria-busy", "true"); }
+  earth?.classList.add("is-turning");
+  moonStatus("Refreshing the current sky…");
+  try {
+    const tz = axisResolveTimezone();
+    const r = await get(`/api/sky/current?tz=${encodeURIComponent(tz)}`);
+    AXIS.lastSky = r.sky;
+    AXIS.lastHighlights = r.highlights || [];
+    AXIS.lastMoon = r.moon || null;
+    axisRenderSky(r.sky, { highlights: r.highlights, moon: r.moon });
+    moonStatus("The current sky is up to date.");
+  } catch {
+    // The previously rendered Moon is still on screen and still true as of its
+    // own timestamp, so it stays. Replacing it with an error would throw away
+    // good data because a later request failed.
+    moonStatus("We couldn't refresh the sky just now. The Moon shown above is from the last successful reading.");
+  } finally {
+    MOON.refreshing = false;
+    if (button) { button.disabled = false; button.removeAttribute("aria-busy"); }
+    // Re-read: axisRenderSky replaces the scene, so the element may be new.
+    $("#moon-earth")?.classList.remove("is-turning");
+    earth?.classList.remove("is-turning");
+  }
+}
+
+function moonStatus(text) {
+  const el = $("#moon-status");
+  if (el) el.textContent = text || "";
 }
 
 /** Ranked sky highlights, composed and ordered on the server. */

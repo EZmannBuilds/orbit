@@ -119,9 +119,16 @@
           <!-- 2. Daily celestial reading -->
           <div id="today-fortune" class="axis-rise-2"><div class="axis-shimmer" style="height:240px"></div></div>
 
-          <!-- 3. Moon state -->
+          <!-- 3. Moon state — the scene shell is always present so the layout
+               does not shift when canonical data arrives. The scene itself is
+               decorative; every fact it depicts is also written in the text
+               beside it. -->
           <section class="axis-card axis-rise-3" id="today-moon" aria-labelledby="today-moon-title" hidden>
-            <h2 class="axis-section-title" id="today-moon-title">The Moon right now</h2>
+            <div class="moon-head">
+              <h2 class="axis-section-title" id="today-moon-title">The Moon right now</h2>
+              <button type="button" class="o-btn o-btn--secondary o-btn--sm" id="moon-refresh">Refresh the sky</button>
+            </div>
+            <div class="moon-status" id="moon-status" role="status" aria-live="polite"></div>
             <div id="today-moon-body"></div>
           </section>
 

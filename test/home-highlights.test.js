@@ -241,9 +241,21 @@ test("Home composes nothing itself — highlights and Moon come from the server"
 
 test("the current Moon is never confused with the natal Moon", () => {
   assert.match(APP, /This is the Moon in the sky right now — not the Moon in your birth chart/);
-  // And it carries a real text alternative rather than a bare image.
-  assert.match(APP, /role="img" aria-label="\$\{esc\(alt\)\}"/);
-  assert.match(APP, /\$\{moon\.phase\}, \$\{moon\.illumination\}% lit, \$\{moon\.direction\}/);
+
+  // Dev Update 1.6 proved the Moon was not a bare unlabelled image by pinning a
+  // role="img" wrapper with an aria-label around the single disc. Dev Update
+  // 1.9 replaced that disc with a scene — sky, stars, Earth — and labelling a
+  // whole scene as one image would announce decoration as content. The
+  // guarantee is unchanged and the mechanism inverted: the scene is hidden
+  // from assistive technology, and every fact it depicts is real text.
+  const fn = APP.slice(APP.indexOf("function axisRenderMoon"),
+                       APP.indexOf("function moonSceneHtml"));
+  assert.match(fn, /moon-state__phase/, "the phase name is visible text");
+  assert.match(fn, /illuminationLabel\(moon\.illumination\)/, "illumination is visible text");
+  assert.match(fn, /moon\.direction/, "waxing or waning is visible text");
+  const scene = APP.slice(APP.indexOf("function moonSceneHtml"),
+                          APP.indexOf("function moonSceneUnavailableHtml"));
+  assert.match(scene, /aria-hidden="true"/, "the scene itself is decorative");
 });
 
 test("Technical Sky is secondary, folded, and free of internal plumbing", () => {

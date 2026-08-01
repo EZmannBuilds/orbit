@@ -196,7 +196,144 @@
 .moon-state__facts { margin: 0; font-size: 13px; color: var(--color-secondary); }
 .moon-state__meaning, .moon-state__next { margin: 0; max-width: 60ch; line-height: 1.5; }
 .moon-state__note { margin: 2px 0 6px; font-size: 13px; color: var(--color-secondary); max-width: 60ch; }
-.moon-state .o-btn { justify-self: start; min-height: 44px; }
+.moon-state__position { margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+.moon-state__orientation { margin: 0 0 6px; font-size: 12px; color: var(--color-secondary); max-width: 60ch; }
+.moon-state__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.moon-state .o-btn { min-height: 44px; }
+
+.moon-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.moon-head .o-btn { min-height: 44px; }
+.moon-status:empty { display: none; }
+.moon-status { margin: 8px 0 0; font-size: 13px; color: var(--color-secondary); }
+
+/* ── The Moon scene ───────────────────────────────────────────────────────
+   Decorative and aria-hidden. Every fact it depicts is written as text in the
+   panel beside it, so the scene can be removed entirely — by reduced motion,
+   forced colors, or a missing payload — without removing information. */
+.moon-scene {
+  position: relative;
+  width: 100%;
+  min-width: 132px;
+  aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.moon-scene__sky {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 8%, rgba(120, 132, 220, 0.30), transparent 62%),
+    linear-gradient(180deg, var(--moon-sky-top, #0b1030) 0%, var(--moon-sky-bottom, #161c46) 100%);
+}
+.moon-scene__stars { position: absolute; inset: 0; animation: moon-star-drift 180s linear infinite; }
+.moon-scene__star {
+  position: absolute;
+  border-radius: 50%;
+  background: #ffffff;
+  animation: moon-twinkle 6s ease-in-out infinite;
+}
+.moon-scene__moon {
+  position: absolute;
+  top: 20%; left: 50%;
+  width: 46%;
+  transform: translateX(-50%);
+  animation: moon-drift 90s ease-in-out infinite;
+  filter: drop-shadow(0 0 18px rgba(180, 196, 255, 0.34));
+}
+.moon-scene__moon svg { width: 100%; height: auto; display: block; }
+/* The Earth arc is framing, not a scale model: a soft limb rising into the
+   lower edge, well clear of the text column beside it. */
+.moon-scene__earth {
+  position: absolute;
+  /* Geometry, because it is easy to get wrong and was: the box is square, so a
+     circle of diameter D sitting `b` below the bottom has its top edge at
+     H + b - D. To leave the Earth occupying only the lowest ~22% the offset
+     must satisfy D - b = 0.22H. At 240% width that is a 218% drop. The first
+     two attempts used 172%/46% and 190%/58%, both of which put the top edge
+     ABOVE the scene — the "sky gradient" was the Earth covering everything. */
+  left: 50%; bottom: -218%;
+  width: 240%; aspect-ratio: 1 / 1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  /* Opaque, with a lit upper limb. The first attempt used a translucent blue
+     that sat on a blue sky and read as more gradient — an Earth that frames
+     nothing is just a darker corner. */
+  background:
+    radial-gradient(120% 42% at 50% 6%, rgba(150, 214, 255, 0.55), transparent 60%),
+    linear-gradient(180deg, #2e6f9e 0%, #17395c 42%, #0d2138 100%);
+  border-top: 1px solid rgba(190, 232, 255, 0.55);
+  box-shadow: 0 -6px 30px rgba(120, 190, 255, 0.30);
+}
+.moon-scene__earth.is-turning { animation: moon-earth-turn 900ms ease-in-out; }
+.moon-scene__shoot {
+  position: absolute; top: 8%; left: 12%;
+  width: 2px; height: 2px; border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.85);
+  opacity: 0;
+}
+.moon-scene__shoot.is-flying { animation: moon-shoot 1400ms ease-in 2600ms 1 both; }
+.moon-scene--empty .moon-scene__sky { opacity: 0.75; }
+
+@keyframes moon-twinkle { 0%, 100% { opacity: inherit } 50% { opacity: 0.25 } }
+@keyframes moon-star-drift { from { transform: translateX(0) } to { transform: translateX(-3%) } }
+@keyframes moon-drift {
+  0%, 100% { transform: translate(-50%, 0) }
+  50% { transform: translate(-50%, -6px) }
+}
+/* A partial turn that ends. Not a spinner: it runs once per refresh and the
+   class is removed in a finally block, so a failure cannot leave it running. */
+@keyframes moon-earth-turn {
+  from { transform: translateX(-50%) rotate(0deg) }
+  to { transform: translateX(-50%) rotate(14deg) }
+}
+@keyframes moon-shoot {
+  from { opacity: 0; transform: translate(0, 0) }
+  12% { opacity: 1 }
+  to { opacity: 0; transform: translate(128px, 98px) }
+}
+
+@media (min-width: 720px) {
+  .moon-state { grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 22px; }
+}
+@media (max-width: 719px) {
+  /* One column on phones: the scene sits above its facts rather than squeezing
+     both into 375px. */
+  .moon-state { grid-template-columns: 1fr; }
+  .moon-scene { max-width: 260px; margin-inline: auto; }
+}
+
+:root[data-theme="light"] .moon-scene__sky,
+:root[data-theme="light"] .moon-scene {
+  --moon-sky-top: #2b3566;
+  --moon-sky-bottom: #55639e;
+}
+/* Light theme keeps a deliberately framed night panel rather than an
+   unreadable dark rectangle: the card around it stays light, the scene is
+   clearly a picture, and every fact is in the text beside it either way. */
+:root[data-theme="light"] .moon-scene { box-shadow: inset 0 0 0 1px rgba(20, 26, 60, 0.18); }
+
+@media (prefers-reduced-motion: reduce) {
+  .moon-scene__stars,
+  .moon-scene__star,
+  .moon-scene__moon,
+  .moon-scene__earth.is-turning,
+  .moon-scene__shoot.is-flying { animation: none; }
+  /* The shooting star is removed outright rather than left static, where it
+     would read as a stray dot with no explanation. */
+  .moon-scene__shoot { display: none; }
+}
+
+@media (forced-colors: active) {
+  /* Gradients disappear in forced colors, so the disc would lose its edge and
+     the phase with it. An explicit boundary keeps lit and unlit readable. */
+  .moon-scene { border: 1px solid CanvasText; }
+  .moon-scene__sky, .moon-scene__stars, .moon-scene__shoot { display: none; }
+  .moon-scene__earth { background: Canvas; border-top: 1px solid CanvasText; box-shadow: none; }
+  .moon-scene__moon { filter: none; }
+  .moon-scene__moon svg circle { stroke: CanvasText; stroke-width: 1px; }
+  .moon-scene__moon svg path { fill: Highlight; }
+}
 
 /* Highlights — a short ranked list, never a wall. */
 .sky-highlights { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
