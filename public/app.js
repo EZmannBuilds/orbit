@@ -562,9 +562,14 @@ function transitsRenderLoading(name) {
 
 function transitsRenderError(message) {
   const body = $("#transits-body");
-  transitsStatus("");
+  // Announced through the persistent live region rather than a role="alert"
+  // injected with the markup. A live region that already exists in the tree
+  // announces reliably; one created at the same moment as its text does not,
+  // and an unannounced failure is indistinguishable from a page that hung.
+  // The visible block carries no role, so the message is spoken once.
+  transitsStatus(message);
   if (!body) return;
-  body.innerHTML = `<div class="axis-section-error" role="alert">
+  body.innerHTML = `<div class="axis-section-error">
     <p>${esc(message)}</p>
     <button type="button" class="o-btn o-btn--secondary o-btn--sm" data-action="retry-transits">Try again</button>
   </div>`;

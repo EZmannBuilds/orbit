@@ -449,6 +449,19 @@ test("failures are announced, retryable, and never silent", () => {
   assert.match(APP, /stage: "render"/, "a render defect is not reported as a network problem");
   const codeOnly = APP.split("\n").filter((l) => !l.trim().startsWith("//") && !l.trim().startsWith("*")).join("\n");
   assert.ok(!codeOnly.includes("catch {}"), "no silent catch");
+
+  // The message reaches the live region that already exists in the document.
+  // A role="alert" created in the same breath as its own text announces
+  // inconsistently, so the error must not rely on one.
+  const fn = APP.slice(APP.indexOf("function transitsRenderError"),
+                       APP.indexOf("function transitsRenderNoChart"));
+  assert.match(fn, /transitsStatus\(message\)/, "the failure is announced, not just drawn");
+  // Comments in this function discuss the role by name, so match rendered
+  // markup only — the same trap the banned-string checks above avoid.
+  const fnCode = fn.split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+  assert.ok(!fnCode.includes('role="alert"'), "and is not double-announced by an injected alert");
+  assert.match(HTML, /id="transits-status"[^>]*role="status"[^>]*aria-live="polite"/,
+    "the live region is present in the served markup, not created on demand");
 });
 
 test("the workspace links only to routes that exist", () => {
