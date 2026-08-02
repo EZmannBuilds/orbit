@@ -17,6 +17,12 @@ import { handleApiV1, createLimiters } from "../lib/api/v1/router.js";
 import { SESSION_COOKIE } from "../lib/auth/supabase-auth.js";
 
 const USER_ID = "11111111-2222-3333-4444-555555555555";
+// Real uuid shapes, so "no production identifier survives" is a claim the
+// tests can actually check rather than a string that happens to look tidy.
+const CHART_A = "aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaaa";
+const CHART_B = "bbbbbbbb-2222-4bbb-8bbb-bbbbbbbbbbbb";
+const FORTUNE_A = "ffffffff-1111-4fff-8fff-ffffffffffff";
+const FORTUNE_B = "ffffffff-2222-4fff-8fff-ffffffffffff";
 const OTHER_ID = "99999999-8888-7777-6666-555555555555";
 const TOKEN = "test-access-token";
 
@@ -118,28 +124,34 @@ test("an empty account still produces a valid document", async () => {
   assert.equal(doc.profile, null);
   assert.deepEqual(doc.birth_profiles, []);
   assert.deepEqual(doc.fortune_history, []);
-  assert.equal(doc.active_chart_id, null);
+  assert.equal(doc.active_chart_ref, null);
   // A brand-new account must not get an error page where its export should be.
-  assert.equal(doc.account.id, USER_ID);
+  // Dev Update 1.10.1: the Auth uuid is gone; the email says whose file it is.
+  assert.ok(!("id" in doc.account), "the Auth uuid never leaves the server");
+  assert.equal(doc.account.email, "disposable@example.test");
 });
 
 test("multiple charts and fortune history are carried through", async () => {
   const doc = await build({
     fetchImpl: fakeRest({
-      profiles: [{ user_id: USER_ID, active_birth_profile_id: "chart-2", astrology_detail_level: "Advanced" }],
+      profiles: [{ user_id: USER_ID, active_birth_profile_id: CHART_B, astrology_detail_level: "Advanced" }],
       birth_profiles: [
-        { id: "chart-1", owner_id: USER_ID, nickname: "My Chart", relationship_type: "self" },
-        { id: "chart-2", owner_id: USER_ID, nickname: "Mom", relationship_type: "family" },
+        { id: CHART_A, owner_id: USER_ID, nickname: "My Chart", relationship_type: "self" },
+        { id: CHART_B, owner_id: USER_ID, nickname: "Mom", relationship_type: "family" },
       ],
       daily_fortunes: [
-        { id: "f1", owner_id: USER_ID, fortune_date: "2026-07-27", mood: "steady" },
-        { id: "f2", owner_id: USER_ID, fortune_date: "2026-07-26", mood: "bright" },
+        { id: FORTUNE_A, owner_id: USER_ID, birth_profile_id: CHART_B, fortune_date: "2026-07-27", mood: "steady" },
+        { id: FORTUNE_B, owner_id: USER_ID, birth_profile_id: CHART_A, fortune_date: "2026-07-26", mood: "bright" },
       ],
     }),
   });
   assert.equal(doc.birth_profiles.length, 2);
   assert.equal(doc.fortune_history.length, 2);
-  assert.equal(doc.active_chart_id, "chart-2");
+  // The active chart is named by its export-local reference — the second
+  // chart in source order — never by its production uuid.
+  assert.equal(doc.active_chart_ref, "chart-2");
+  assert.equal(doc.birth_profiles[1].ref, "chart-2");
+  assert.ok(!JSON.stringify(doc).includes(CHART_B), "the row uuid is absent");
   assert.equal(doc.preferences.astrology_detail_level, "Advanced");
 });
 
@@ -148,7 +160,7 @@ test("relationship type is exported where it is already present", async () => {
   // drop the values that already exist.
   const doc = await build({
     fetchImpl: fakeRest({
-      birth_profiles: [{ id: "c", owner_id: USER_ID, relationship_type: "family" }],
+      birth_profiles: [{ id: CHART_A, owner_id: USER_ID, relationship_type: "family" }],
     }),
   });
   assert.equal(doc.birth_profiles[0].relationship_type, "family");
@@ -173,7 +185,7 @@ test("both a UTC and a localized timestamp are recorded", async () => {
 test("an unusable timezone degrades instead of failing the export", async () => {
   const doc = await build({ timezone: "Not/AZone" });
   assert.equal(doc.orbit_axis_export.generated_at_local, null);
-  assert.equal(doc.account.id, USER_ID, "the export still succeeds");
+  assert.equal(doc.account.email, "disposable@example.test", "the export still succeeds");
 });
 
 test("categories that do not exist yet are named rather than silently absent", async () => {
@@ -272,7 +284,7 @@ test("the token is accepted from a bearer header or the session cookie", async (
       req: mockReq({ headers }),
       deps: { verifyUser: okUser, fetchImpl: fakeRest({}) },
     }));
-    assert.equal(result.document.account.id, USER_ID);
+    assert.equal(result.document.account.email, "disposable@example.test");
   }
 });
 
@@ -288,7 +300,7 @@ test("a successful export sets download and no-store headers", async () => {
     "an export must not be cached by a browser or a CDN");
   assert.ok(res.headers["X-Request-Id"], "every response carries a request id");
   // The envelope carries the document itself, not the {filename, document} pair.
-  assert.equal(res.body.data.account.id, USER_ID);
+  assert.equal(res.body.data.account.email, "disposable@example.test");
   assert.equal(res.body.data.filename, undefined);
 });
 
