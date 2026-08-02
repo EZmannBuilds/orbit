@@ -31,6 +31,9 @@ const GLOBALS = new Set([
   "Promise", "RegExp", "Set", "String", "Symbol", "WeakMap", "BigInt",
   "parseInt", "parseFloat", "isNaN", "isFinite", "encodeURIComponent",
   "decodeURIComponent", "encodeURI", "decodeURI", "structuredClone",
+  // dynamic import() — a keyword that parses like a call. The Symbol Atlas
+  // lazy-loads its content module with it (Dev Update 1.12).
+  "import",
   // Browser
   "fetch", "alert", "confirm", "prompt", "setTimeout", "clearTimeout",
   "setInterval", "clearInterval", "requestAnimationFrame", "cancelAnimationFrame",

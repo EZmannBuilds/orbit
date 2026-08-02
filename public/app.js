@@ -792,100 +792,324 @@ function wireTransits() {
    Search runs entirely in the browser over data already fetched. No request
    leaves the page as somebody types. */
 
-const SYMBOL_KINDS = Object.freeze({
-  zodiac_sign: "Sign",
-  planet: "Planet",
-  angle: "Angle",
-  aspect: "Aspect",
-  house: "Houses",
-  moon: "Moon phase",
-  other: "Notation",
-});
+/* ── Symbol Atlas (Dev Update 1.12) ────────────────────────────────────────
+   Orbit's reference library. Three views over one validated content module:
 
-/** Where in Orbit each kind of symbol actually appears. */
-const SYMBOL_SEEN_IN = Object.freeze({
-  zodiac_sign: "Technical Sky, your chart placements, and transits",
-  planet: "Technical Sky positions, placements, and transits",
-  angle: "The Keys to Your Chart, when your birth time is known",
-  aspect: "Transits and chart aspect details",
-  house: "Chart placements, when your birth time is known",
-  moon: "Technical Sky",
-  other: "Technical Sky and transit details",
-});
+     #symbol-atlas                     home — search + the seven categories
+     #symbol-atlas/<category>          one shelf, in canonical order
+     #symbol-atlas/<category>/<slug>   one entry
 
-const atlasState = { all: [], kind: "", query: "" };
+   The content is authored, frozen data loaded lazily on first visit —
+   app boot pays nothing, search never touches the network, and nothing a
+   user types is stored anywhere. Every link is a real <a href="#…">, so
+   history, Back/Forward, open-in-new-tab, and copy-link all work without a
+   single click handler pretending to be a browser. */
+
+let atlasModulePromise = null;
+function atlasModule() {
+  atlasModulePromise ||= import("/symbol-atlas/index.js");
+  return atlasModulePromise;
+}
+
+// Route sequence guard: rapid navigation must let only the FINAL route render.
+// Without it, a slow first load can paint an older entry over a newer one.
+const atlasView = { seq: 0, query: "" };
+
+/** "#symbol-atlas/planets/moon" → { category, slug, deep } (all lowercased). */
+function atlasRouteParts() {
+  const parts = requestedRoute().split("/").slice(1)
+    .map((p) => { try { return decodeURIComponent(p); } catch { return p; } })
+    .map((p) => p.toLowerCase().trim())
+    .filter(Boolean);
+  return { category: parts[0] || null, slug: parts[1] || null, deep: parts.length > 2 };
+}
+
+function atlasStatus(message) {
+  const el = $("#atlas-status");
+  if (el) el.textContent = message || "";
+}
+
+/** Heading, subtitle, tab title, and (post-boot) focus — one place, per view. */
+function atlasChrome({ title, subtitle, crumbs, focusHeading }) {
+  const h1 = $("#symbol-atlas-title");
+  if (h1) h1.textContent = title;
+  const sub = $("#atlas-subtitle");
+  if (sub) sub.textContent = subtitle || "";
+  document.title = `${title === "Symbol Atlas" ? "Symbol Atlas" : `${title} · Symbol Atlas`} — Orbit Axis`;
+  const nav = $("#atlas-crumbs");
+  if (nav) {
+    nav.innerHTML = (crumbs || []).map((c, i, all) => i === all.length - 1 && !c.href
+      ? `<span aria-current="page">${esc(c.label)}</span>`
+      : `<a href="${esc(c.href)}">${esc(c.label)}</a>`).join('<span class="atlas-crumbs__sep" aria-hidden="true">›</span>');
+    nav.hidden = !(crumbs || []).length;
+  }
+  // Moving focus on every render would fight the search box on home, and
+  // moving it while signed out would fight the auth gate's own focus trap —
+  // the same rule Positions follows, for the same reason. Entry and category
+  // arrivals move it; everything else leaves focus where the person put it.
+  if (focusHeading && authSignedIn()) h1?.focus({ preventScroll: false });
+}
+
+function atlasEntryCardHtml(entry, mod) {
+  const category = mod.CATEGORY_BY_SLUG[entry.category];
+  return `<a class="atlas-card" href="#symbol-atlas/${esc(entry.category)}/${esc(entry.slug)}">
+    <span class="atlas-card__glyph" aria-hidden="true">${esc(entry.glyph || "")}</span>
+    <span class="atlas-card__body">
+      <span class="atlas-card__title">${esc(entry.title)}</span>
+      <span class="atlas-card__kind">${esc(category?.shortName || entry.category)}</span>
+      <span class="atlas-card__summary">${esc(entry.summary)}</span>
+    </span>
+  </a>`;
+}
+
+function atlasSearchBoxHtml() {
+  return `<div class="atlas-search">
+    <label class="atlas-search__label" for="atlas-search-input">Search the Atlas</label>
+    <input class="o-input" id="atlas-search-input" type="search" autocomplete="off"
+           placeholder="Try “Moon”, “first house”, or “MC”" value="${esc(atlasView.query)}" />
+  </div>`;
+}
+
+function atlasHomeHtml(mod) {
+  const categories = mod.ATLAS_CATEGORIES.map((c) => {
+    const count = mod.categoryEntries(c.slug).length;
+    return `<a class="atlas-category-card" href="#symbol-atlas/${esc(c.slug)}">
+      <span class="atlas-category-card__glyph" aria-hidden="true">${esc(c.glyph)}</span>
+      <span class="atlas-category-card__name">${esc(c.name)}</span>
+      <span class="atlas-category-card__count">${count} entries</span>
+      <span class="atlas-category-card__desc">${esc(c.description)}</span>
+    </a>`;
+  }).join("");
+
+  // Contextually relevant: the active chart's Sun / Moon / rising signs are
+  // already in memory from the saved-charts list — no request, no
+  // recalculation, and nothing shown when signed out or chartless.
+  const summary = activeChart()?.summary;
+  const mine = [];
+  if (summary?.sun && mod.atlasEntry("signs", String(summary.sun).toLowerCase())) {
+    mine.push({ label: `Sun in ${summary.sun}`, href: `#symbol-atlas/signs/${String(summary.sun).toLowerCase()}` });
+  }
+  if (summary?.moon && mod.atlasEntry("signs", String(summary.moon).toLowerCase())) {
+    mine.push({ label: `Moon in ${summary.moon}`, href: `#symbol-atlas/signs/${String(summary.moon).toLowerCase()}` });
+  }
+  if (summary?.rising && mod.atlasEntry("signs", String(summary.rising).toLowerCase())) {
+    mine.push({ label: `${summary.rising} rising`, href: `#symbol-atlas/signs/${String(summary.rising).toLowerCase()}` });
+  }
+  const fromChart = mine.length ? `
+    <section class="o-card atlas-block" aria-labelledby="atlas-mine-title">
+      <h2 class="u-card-title" id="atlas-mine-title">From your chart</h2>
+      <ul class="atlas-chip-list">
+        ${mine.map((m) => `<li><a class="atlas-chip" href="${esc(m.href)}">${esc(m.label)}</a></li>`).join("")}
+      </ul>
+    </section>` : "";
+
+  const featured = ["planets/sun", "planets/moon", "angles/ascendant", "aspects/square"]
+    .map((ref) => mod.atlasEntry(...ref.split("/"))).filter(Boolean);
+
+  return `
+    ${atlasSearchBoxHtml()}
+    <div id="atlas-search-results"></div>
+    <div id="atlas-browse">
+      <section class="atlas-block" aria-labelledby="atlas-browse-title">
+        <h2 class="axis-section-title" id="atlas-browse-title">Browse the library</h2>
+        <div class="atlas-category-grid">${categories}</div>
+      </section>
+      ${fromChart}
+      <section class="atlas-block" aria-labelledby="atlas-featured-title">
+        <h2 class="axis-section-title" id="atlas-featured-title">Good places to start</h2>
+        <div class="atlas-card-grid">${featured.map((e) => atlasEntryCardHtml(e, mod)).join("")}</div>
+      </section>
+      <details class="o-card atlas-method">
+        <summary>About this reference</summary>
+        <div class="atlas-method__body">
+          <p>${esc(mod.ATLAS_METHODOLOGY_NOTE)}</p>
+          <ul>${mod.ATLAS_METHODOLOGY_POINTS.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+        </div>
+      </details>
+    </div>`;
+}
+
+function atlasCategoryHtml(mod, category) {
+  const entries = mod.categoryEntries(category.slug);
+  return `
+    <p class="atlas-category-desc">${esc(category.description)}</p>
+    <p class="u-meta">${entries.length} entries · <a href="#symbol-atlas">Search the Atlas</a></p>
+    <div class="atlas-card-grid">
+      ${entries.map((e) => atlasEntryCardHtml(e, mod)).join("")}
+    </div>`;
+}
+
+function atlasEntryHtml(mod, entry) {
+  const category = mod.CATEGORY_BY_SLUG[entry.category];
+  const related = mod.relatedEntries(entry);
+  const factRows = Object.entries(entry.facts || {});
+  const list = (items) => items.map((t) => `<li>${esc(t)}</li>`).join("");
+
+  return `
+    <article class="atlas-entry">
+      <header class="atlas-entry__head">
+        <span class="atlas-entry__glyph" aria-hidden="true">${esc(entry.glyph || "")}</span>
+        <p class="atlas-entry__summary">${esc(entry.summary)}</p>
+      </header>
+
+      <section class="o-card atlas-block" aria-labelledby="atlas-themes-title">
+        <h2 class="u-card-title" id="atlas-themes-title">Core themes</h2>
+        <ul class="atlas-chip-list">${entry.themes.map((t) => `<li><span class="atlas-chip atlas-chip--static">${esc(t)}</span></li>`).join("")}</ul>
+      </section>
+
+      <div class="atlas-two-col">
+        <section class="o-card atlas-block" aria-labelledby="atlas-strengths-title">
+          <h2 class="u-card-title" id="atlas-strengths-title">Common strengths</h2>
+          <ul class="atlas-list">${list(entry.strengths)}</ul>
+        </section>
+        <section class="o-card atlas-block" aria-labelledby="atlas-challenges-title">
+          <h2 class="u-card-title" id="atlas-challenges-title">Common challenges</h2>
+          <ul class="atlas-list">${list(entry.challenges)}</ul>
+        </section>
+      </div>
+
+      <section class="o-card atlas-block" aria-labelledby="atlas-role-title">
+        <h2 class="u-card-title" id="atlas-role-title">In a chart</h2>
+        <p>${esc(entry.chartRole)}</p>
+      </section>
+
+      ${(entry.advanced.length || factRows.length) ? `
+      <details class="o-card atlas-advanced">
+        <summary>Advanced</summary>
+        <div class="atlas-advanced__body">
+          ${entry.advanced.map((p) => `<p>${esc(p)}</p>`).join("")}
+          ${factRows.length ? `<dl class="atlas-facts">
+            ${factRows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
+          </dl>` : ""}
+        </div>
+      </details>` : ""}
+
+      ${related.length ? `
+      <section class="o-card atlas-block" aria-labelledby="atlas-related-title">
+        <h2 class="u-card-title" id="atlas-related-title">Related symbols</h2>
+        <ul class="atlas-chip-list">
+          ${related.map((r) => `<li><a class="atlas-chip" href="#symbol-atlas/${esc(r.category)}/${esc(r.slug)}">
+            <span aria-hidden="true">${esc(r.glyph || "")}</span> ${esc(r.title)}</a></li>`).join("")}
+        </ul>
+      </section>` : ""}
+
+      <p class="atlas-note">${esc(mod.ATLAS_METHODOLOGY_NOTE)}</p>
+      <p class="atlas-backlinks">
+        <a href="#symbol-atlas/${esc(entry.category)}">Back to ${esc(category?.name || "category")}</a> ·
+        <a href="#symbol-atlas">Symbol Atlas home</a>
+      </p>
+    </article>`;
+}
+
+function atlasNotFoundHtml(kind, categorySlug) {
+  const backToCategory = categorySlug
+    ? ` · <a href="#symbol-atlas/${esc(categorySlug)}">Browse that category</a>` : "";
+  const message = kind === "category"
+    ? "This Symbol Atlas category could not be found."
+    : "This Symbol Atlas entry could not be found.";
+  return `<div class="atlas-empty" role="status">
+    <p>${esc(message)}</p>
+    <p><a href="#symbol-atlas">Return to Symbol Atlas</a>${backToCategory}</p>
+  </div>`;
+}
+
+function renderAtlasSearch(mod) {
+  const box = $("#atlas-search-results");
+  const browse = $("#atlas-browse");
+  if (!box) return;
+  const query = atlasView.query.trim();
+  if (!query) {
+    box.innerHTML = "";
+    if (browse) browse.hidden = false;
+    atlasStatus("");
+    return;
+  }
+  const results = mod.searchAtlas(query, { limit: 20 });
+  if (browse) browse.hidden = true;
+  atlasStatus(results.length
+    ? `${results.length} symbol${results.length === 1 ? "" : "s"} found`
+    : "No symbols matched your search.");
+  box.innerHTML = results.length
+    ? `<div class="atlas-card-grid">${results.map((r) => atlasEntryCardHtml(r.entry, mod)).join("")}</div>`
+    : `<div class="atlas-empty">
+        <p>No symbols matched your search.</p>
+        <button type="button" class="o-btn o-btn--secondary" id="atlas-clear-search">Clear search</button>
+        <p class="u-meta">Or browse: ${mod.ATLAS_CATEGORIES.map((c) =>
+          `<a href="#symbol-atlas/${esc(c.slug)}">${esc(c.shortName)}</a>`).join(" · ")}</p>
+      </div>`;
+}
 
 async function loadSymbolAtlas() {
-  const results = $("#sa-results");
-  if (!results) return;
-  if (atlasState.all.length) return renderSymbolAtlas();
+  const seq = ++atlasView.seq;
+  const root = $("#atlas-root");
+  if (!root) return;
 
-  results.innerHTML = `<p class="u-caption" role="status">Loading symbols…</p>`;
+  if (!atlasModulePromise) atlasStatus("Loading Symbol Atlas…");
+  let mod;
   try {
-    const data = await get("/api/symbols");
-    atlasState.all = Array.isArray(data.symbols) ? data.symbols : [];
-    renderSymbolAtlas();
-  } catch (error) {
-    results.innerHTML = `
-      <div class="sa-error" role="alert">
-        <p>${esc(error.message || "The symbol list could not be loaded.")}</p>
-        <button type="button" class="o-btn o-btn--secondary" id="sa-retry">Try again</button>
-      </div>`;
+    mod = await atlasModule();
+  } catch {
+    atlasModulePromise = null;               // a failed load must be retryable
+    if (seq !== atlasView.seq) return;
+    atlasStatus("");
+    root.innerHTML = `<div class="atlas-empty" role="alert">
+      <p>The Symbol Atlas could not be loaded. Check your connection and try again.</p>
+      <button type="button" class="o-btn o-btn--secondary" id="atlas-retry">Try again</button>
+    </div>`;
+    return;
   }
-}
+  if (seq !== atlasView.seq) return;         // a newer route already took over
+  atlasStatus("");
 
-/** Case-insensitive, whitespace-trimmed, across name, keywords, kind and meaning. */
-function filterSymbols({ all, kind, query }) {
-  const q = String(query || "").trim().toLowerCase();
-  return all.filter((symbol) => {
-    // An unknown kind matches nothing rather than throwing — a stale link or a
-    // typed URL should show an empty state, not break the page.
-    if (kind && symbol.kind !== kind) return false;
-    if (!q) return true;
-    const haystack = [
-      symbol.name, symbol.slug, symbol.kind, symbol.glyph,
-      SYMBOL_KINDS[symbol.kind] || "",
-      (symbol.keywords || []).join(" "),
-      symbol.interpretation || "",
-    ].join(" ").toLowerCase();
-    return haystack.includes(q);
-  });
-}
+  const { category: categorySlug, slug, deep } = atlasRouteParts();
 
-function renderSymbolAtlas() {
-  const results = $("#sa-results");
-  const count = $("#sa-count");
-  if (!results) return;
-
-  const matches = filterSymbols(atlasState);
-
-  if (count) {
-    count.textContent = matches.length
-      ? `${matches.length} symbol${matches.length === 1 ? "" : "s"}`
-      : "No symbols match that search.";
-  }
-
-  if (!matches.length) {
-    results.innerHTML = `
-      <div class="sa-empty">
-        <p>Nothing matched${atlasState.query.trim() ? ` “${esc(atlasState.query.trim())}”` : ""}.</p>
-        <button type="button" class="o-btn o-btn--secondary" id="sa-clear">Clear search</button>
-      </div>`;
+  // Home
+  if (!categorySlug) {
+    atlasChrome({ title: "Symbol Atlas",
+      subtitle: "Orbit's astrology reference — every symbol, in plain language.",
+      crumbs: [] });
+    root.innerHTML = atlasHomeHtml(mod);
+    renderAtlasSearch(mod);
     return;
   }
 
-  results.innerHTML = matches.map((symbol) => `
-    <article class="sa-card" id="symbol-${esc(symbol.slug)}">
-      <div class="sa-card__head">
-        <span class="sa-card__glyph" aria-hidden="true">${esc(symbol.glyph)}</span>
-        <div class="sa-card__ident">
-          <h2 class="sa-card__name">${esc(symbol.name)}</h2>
-          <p class="sa-card__kind">${esc(SYMBOL_KINDS[symbol.kind] || symbol.kind)}</p>
-        </div>
-      </div>
-      <p class="sa-card__meaning">${esc(symbol.interpretation)}</p>
-      <p class="sa-card__seen"><span class="sa-card__seen-label">Seen in Orbit Axis:</span> ${esc(SYMBOL_SEEN_IN[symbol.kind] || "Throughout the application")}</p>
-    </article>`).join("");
+  const category = mod.CATEGORY_BY_SLUG[categorySlug];
+  if (!category || deep) {
+    atlasChrome({ title: "Symbol Atlas", subtitle: "", crumbs: [
+      { label: "Symbol Atlas", href: "#symbol-atlas" }, { label: "Not found" }] });
+    atlasStatus("This Symbol Atlas category could not be found.");
+    root.innerHTML = atlasNotFoundHtml("category", null);
+    return;
+  }
+
+  // Category page
+  if (!slug) {
+    atlasChrome({ title: category.name, subtitle: category.description, focusHeading: true,
+      crumbs: [{ label: "Symbol Atlas", href: "#symbol-atlas" }, { label: category.name }] });
+    root.innerHTML = atlasCategoryHtml(mod, category);
+    return;
+  }
+
+  // Entry page
+  const entry = mod.atlasEntry(categorySlug, slug);
+  if (!entry) {
+    atlasChrome({ title: category.name, subtitle: "", crumbs: [
+      { label: "Symbol Atlas", href: "#symbol-atlas" },
+      { label: category.name, href: `#symbol-atlas/${category.slug}` },
+      { label: "Not found" }] });
+    atlasStatus("This Symbol Atlas entry could not be found.");
+    root.innerHTML = atlasNotFoundHtml("entry", category.slug);
+    return;
+  }
+
+  atlasChrome({ title: entry.title, subtitle: entry.summary, focusHeading: true,
+    crumbs: [
+      { label: "Symbol Atlas", href: "#symbol-atlas" },
+      { label: category.name, href: `#symbol-atlas/${category.slug}` },
+      { label: entry.title }] });
+  root.innerHTML = atlasEntryHtml(mod, entry);
+  root.scrollTop = 0;
+  window.scrollTo({ top: 0 });
 }
 
 function wireSymbolAtlas() {
@@ -893,30 +1117,50 @@ function wireSymbolAtlas() {
   if (!panel || panel._wired) return;
   panel._wired = true;
 
-  $("#sa-search")?.addEventListener("input", (event) => {
-    atlasState.query = event.target.value;
-    renderSymbolAtlas();
+  // Search input is re-rendered with the home view, so listen on the panel.
+  panel.addEventListener("input", async (event) => {
+    if (event.target.id !== "atlas-search-input") return;
+    atlasView.query = event.target.value;
+    renderAtlasSearch(await atlasModule());
   });
-
-  $("#sa-filters")?.addEventListener("click", (event) => {
-    const tab = event.target.closest("[data-kind]");
-    if (!tab) return;
-    atlasState.kind = tab.dataset.kind || "";
-    for (const b of $$("#sa-filters [data-kind]")) {
-      b.setAttribute("aria-selected", String(b === tab));
-    }
-    renderSymbolAtlas();
-  });
-
-  panel.addEventListener("click", (event) => {
-    if (event.target.closest("#sa-retry")) return loadSymbolAtlas();
-    if (event.target.closest("#sa-clear")) {
-      atlasState.query = "";
-      const input = $("#sa-search");
+  panel.addEventListener("click", async (event) => {
+    if (event.target.closest("#atlas-retry")) return loadSymbolAtlas();
+    if (event.target.closest("#atlas-clear-search")) {
+      atlasView.query = "";
+      const input = $("#atlas-search-input");
       if (input) { input.value = ""; input.focus(); }
-      renderSymbolAtlas();
+      renderAtlasSearch(await atlasModule());
     }
   });
+}
+
+/**
+ * A contextual reference link into the Atlas, for other Orbit surfaces.
+ * Returns plain text unchanged when no entry matches — a surface must never
+ * mint a dead link out of a name the Atlas does not know.
+ */
+const ATLAS_LINKABLE = Object.freeze({
+  planets: new Set(["sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"]),
+  signs: new Set(["aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio", "sagittarius", "capricorn", "aquarius", "pisces"]),
+  aspects: new Set(["conjunction", "opposition", "square", "trine", "sextile"]),
+  elements: new Set(["fire", "earth", "air", "water"]),
+  modalities: new Set(["cardinal", "fixed", "mutable"]),
+  angles: new Set(["ascendant", "descendant", "midheaven", "imum-coeli"]),
+});
+
+function atlasLinkHtml(category, name, { label } = {}) {
+  const slug = String(name || "").toLowerCase().trim().replace(/\s+/g, "-");
+  const text = label ?? name;
+  if (!ATLAS_LINKABLE[category]?.has(slug)) return esc(text);
+  return `<a class="atlas-ref" href="#symbol-atlas/${esc(category)}/${esc(slug)}">${esc(text)}</a>`;
+}
+
+/** House ordinal (1-12) → Atlas link, or plain text for anything unexpected. */
+function atlasHouseLinkHtml(houseNumber, { label } = {}) {
+  const n = Number(houseNumber);
+  if (!Number.isInteger(n) || n < 1 || n > 12) return esc(label ?? String(houseNumber));
+  const ordinal = `${n}${["st", "nd", "rd"][((n + 90) % 100 - 10) % 10 - 1] || "th"}`;
+  return `<a class="atlas-ref" href="#symbol-atlas/houses/${ordinal}-house">${esc(label ?? `${ordinal} house`)}</a>`;
 }
 
 /* ── Feature flags ─────────────────────────────────────────────────────────
@@ -1011,6 +1255,10 @@ function requestedRoute() {
 
 function currentWorkspace() {
   const hash = requestedRoute();
+  // Symbol Atlas owns nested reference routes (#symbol-atlas/planets/moon).
+  // Only the Atlas: other workspaces keep the flat contract, so a stray
+  // "me/anything" still resolves to Home exactly as before.
+  if (hash.startsWith("symbol-atlas/") && workspaceAvailable("symbol-atlas")) return "symbol-atlas";
   // A disabled feature's hash falls back to Home rather than rendering a panel
   // that navigation deliberately hides. Someone with an old bookmark, or a
   // guessed URL, gets the working app instead of an unfinished shell.
@@ -1034,6 +1282,10 @@ function resolveLegacyRoute() {
   const hash = requestedRoute();
   if (!hash) return false;
   if (workspaceAvailable(hash)) return false;
+  // Atlas sub-routes are never "legacy": an unknown category or entry gets the
+  // Atlas's own not-found state, with the URL intact — redirecting to Home
+  // would eat the one clue to what the broken link meant to reach.
+  if (hash.startsWith("symbol-atlas/")) return false;
 
   const retired = RETIRED_ROUTES[hash];
   const target = retired?.to ?? "home";

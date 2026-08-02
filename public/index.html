@@ -39,6 +39,7 @@
   <link rel="stylesheet" href="/styles/fortune.css" />
   <link rel="stylesheet" href="/styles/history.css" />
   <link rel="stylesheet" href="/styles/compatibility.css" />
+  <link rel="stylesheet" href="/styles/symbol-atlas.css" />
   <link rel="stylesheet" href="/styles/motion.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='30' fill='none' stroke='%234f83ff' stroke-width='6'/><circle cx='78' cy='30' r='9' fill='%234f83ff'/></svg>" />
 </head>
@@ -305,38 +306,27 @@
              are already on screen elsewhere, so it is reached from Technical
              Sky rather than living inside Research. -->
         <section class="workspace-panel" id="panel-symbol-atlas" role="region" aria-labelledby="symbol-atlas-title" hidden>
+          <!-- Symbol Atlas (Dev Update 1.12): the reference library.
+               Everything below the section head is rendered by the atlas
+               client from the validated content module — the markup here is
+               only the stable skeleton routes and focus depend on.
+
+               Routes: #symbol-atlas                    home
+                       #symbol-atlas/<category>         category page
+                       #symbol-atlas/<category>/<slug>  entry page -->
           <div class="o-section-head">
             <div class="o-section-head__text">
-              <h1 class="u-title" id="symbol-atlas-title">Symbol Atlas</h1>
-              <p class="u-caption">Every symbol Orbit Axis uses, in plain language. A reference, not a course.</p>
-            </div>
-            <div class="o-section-head__actions">
-              <button class="o-btn o-btn--secondary" data-goto="tools">Back to Tools</button>
+              <nav class="atlas-crumbs" id="atlas-crumbs" aria-label="Symbol Atlas location"></nav>
+              <h1 class="u-title" id="symbol-atlas-title" tabindex="-1">Symbol Atlas</h1>
+              <p class="u-caption" id="atlas-subtitle">Orbit's astrology reference — every symbol, in plain language.</p>
             </div>
           </div>
 
-          <div class="atlas-controls">
-            <label class="atlas-search-label" for="sa-search">Search symbols</label>
-            <input class="o-input" id="sa-search" type="search" autocomplete="off"
-                   placeholder="Try “Mercury”, “square”, or “rising”"
-                   aria-describedby="sa-count" />
-            <!-- Filter toggles, not tabs: they narrow one results list rather
-                 than swapping panels, and a tab without a tabpanel is a promise
-                 the markup does not keep. aria-pressed states the selection. -->
-            <div class="o-tabs atlas-kinds" id="sa-filters" role="group" aria-label="Filter symbols by category">
-              <button class="o-tab" type="button" data-kind="" aria-pressed="true">All</button>
-              <button class="o-tab" type="button" data-kind="zodiac_sign" aria-pressed="false">Signs</button>
-              <button class="o-tab" type="button" data-kind="planet" aria-pressed="false">Planets</button>
-              <button class="o-tab" type="button" data-kind="angle" aria-pressed="false">Angles</button>
-              <button class="o-tab" type="button" data-kind="aspect" aria-pressed="false">Aspects</button>
-              <button class="o-tab" type="button" data-kind="house" aria-pressed="false">Houses</button>
-              <button class="o-tab" type="button" data-kind="moon" aria-pressed="false">Moon</button>
-              <button class="o-tab" type="button" data-kind="other" aria-pressed="false">Other</button>
-            </div>
-            <p class="u-caption" id="sa-count" role="status" aria-live="polite"></p>
-          </div>
+          <!-- One live region for loading, result counts, and route problems,
+               so a screen reader hears every state from the same place. -->
+          <p class="atlas-status" id="atlas-status" role="status" aria-live="polite"></p>
 
-          <div class="sa-results" id="sa-results"></div>
+          <div id="atlas-root"></div>
         </section>
 
         <!-- ── My Chart (Swiss Ephemeris) ───────────────────────────── -->
