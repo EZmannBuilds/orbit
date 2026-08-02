@@ -16,7 +16,11 @@ an account, and a calculation endpoint that requires a login would break that.
 It also makes the API usable by a local-first iOS client that wants to compute a
 chart without asking Orbit to remember anything about the person.
 
-Saving, history, and account operations are **not** in v1. They arrive later,
+The two account operations that let someone leave — export and deletion —
+ARE in v1 and are authenticated. The export document's identifier contract is
+described in "Export privacy" below.
+
+Saving and history are **not** in v1. They arrive later,
 under paths that require a verified Supabase token.
 
 ## Endpoints
@@ -31,6 +35,8 @@ under paths that require a verified Supabase token.
 | POST | `/api/v1/charts/transits` | public, rate-limited |
 | POST | `/api/v1/charts/synastry` | public, rate-limited |
 | POST | `/api/v1/readings/evidence` | public, rate-limited |
+| DELETE | `/api/v1/account` | authenticated, rate-limited |
+| GET | `/api/v1/account/export` | authenticated, rate-limited |
 
 `/health` reports capability — whether the engine can calculate on this
 instance — and never configuration. It will not tell a caller which database is
@@ -214,3 +220,39 @@ error code means, or make an optional request field required. Anything that
 would break an existing client gets a new version path, so an iOS build already
 in the App Store keeps working after a server deploy — the case that makes
 versioning worth the cost.
+
+
+## Export privacy (schema 1.2.0, Dev Update 1.10.1)
+
+`GET /api/v1/account/export` returns a document describing one account: the
+account it belongs to, its charts, people, fortune history, and preferences.
+
+It deliberately contains **no production database identity** — no Supabase Auth
+uuid, no `owner_id` or `user_id`, no row primary key, no storage path, no
+avatar version, no provider place id, and no vault note path. Those answer
+"which row is this in Orbit's database", which is a question about Orbit's
+infrastructure rather than about the person's data.
+
+Relationships between records are expressed as **export-local references**:
+
+```json
+{ "birth_profiles": [ { "ref": "chart-1", "nickname": "My Chart" } ],
+  "fortune_history": [ { "chart_ref": "chart-1", "mood": "steady" } ],
+  "active_chart_ref": "chart-1" }
+```
+
+References are sequential over each collection's declared source order, so the
+same data exports the same names every time. They are **not** derived from the
+uuid they replace — no truncation, hash, or encoding — because a derived value
+would still identify the original row and would still correlate two exports of
+the same account.
+
+Records are serialized from an explicit allow-list. A column added to a table
+does not reach the export until somebody decides it belongs to the user.
+
+Birthplace coordinates ARE included: they are the birthplace the person chose,
+and a chart cannot be recomputed anywhere else without them.
+
+Nothing in this repository reads an export back — there is no import or restore
+feature. `lib/account/export.js` exports `auditExportPrivacy()` and
+`auditExportReferences()` for any consumer that needs to check a document.
