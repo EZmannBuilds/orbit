@@ -174,11 +174,19 @@
   padding: 0 10px;
 }
 
+/* Status text carries values the layout did not choose: a download filename,
+   a message forwarded from the server. Without a wrapping rule one long
+   unbroken token widens the whole page — measured at 375px, where a long
+   filename pushed the layout viewport to 921px. `anywhere` rather than
+   `break-word` so the break is allowed to count toward the intrinsic width,
+   which is what actually stops the expansion. */
 .auth-message {
   min-height: 20px;
   color: var(--axis-lavender);
   font-size: 14px;
   text-align: center;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 @media (max-width: 560px) {
