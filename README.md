@@ -99,15 +99,17 @@ All responses are JSON and include a `disclaimer` field where relevant.
 | GET    | `/api/health`                     | Liveness check.                          |
 | GET    | `/api/chart/now` (`/api/chart`)   | Current sky snapshot.                     |
 | GET    | `/api/stella/daily`               | Daily symbolic brief.                    |
-| POST   | `/api/stella/chat`                | Chat-style reflection (`{ "prompt": "" }`). |
+| POST   | `/api/stella/chat`                | **Deprecated.** Chat-style reflection (`{ "prompt": "" }`); returns a Sun-sign `harmony_score`. |
 | GET    | `/api/symbols`                    | Full symbol knowledge base.             |
 | GET    | `/api/sign-for-date?month=&day=`  | Zodiac sign for a date.                 |
-| GET    | `/api/compatibility?a=&b=`        | Symbolic compatibility between two signs. |
+| GET    | `/api/compatibility?a=&b=`        | **Deprecated.** Sun-sign distance only — see [legacy note](docs/deployment/legacy-sun-sign-endpoints.md). Use `/api/compatibility/compare`. |
 | GET    | `/api/events?count=`              | Upcoming sky events.                    |
-| POST   | `/api/query`                      | Free-text query (`{ "prompt": "" }`).   |
+| POST   | `/api/query`                      | **Deprecated.** Free-text query (`{ "prompt": "" }`); returns a Sun-sign `harmony_score`. |
 | GET    | `/api/chakra`, `/api/chakra/:id`  | Chakra reference data.                  |
 | POST   | `/api/ask`                        | Ask Orbit: evidence-grounded astrology answer (auth). |
 | GET    | `/api/ask/suggestions`            | Empty-state context + adaptive suggestions (auth). |
+| GET    | `/api/compatibility/options`      | Which saved charts can be compared (auth). |
+| GET    | `/api/compatibility/compare?a=&b=`| Full-chart compatibility between two saved charts, read for their relationship type (auth). |
 | GET    | `/api/ask/conversations`          | List / start Ask Orbit conversations (auth). |
 | GET    | `/api/local-llm/status`           | Local Ollama status.                    |
 | GET    | `/api/local-llm/models`           | Installed Ollama models.                |
