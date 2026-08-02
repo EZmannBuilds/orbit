@@ -17,7 +17,8 @@ import assert from "node:assert/strict";
 
 import {
   ASPECT_WEIGHTS, ASPECT_ORBS, CATEGORY_WEIGHTS, THEME_TO_CATEGORY,
-  PAIR_MEANINGS, BANDS, SELF_BANDS, bandsFor, pairKey, pairMeaning,
+  PAIR_MEANINGS, BANDS, SELF_BANDS, CATEGORY_BANDS, CATEGORY_SELF_BANDS,
+  bandsFor, pairKey, pairMeaning,
 } from "../lib/compatibility/weights.js";
 import { CATEGORIES, COMPATIBILITY_MODES, categoryIds, isCalculableRelationship } from "../lib/compatibility/categories.js";
 import { collectEvidence, contributionsFor, orbFactor } from "../lib/compatibility/evidence.js";
@@ -193,6 +194,42 @@ test("self mode uses alignment bands, never relationship verdicts", () => {
   }
   // The thresholds stay shared, so there is one scale to keep honest.
   assert.deepEqual(SELF_BANDS.map((b) => b.min), BANDS.map((b) => b.min));
+});
+
+test("a category band means the same thing as an overall band", () => {
+  // An overall is a weighted mean of eight categories and concentrates; a
+  // single category rests on whatever landed in it and spreads. Measured:
+  // overall sd 10.0, category sd 15.9. One threshold set across both is a
+  // distortion — it put 19% of categories in the bottom band against 8% of
+  // overalls, so an ordinary comparison showed "Highly Challenging" six times
+  // beside a Growth-Heavy overall. Seen in a browser, not theorised.
+  let seed = 7654321;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const chart = () => ({ time_known: true, planets: Object.fromEntries(BODIES.map((b) => [b, { longitude: rnd() * 360 }])) });
+  const row = (id, rel) => ({ id, nickname: "Fixture", relationship_type: rel, is_primary: false, avatar_storage_path: null, avatar_version: 0 });
+
+  const overall = [], categories = [];
+  for (const mode of COMPATIBILITY_MODES) {
+    for (let i = 0; i < 150; i++) {
+      const c = buildComparison({ mode, subject: row("a", "self"), other: row("b", mode), subjectChart: chart(), otherChart: chart() });
+      if (c.overall.band) overall.push(c.overall.band.id);
+      for (const cat of c.categories) if (cat.hasEvidence) categories.push(cat.band.id);
+    }
+  }
+  const share = (list, id) => list.filter((x) => x === id).length / list.length;
+  for (const id of ["highly_challenging", "strongly_supportive", "mixed_workable"]) {
+    const o = share(overall, id) || share(overall, CATEGORY_SELF_BANDS.find((b) => b.id === id)?.id) || 0;
+    const c = share(categories, id);
+    assert.ok(Math.abs(o - c) < 0.08,
+      `"${id}" lands on ${(c * 100).toFixed(0)}% of categories but ${(o * 100).toFixed(0)}% of overalls`);
+  }
+
+  // The two scales differ in thresholds, never in labels.
+  assert.deepEqual(CATEGORY_BANDS.map((b) => b.label), BANDS.map((b) => b.label));
+  assert.deepEqual(CATEGORY_SELF_BANDS.map((b) => b.label), SELF_BANDS.map((b) => b.label));
+  assert.notDeepEqual(CATEGORY_BANDS.map((b) => b.min), BANDS.map((b) => b.min));
+  assert.equal(bandsFor("partner", "category"), CATEGORY_BANDS);
+  assert.equal(bandsFor("self", "category"), CATEGORY_SELF_BANDS);
 });
 
 // ── Refusals and edges ──────────────────────────────────────────────────────

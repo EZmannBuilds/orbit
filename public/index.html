@@ -38,6 +38,7 @@
   <link rel="stylesheet" href="/styles/auth.css" />
   <link rel="stylesheet" href="/styles/fortune.css" />
   <link rel="stylesheet" href="/styles/history.css" />
+  <link rel="stylesheet" href="/styles/compatibility.css" />
   <link rel="stylesheet" href="/styles/motion.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='30' fill='none' stroke='%234f83ff' stroke-width='6'/><circle cx='78' cy='30' r='9' fill='%234f83ff'/></svg>" />
 </head>
@@ -482,15 +483,65 @@
               <button class="o-btn o-btn--primary" type="button" data-goto="me">Open My Chart</button>
             </article>
 
+            <article class="tool-card">
+              <h2>Compatibility</h2>
+              <p>
+                How your chart meets another saved chart, read for the relationship
+                you saved it as — partner, friend, or family.
+              </p>
+              <button class="o-btn o-btn--primary" type="button" data-goto="compatibility">Open Compatibility</button>
+            </article>
+
             <article class="tool-card tool-card--planned">
               <h2>More tools are on the way</h2>
               <p>
-                Compatibility between two charts, a gratitude and dream journal, and
-                reminders for the sky events that matter to you are all planned. They
-                are not built yet, so Orbit Axis does not pretend they are.
+                A gratitude and dream journal, and reminders for the sky events that
+                matter to you, are both planned. They are not built yet, so Orbit Axis
+                does not pretend they are.
               </p>
             </article>
           </div>
+        </section>
+
+        <!-- ── Compatibility ────────────────────────────────────────────
+             Two SAVED charts, compared. The relationship type stored on the
+             other chart decides which questions get asked of the same
+             astrology — see lib/compatibility/categories.js.
+
+             Everything visible here is composed on the server. The browser
+             renders sentences it was handed and writes none of its own, which
+             is the same rule the reading and the transits follow. -->
+        <section class="workspace-panel" id="panel-compatibility" role="region" aria-labelledby="compatibility-title" hidden>
+          <div class="o-section-head">
+            <div class="o-section-head__text">
+              <h1 class="u-title" id="compatibility-title">Compatibility</h1>
+              <p class="u-caption" id="compat-subtitle">How two saved charts meet.</p>
+            </div>
+          </div>
+
+          <!-- Chart pickers. Both are ordinary selects: they work with a
+               keyboard, they work with a screen reader, and they need no
+               instructions. -->
+          <div class="compat-pickers" id="compat-pickers" hidden>
+            <div class="compat-picker">
+              <label class="compat-picker__label" for="compat-subject">Your chart</label>
+              <select class="compat-picker__select" id="compat-subject"></select>
+            </div>
+            <div class="compat-picker">
+              <label class="compat-picker__label" for="compat-other">Compare with</label>
+              <select class="compat-picker__select" id="compat-other"></select>
+            </div>
+            <div class="compat-picker compat-picker--action">
+              <button class="o-btn o-btn--primary" type="button" id="compat-run">Compare</button>
+            </div>
+          </div>
+
+          <!-- One live region for every state: loading, empty, refusal, error.
+               A person using a screen reader hears what happened without
+               hunting for where the text appeared. -->
+          <div class="compat-status" id="compat-status" role="status" aria-live="polite"></div>
+
+          <div id="compat-result" hidden></div>
         </section>
 
         <!-- ── Tarot ────────────────────────────────────────────────── -->

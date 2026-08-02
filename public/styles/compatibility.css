@@ -1,0 +1,314 @@
+/* Orbit Axis :: Compatibility (Dev Update 1.11)
+ *
+ * WIDTH DISCIPLINE, stated first because it is what broke twice before.
+ *
+ * Dev Update 1.10 shipped a 375px layout that expanded to 522px on long
+ * <select> option labels, and 1.10.1 pushed a page to 921px on a single
+ * unbroken token. Both had the same cause: a grid child's default min-width is
+ * `auto`, so it refuses to shrink below its content and silently widens its
+ * parent instead.
+ *
+ * So: every grid child here declares `min-width: 0`, every track is
+ * `minmax(0, 1fr)`, and any text that could arrive as one long token wraps with
+ * `overflow-wrap: anywhere`. That is not defensive styling, it is the fix for a
+ * bug this file would otherwise reintroduce.
+ */
+
+/* ── Pickers ─────────────────────────────────────────────────────────────
+   Two selects and a button. On a narrow screen they stack; there is no
+   horizontal scrolling and no truncation of a chart's name. */
+
+.compat-pickers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3, 0.75rem);
+  align-items: end;
+  margin-block: var(--space-4, 1rem);
+}
+
+@media (min-width: 40rem) {
+  .compat-pickers {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+}
+
+.compat-picker { min-width: 0; }
+
+.compat-picker__label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted, #8b8f9a);
+  margin-block-end: 0.35rem;
+}
+
+.compat-picker__select {
+  inline-size: 100%;
+  /* Without this a long option label sets the element's intrinsic width and
+     drags the whole page wider. This is the 1.10 defect, in one line. */
+  min-width: 0;
+  max-inline-size: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-md, 0.5rem);
+  border: 1px solid var(--border, #2a2d36);
+  background: var(--surface-2, #16181e);
+  color: var(--text, #e8e9ed);
+  font: inherit;
+}
+
+.compat-picker--action { display: flex; }
+.compat-picker--action .o-btn { inline-size: 100%; }
+
+@media (min-width: 40rem) {
+  .compat-picker--action .o-btn { inline-size: auto; }
+}
+
+/* ── Status / empty / refusal ────────────────────────────────────────────
+   One live region carries loading, empty, refusal and error, so a screen
+   reader announces every state from the same place. */
+
+.compat-status {
+  min-block-size: 1.25rem;
+  margin-block: var(--space-3, 0.75rem);
+  color: var(--text-muted, #8b8f9a);
+  /* A chart name pasted as one long token must wrap rather than widen the
+     page — the 1.10.1 defect, in one line. */
+  overflow-wrap: anywhere;
+}
+
+.compat-status--error { color: var(--danger, #e5484d); }
+
+.compat-status--notice {
+  color: var(--text, #e8e9ed);
+  background: var(--surface-2, #16181e);
+  border: 1px solid var(--border, #2a2d36);
+  border-radius: var(--radius-md, 0.5rem);
+  padding: 0.75rem 0.9rem;
+}
+
+.compat-status__link {
+  color: var(--accent, #7c9cff);
+  text-underline-offset: 0.2em;
+  white-space: nowrap;
+}
+
+/* ── Overall ─────────────────────────────────────────────────────────────
+   The BAND is the headline and the number is supporting detail. That ordering
+   is the product decision: a percentage on its own gets read as a probability
+   that the relationship will work, which is exactly the misreading this
+   feature must not encourage. */
+
+.compat-overall__band {
+  font-size: clamp(1.5rem, 1.1rem + 2vw, 2rem);
+  font-weight: 650;
+  line-height: 1.2;
+  margin-block: 0.25rem 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.compat-overall__score {
+  font-size: 0.875rem;
+  color: var(--text-muted, #8b8f9a);
+  margin-block: 0 0.75rem;
+}
+
+.compat-overall__summary {
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  margin-block: 0 0.9rem;
+}
+
+.compat-note {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted, #8b8f9a);
+  border-inline-start: 2px solid var(--border, #2a2d36);
+  padding-inline-start: 0.75rem;
+  margin-block: 0;
+}
+
+/* ── Strengths and growth ───────────────────────────────────────────────── */
+
+.compat-highlights {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3, 0.75rem);
+  margin-block: var(--space-3, 0.75rem);
+}
+
+@media (min-width: 44rem) {
+  .compat-highlights { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+.compat-highlight { min-width: 0; }
+
+.compat-highlight__list {
+  margin: 0.5rem 0 0;
+  padding-inline-start: 1.1rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.compat-highlight__none {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted, #8b8f9a);
+  font-size: 0.9375rem;
+}
+
+/* ── Categories ──────────────────────────────────────────────────────────
+   <details> rather than a scripted accordion: keyboard-operable, correctly
+   announced, survives Find-in-page, and works with JavaScript broken. */
+
+.compat-category {
+  border-block-end: 1px solid var(--border, #2a2d36);
+}
+.compat-category:last-of-type { border-block-end: 0; }
+
+.compat-category__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-block: 0.85rem;
+  cursor: pointer;
+  /* The default triangle is inconsistent across browsers and unlabelled; the
+     open/closed state is already announced by the element itself. */
+  list-style: none;
+}
+.compat-category__summary::-webkit-details-marker { display: none; }
+
+.compat-category__summary:focus-visible {
+  outline: 2px solid var(--accent, #7c9cff);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm, 0.25rem);
+}
+
+/* An <h3> for the heading outline, sized as body text because its job here is
+   to label a row, not to shout. */
+.compat-category__label {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.compat-category__band {
+  font-size: 0.8125rem;
+  color: var(--text-muted, #8b8f9a);
+  white-space: nowrap;
+}
+
+.compat-category__body { padding-block-end: 1rem; }
+
+.compat-category__question {
+  font-size: 0.875rem;
+  color: var(--text-muted, #8b8f9a);
+  margin-block: 0 0.5rem;
+}
+
+.compat-category__text {
+  line-height: 1.6;
+  margin-block: 0 0.5rem;
+}
+
+.compat-category__score {
+  font-size: 0.8125rem;
+  color: var(--text-muted, #8b8f9a);
+  margin-block: 0 0.75rem;
+}
+
+/* ── Evidence ────────────────────────────────────────────────────────────
+   Every rating can be opened down to the exact contacts behind it. A score
+   with nothing behind it is the thing this feature exists to avoid. */
+
+.compat-evidence { margin-block-start: 0.75rem; }
+
+.compat-evidence__title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted, #8b8f9a);
+  margin-block: 0 0.4rem;
+}
+
+.compat-factor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.compat-factor {
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  background: var(--surface-2, #16181e);
+  border-radius: var(--radius-md, 0.5rem);
+}
+
+.compat-factor__headline {
+  margin: 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.compat-factor__roles {
+  margin: 0.15rem 0 0;
+  font-size: 0.875rem;
+  color: var(--text-muted, #8b8f9a);
+  line-height: 1.45;
+}
+
+/* The degrees. Deliberately last and quietest — somebody who wanted a sentence
+   should not meet an orb first. */
+.compat-factor__technical {
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #8b8f9a);
+  overflow-wrap: anywhere;
+}
+
+/* ── Limitations, prompts, methodology ──────────────────────────────────── */
+
+.compat-limitation + .compat-limitation { margin-block-start: 0.75rem; }
+
+.compat-limitation__title {
+  font-size: 0.9375rem;
+  margin-block: 0 0.25rem;
+}
+
+.compat-limitation p { margin: 0; line-height: 1.55; }
+
+.compat-prompts__list {
+  margin: 0.5rem 0 0;
+  padding-inline-start: 1.1rem;
+  line-height: 1.7;
+}
+
+.compat-method__summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding-block: 0.25rem;
+}
+
+.compat-method__summary:focus-visible {
+  outline: 2px solid var(--accent, #7c9cff);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm, 0.25rem);
+}
+
+.compat-method__list {
+  margin: 0.75rem 0;
+  padding-inline-start: 1.1rem;
+  line-height: 1.65;
+}
+
+/* Respect the reduced-motion preference the app already honours elsewhere;
+   nothing here animates, and nothing here should start. */
+@media (prefers-reduced-motion: reduce) {
+  .compat-category, .compat-method { transition: none; }
+}

@@ -423,6 +423,7 @@ const WORKSPACES = [
   { id: "history", label: "History", crumb: "Past readings", icon: "history", primary: false },
   { id: "symbol-atlas", label: "Symbol Atlas", crumb: "What the symbols mean", icon: "atlas", primary: false },
   { id: "settings", label: "Settings", crumb: "Appearance", icon: "settings", primary: false },
+  { id: "compatibility", label: "Compatibility", crumb: "Two charts compared", icon: "atlas", primary: false },
 
   // Unfinished features. Absent from production entirely; a flag alone is not
   // enough, the markup has to be present too (see availableWorkspaces).
@@ -477,6 +478,11 @@ function refreshSecondaryRoute() {
   // Positions describes the shared sky, so it loads for anyone who opens it —
   // no active chart, and no chart at all, are both fine.
   if (id === "positions") { wirePositions(); loadPositions(); }
+  // Compatibility reads saved charts, so it has the same boot-order hazard the
+  // note above describes: a refresh landing straight on #compatibility rendered
+  // "Sign in to compare your saved charts" to a signed-in user and never
+  // corrected itself. Verified in a browser, not inferred.
+  if (id === "compatibility") { wireCompatibility(); loadCompatibility(); }
 }
 
 /* ── Today's Transits ───────────────────────────────────────────────────────
@@ -1066,6 +1072,7 @@ function renderRoute() {
     // own focus trap.
     if (authSignedIn()) $("#positions-title")?.focus({ preventScroll: true });
   }
+  if (id === "compatibility") { wireCompatibility(); loadCompatibility(); }
   if (id === "history") axisLoadHistory($("#history-scope")?.value || "active");
   const ws = WORKSPACES.find(w => w.id === id);
 
@@ -2897,6 +2904,284 @@ async function refreshActiveExperience() {
   }
   await axisLoadToday();
   if (currentWorkspace() === "history") await axisLoadHistory($("#history-scope")?.value || "active");
+}
+
+
+/* ── Compatibility (Dev Update 1.11) ───────────────────────────────────────
+   Two SAVED charts, compared, with the relationship type on the other chart
+   deciding which questions get asked.
+
+   EVERY SENTENCE HERE CAME FROM THE SERVER. This module chooses layout and
+   nothing else — no scoring, no thresholds, no copy. lib/interpretation and
+   lib/transits follow the same rule, and the reason is that a second place
+   composing the same evidence is how a product grows a second opinion about
+   itself.
+
+   The number is deliberately secondary to the band. A bare "73%" invites
+   being read as a probability of the relationship working, which is the one
+   misreading this feature must not encourage. */
+
+const compat = { options: null, result: null, busy: false };
+
+function compatStatus(message, { tone = "info" } = {}) {
+  const el = $("#compat-status");
+  if (!el) return;
+  el.className = `compat-status${message ? ` compat-status--${tone}` : ""}`;
+  el.innerHTML = message ? esc(message) : "";
+}
+
+/**
+ * Fill both pickers from what the server says is comparable.
+ *
+ * A chart with a legacy relationship value stays in the list, disabled, with
+ * the reason attached. Removing it would look like the app lost a chart; the
+ * whole point of the 1.10 identity work is that the person can fix it.
+ */
+function renderCompatPickers() {
+  const data = compat.options;
+  const subject = $("#compat-subject");
+  const other = $("#compat-other");
+  if (!data || !subject || !other) return;
+
+  const selves = data.options.filter((o) => o.relationship_type === "self");
+  subject.innerHTML = selves.map((o) =>
+    `<option value="${esc(o.id)}"${o.id === data.subject_id ? " selected" : ""}>${esc(o.name)}</option>`
+  ).join("");
+
+  const chosenSubject = subject.value || data.subject_id;
+  other.innerHTML = data.options
+    .filter((o) => o.id !== chosenSubject)
+    .map((o) => {
+      const blocked = o.unavailable_reason === "relationship_required";
+      const suffix = blocked
+        ? " — needs a relationship type"
+        : o.relationship_type === "self" ? " — another Self chart"
+          : ` — ${o.relationship_type}`;
+      return `<option value="${esc(o.id)}"${blocked ? " disabled" : ""}>${esc(o.name)}${esc(suffix)}</option>`;
+    }).join("");
+
+  $("#compat-pickers").hidden = false;
+  $("#compat-run").disabled = !other.value;
+}
+
+/** The empty states, each of which explains the next step rather than the problem. */
+function compatEmptyState(data) {
+  if (!data.subject_id || !data.subject_available) {
+    return "Compatibility is read from your own chart outward, so it needs a chart saved as Self. "
+         + "Open My Chart to set one.";
+  }
+  const comparable = data.options.filter((o) => o.available);
+  if (!comparable.length) {
+    const blocked = data.options.filter((o) => o.unavailable_reason === "relationship_required");
+    if (blocked.length) {
+      return `You have ${blocked.length === 1 ? "a saved chart that needs" : `${blocked.length} saved charts that need`} `
+           + "a relationship type before they can be compared. Open My Chart to set one.";
+    }
+    return "Save a second chart — a partner, a friend, or a family member — and Orbit Axis can compare it with yours.";
+  }
+  return "";
+}
+
+async function loadCompatibility() {
+  // Reset the heading before anything loads. A previous Self Pattern
+  // Comparison must not leave its title standing over a fresh, unrun page.
+  $("#compatibility-title").textContent = "Compatibility";
+  $("#compat-subtitle").textContent = "How two saved charts meet.";
+  document.title = "Orbit Axis — Compatibility";
+
+  if (!authSignedIn()) { compatStatus("Sign in to compare your saved charts."); return; }
+  compatStatus("Loading your saved charts…");
+  try {
+    const data = await get("/api/compatibility/options");
+    compat.options = data.options;
+    const empty = compatEmptyState(data.options);
+    if (empty) {
+      $("#compat-pickers").hidden = true;
+      $("#compat-result").hidden = true;
+      compatStatus(empty);
+      return;
+    }
+    renderCompatPickers();
+    compatStatus("");
+  } catch (error) {
+    compatStatus(error.message || "Orbit could not load your charts.", { tone: "error" });
+  }
+}
+
+async function runCompatibility() {
+  const a = $("#compat-subject")?.value;
+  const b = $("#compat-other")?.value;
+  if (!a || !b || compat.busy) return;
+  compat.busy = true;
+  $("#compat-run").disabled = true;
+  $("#compat-result").hidden = true;
+  compatStatus("Comparing…");
+  try {
+    const data = await get(`/api/compatibility/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`);
+    compat.result = data.comparison;
+    renderCompatResult(data.comparison);
+    compatStatus("");
+  } catch (error) {
+    // A refusal is an answer with a next step, not a failure. The server sends
+    // the code and the chart to fix; the interface turns that into a link
+    // rather than an apology.
+    const code = error.data?.code;
+    if (code === "relationship_required" || code === "subject_must_be_self") {
+      $("#compat-result").hidden = true;
+      const el = $("#compat-status");
+      el.className = "compat-status compat-status--notice";
+      el.innerHTML = `${esc(error.message)} <a class="compat-status__link" href="#me">Open My Chart</a>`;
+      return;
+    }
+    compatStatus(error.message || "Orbit could not compare these charts.", { tone: "error" });
+  } finally {
+    compat.busy = false;
+    $("#compat-run").disabled = false;
+  }
+}
+
+function compatFactorHtml(factor) {
+  return `<li class="compat-factor">
+    <p class="compat-factor__headline">${esc(factor.headline)}</p>
+    <p class="compat-factor__roles">${esc(factor.roles)}</p>
+    <p class="compat-factor__technical">${esc(factor.technical)}</p>
+  </li>`;
+}
+
+/**
+ * One category, collapsed by default.
+ *
+ * <details> rather than a scripted accordion: it opens with a keyboard, it is
+ * announced correctly, it survives Find-in-page, and it needs no JavaScript to
+ * be usable. The score sits inside as supporting detail; the band is what the
+ * summary line leads with.
+ */
+function compatCategoryHtml(category) {
+  const groups = [
+    ["What supports this", category.supporting],
+    ["What strains this", category.straining],
+    ["Both at once", category.mixed],
+  ].filter(([, list]) => list.length);
+
+  const evidence = groups.map(([label, list]) => `
+    <div class="compat-evidence">
+      <h4 class="compat-evidence__title">${esc(label)}</h4>
+      <ul class="compat-factor-list">${list.map(compatFactorHtml).join("")}</ul>
+    </div>`).join("");
+
+  return `<details class="compat-category">
+    <summary class="compat-category__summary">
+      <!-- A real heading, not a styled span. Without it the outline jumped
+           straight from "Every area, with its evidence" (h2) to "What supports
+           this" (h4), so the category names were absent from a screen reader's
+           heading list and there was no way to navigate between areas. Caught
+           by walking the heading levels in a browser. -->
+      <h3 class="compat-category__label">${esc(category.label)}</h3>
+      <span class="compat-category__band">${category.hasEvidence ? esc(category.band.label) : "Limited evidence"}</span>
+    </summary>
+    <div class="compat-category__body">
+      <p class="compat-category__question">${esc(category.question)}</p>
+      <p class="compat-category__text">${esc(category.summary)}</p>
+      ${category.hasEvidence
+        ? `<p class="compat-category__score">Rating ${category.score} of 100 in this area.</p>`
+        : ""}
+      ${evidence}
+    </div>
+  </details>`;
+}
+
+function renderCompatResult(c) {
+  const highlight = (items, empty) => items.length
+    ? `<ul class="compat-highlight__list">${items.map((i) =>
+      `<li>${esc(i.label)}</li>`).join("")}</ul>`
+    : `<p class="compat-highlight__none">${esc(empty)}</p>`;
+
+  const limitations = c.limitations.map((l) => `
+    <div class="compat-limitation">
+      <h3 class="compat-limitation__title">${esc(l.title)}</h3>
+      <p>${esc(l.body)}</p>
+    </div>`).join("");
+
+  const prompts = c.framing.prompts.length ? `
+    <section class="o-card compat-prompts" aria-labelledby="compat-prompts-title">
+      <h2 class="axis-section-title" id="compat-prompts-title">Worth talking about</h2>
+      <ul class="compat-prompts__list">${c.framing.prompts.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+    </section>` : "";
+
+  // The VISIBLE heading, not just the tab title. Self mode is titled "Self
+  // Pattern Comparison" because nobody is in a relationship with themselves,
+  // and a page headed "Compatibility" above two of your own charts says they
+  // are. Caught in a browser: the tab title was being set correctly while the
+  // <h1> underneath it still read Compatibility.
+  $("#compatibility-title").textContent = c.framing.title;
+  $("#compat-subtitle").textContent = c.framing.subtitle;
+  document.title = `${c.framing.title} · Orbit Axis`;
+
+  $("#compat-result").innerHTML = `
+    <section class="o-card compat-overall" aria-labelledby="compat-overall-title">
+      <h2 class="axis-section-title" id="compat-overall-title">
+        ${esc(c.subject.name)} and ${esc(c.other.name)}
+      </h2>
+      ${c.overall.band ? `
+        <p class="compat-overall__band">${esc(c.overall.band.label)}</p>
+        <p class="compat-overall__score">Overall rating ${c.overall.score} of 100.</p>` : ""}
+      <p class="compat-overall__summary">${esc(c.overall.summary)}</p>
+      <p class="compat-note">${esc(c.methodology.note)}</p>
+    </section>
+
+    <div class="compat-highlights">
+      <section class="o-card compat-highlight" aria-labelledby="compat-strengths-title">
+        <h3 class="u-card-title" id="compat-strengths-title">Where this is strongest</h3>
+        ${highlight(c.overall.strengths, "No single area stands out above the rest.")}
+      </section>
+      <section class="o-card compat-highlight" aria-labelledby="compat-growth-title">
+        <h3 class="u-card-title" id="compat-growth-title">Where this asks for attention</h3>
+        ${highlight(c.overall.growth, "No single area stands out as needing more than the rest.")}
+      </section>
+    </div>
+
+    <section class="o-card compat-categories" aria-labelledby="compat-categories-title">
+      <h2 class="axis-section-title" id="compat-categories-title">Every area, with its evidence</h2>
+      <p class="u-meta">Open any area to see the exact contacts behind its rating.</p>
+      ${c.categories.map(compatCategoryHtml).join("")}
+    </section>
+
+    ${limitations ? `<section class="o-card compat-limitations" aria-labelledby="compat-limits-title">
+      <h2 class="axis-section-title" id="compat-limits-title">What this comparison cannot tell you</h2>
+      ${limitations}
+    </section>` : ""}
+
+    ${prompts}
+
+    <details class="o-card compat-method">
+      <summary class="compat-method__summary">How this was worked out</summary>
+      <div class="compat-method__body">
+        <ul class="compat-method__list">${c.methodology.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+        <p class="u-meta">Rating method ${esc(c.methodology.ratingVersion)} · wording ${esc(c.methodology.contentVersion)}</p>
+      </div>
+    </details>`;
+
+  $("#compat-result").hidden = false;
+}
+
+function wireCompatibility() {
+  const panel = $("#panel-compatibility");
+  if (!panel || panel._wiredCompat) return;
+  panel._wiredCompat = true;
+
+  // Changing your own chart re-filters the other list, so the same chart can
+  // never appear on both sides.
+  $("#compat-subject")?.addEventListener("change", () => {
+    renderCompatPickers();
+    $("#compat-result").hidden = true;
+    compatStatus("");
+  });
+  $("#compat-other")?.addEventListener("change", () => {
+    $("#compat-run").disabled = !$("#compat-other").value;
+    $("#compat-result").hidden = true;
+    compatStatus("");
+  });
+  $("#compat-run")?.addEventListener("click", runCompatibility);
 }
 
 /* ── Toasts ────────────────────────────────────────────────────────────── */
