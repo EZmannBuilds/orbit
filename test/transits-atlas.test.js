@@ -247,42 +247,51 @@ test("every filter button maps to entries that exist", () => {
   // A category with nothing behind it is a dead end.
   // matchAll requires a global regex; without /g it throws rather than failing
   // the assertion, which looks like a product bug and is not one.
-  const buttons = [...html.matchAll(/#sa-filters[\s\S]*?<\/div>/g)][0]?.[0] || "";
-  const kinds = [...buttons.matchAll(/data-kind="([^"]*)"/g)].map((m) => m[1]).filter(Boolean);
-  for (const kind of kinds) {
-    assert.ok(ORBIT_SYMBOLS.some((s) => s.kind === kind), `the ${kind} filter has no entries`);
-  }
+  // Dev Update 1.12 replaced the filter tabs with category pages; the seven
+  // categories and their entry counts are validated in
+  // test/symbol-atlas-content.test.js. What must remain true HERE is that the
+  // atlas panel still exists for transit links to land on.
+  assert.ok(html.includes('id="panel-symbol-atlas"'));
 });
 
 // ── Symbol Atlas behaviour ──────────────────────────────────────────────────
 
-test("search is trimmed, case-insensitive, and covers meaning as well as name", () => {
-  assert.match(appJs, /String\(query \|\| ""\)\.trim\(\)\.toLowerCase\(\)/);
-  assert.match(appJs, /symbol\.interpretation \|\| ""/, "meaning should be searchable");
-  assert.match(appJs, /symbol\.keywords \|\| \[\]/, "keywords should be searchable");
+test("search is trimmed, case-insensitive, and covers meaning as well as name", async () => {
+  // Dev Update 1.12: search moved into the validated content module, with a
+  // documented ranking. Behaviour is proven functionally rather than by
+  // grepping the source of a function that no longer exists.
+  const { searchAtlas } = await import("../lib/symbol-atlas/index.js");
+  assert.equal(searchAtlas("  MOON  ")[0]?.entry.slug, "moon");
+  assert.equal(searchAtlas("EMOTION")[0]?.entry.slug, "moon", "keywords remain searchable");
+  assert.ok(searchAtlas("friction").some((r) => r.entry.slug === "square"),
+    "meaning (summaries) remains searchable");
 });
 
 test("search never leaves the browser", () => {
-  const start = appJs.indexOf("function filterSymbols");
-  const end = appJs.indexOf("function renderSymbolAtlas");
+  const start = appJs.indexOf("/* ── Symbol Atlas (Dev Update 1.12)");
+  const end = appJs.indexOf("/* ── Feature flags");
   const source = appJs.slice(start, end);
-  assert.ok(!source.includes("fetch("), "filtering must run over data already loaded");
+  assert.ok(!source.includes("fetch("), "search runs over the static content module");
 });
 
-test("an unknown category matches nothing rather than throwing", () => {
-  assert.match(appJs, /if \(kind && symbol\.kind !== kind\) return false;/);
+test("an unknown category matches nothing rather than throwing", async () => {
+  const { atlasEntry, categoryEntries, searchAtlas } = await import("../lib/symbol-atlas/index.js");
+  assert.equal(atlasEntry("nonsense", "moon"), null);
+  assert.deepEqual(categoryEntries("nonsense"), []);
+  assert.deepEqual(searchAtlas("qqqq"), []);
 });
 
 test("glyphs are decorative in the accessibility tree, names are not", () => {
-  // The glyph is hidden and the name carries the meaning, so a failed font or a
-  // screen reader still conveys the symbol.
-  assert.match(appJs, /class="sa-card__glyph" aria-hidden="true"/);
-  assert.match(appJs, /class="sa-card__name">\$\{esc\(symbol\.name\)\}/);
+  // The glyph is hidden and the title carries the meaning, so a failed font or
+  // a screen reader still conveys the symbol. (1.12 class names.)
+  assert.match(appJs, /class="atlas-card__glyph" aria-hidden="true"/);
+  assert.match(appJs, /class="atlas-card__title">\$\{esc\(entry\.title\)\}/);
 });
 
-test("the atlas states where each symbol appears in Orbit", () => {
-  assert.match(appJs, /SYMBOL_SEEN_IN/);
-  assert.match(appJs, /Seen in Orbit Axis:/);
+test("the atlas states how each symbol functions in a chart", () => {
+  // 1.12 upgraded "Seen in Orbit Axis" to a full chart-role section on every
+  // entry, validated as required content in symbol-atlas-content.test.js.
+  assert.match(appJs, /atlas-role-title">In a chart<\/h2>/);
 });
 
 // ── Cross-linking ───────────────────────────────────────────────────────────

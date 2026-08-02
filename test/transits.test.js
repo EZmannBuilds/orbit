@@ -402,7 +402,10 @@ test("aspect, orb, and motion are visible text, not glyphs or colour", () => {
   const card = APP.slice(APP.indexOf("function transitCardHtml"), APP.indexOf("function renderTransitsWorkspace"));
   assert.match(card, /esc\(t\.motion\)/, "Applying/Separating is rendered as text");
   assert.match(card, /esc\(t\.orbLabel\)/, "the orb is text");
-  assert.match(card, /esc\(t\.aspect\)/, "the aspect is named");
+  // Since Dev Update 1.12 the aspect name is an Atlas reference link — still
+  // visible text (the link's label IS the name, escaped inside atlasLinkHtml),
+  // now also a way to learn what the word means.
+  assert.match(card, /atlasLinkHtml\("aspects", t\.aspect\)/, "the aspect is named");
   assert.match(card, /Retrograde/, "retrograde state is a word");
 });
 
