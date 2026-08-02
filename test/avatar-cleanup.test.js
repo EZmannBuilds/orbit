@@ -27,7 +27,7 @@ const { createOrbitApp } = await import("../lib/server/create-app.js");
 const { resolveEnvironment, classifyDatabaseTarget } = await import("../lib/env/environment.js");
 const { SESSION_COOKIE } = await import("../lib/auth/supabase-auth.js");
 const { safePlaceForClient } = await import("../lib/locations/geoapify.js");
-const { buildAccountExport, AVATAR_EXPORT_LIMITATION } = await import("../lib/account/export.js");
+const { buildAccountExport, AVATAR_EXPORT_LIMITATION, auditExportPrivacy, auditExportReferences } = await import("../lib/account/export.js");
 const { sweepAvatarObjects } = await import("../lib/account/deletion.js");
 
 if (classifyDatabaseTarget(URL_).target === "production") {
@@ -237,12 +237,15 @@ test("the real export names identity honestly and leaks no storage detail", asyn
 
   const doc = await buildAccountExport({ accessToken: user.accessToken, timezone: "UTC" });
   const rows = doc.birth_profiles;
-  const exportedPictured = rows.find((r) => r.id === pictured.id);
+  // Dev Update 1.10.1: rows are found by the name the PERSON gave them,
+  // because the database id is no longer in the document to look up by.
+  const exportedPictured = rows.find((r) => r.nickname === "Pictured");
   assert.equal(exportedPictured.avatar_present, true);
   assert.equal(exportedPictured.avatar_exported, false);
   assert.equal(exportedPictured.avatar_export_limitation, AVATAR_EXPORT_LIMITATION);
   assert.equal(exportedPictured.relationship_type_status, "set");
-  const exportedLegacy = rows.find((r) => r.id === legacyId);
+  assert.match(exportedPictured.ref, /^chart-[1-9][0-9]*$/, "an export-local reference instead");
+  const exportedLegacy = rows.find((r) => r.nickname === "Legacy Row");
   assert.equal(exportedLegacy.relationship_type, "other", "the stored value is the user's data");
   assert.equal(exportedLegacy.relationship_type_status, "legacy_unclassified");
   assert.equal(exportedLegacy.avatar_present, false);
@@ -253,6 +256,12 @@ test("the real export names identity honestly and leaks no storage detail", asyn
   assert.ok(!text.includes("chart-avatars"), "no bucket name");
   assert.ok(!text.includes(`${user.id}/`), "no owner-prefixed object path");
   assert.ok(!text.includes("storage/v1"), "no storage URL of any kind");
+  // And the identifiers this patch removed are gone from a REAL export too.
+  assert.ok(!text.includes(user.id), "no Auth uuid");
+  assert.ok(!text.includes(pictured.id), "no chart row id");
+  assert.ok(!text.includes(legacyId), "no legacy chart row id");
+  assert.deepEqual(auditExportPrivacy(doc).findings, [], "the privacy audit passes on live data");
+  assert.deepEqual(auditExportReferences(doc).findings, [], "and every reference resolves");
 });
 
 // ── Account-deletion sweep ──────────────────────────────────────────────────
