@@ -426,3 +426,27 @@ test("presentExportChart without reference tables still yields a clean record", 
   }
   assert.equal(record.avatar_present, true);
 });
+
+// ── The download itself ─────────────────────────────────────────────────────
+
+test("a success envelope with no document is refused, not saved as 'undefined'", () => {
+  // JSON.stringify(undefined) returns undefined rather than throwing, so a 200
+  // whose envelope carried no `data` saved a nine-byte file containing the
+  // literal text "undefined" and announced "Downloaded" — a failure wearing a
+  // success message, which is the one outcome a data-export feature must never
+  // produce. Found by driving the real button on the hosted Preview.
+  const src = readFileSync(join(ROOT, "public", "app.js"), "utf8");
+  const start = src.indexOf("function wireAccountExport");
+  assert.ok(start > -1, "the export wiring exists");
+  const wiring = src.slice(start, src.indexOf("\nfunction ", start + 10));
+
+  assert.match(wiring, /!document_ \|\| typeof document_ !== "object" \|\| !document_\.orbit_axis_export/,
+    "the payload is checked for a real export document before anything is saved");
+  const guardAt = wiring.indexOf("orbit_axis_export");
+  const blobAt = wiring.indexOf("new Blob(");
+  assert.ok(guardAt > -1 && guardAt < blobAt, "and checked BEFORE the blob is built");
+  assert.match(wiring, /catch \{\s*message\.textContent = "Your data could not be prepared for download/,
+    "a serialization failure is reported rather than saved");
+  assert.ok(!/new Blob\(\[JSON\.stringify\(payload\.data/.test(wiring),
+    "the unguarded stringify is gone");
+});

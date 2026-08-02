@@ -1506,13 +1506,35 @@ function wireAccountExport() {
         return;
       }
 
+      // A 200 is not the same as an export. `JSON.stringify(undefined)` returns
+      // undefined rather than throwing, so a success envelope with no `data`
+      // used to save a nine-byte file containing the literal text "undefined"
+      // and announce "Downloaded" — a failure wearing a success message, which
+      // is the one outcome a data-export feature must never produce. Found by
+      // driving the real button against a 200 with an empty envelope.
+      const document_ = payload.data;
+      if (!document_ || typeof document_ !== "object" || !document_.orbit_axis_export) {
+        message.textContent = "Your data could not be exported just now. Please try again.";
+        return;
+      }
+
+      // Serializing can still fail on a document this browser cannot handle.
+      // Better to say so than to save whatever partial text came back.
+      let serialized;
+      try {
+        serialized = JSON.stringify(document_, null, 2);
+      } catch {
+        message.textContent = "Your data could not be prepared for download. Please try again.";
+        return;
+      }
+
       // Named from the response header rather than rebuilt here, so the file a
       // person receives is the one the server said it was sending.
       const disposition = res.headers.get("content-disposition") || "";
       const named = /filename="([^"]+)"/.exec(disposition);
       const filename = named ? named[1] : "orbit-axis-export.json";
 
-      const blob = new Blob([JSON.stringify(payload.data, null, 2)], { type: "application/json" });
+      const blob = new Blob([serialized], { type: "application/json" });
       url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
