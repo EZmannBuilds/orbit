@@ -626,9 +626,9 @@ function transitCardHtml(t, { background = false } = {}) {
         <div class="reading-card__aside"><h4>Constructive potential</h4><p>${esc(r.constructive)}</p></div>
         <div class="reading-card__aside"><h4>Possible tension</h4><p>${esc(r.tension)}</p></div>
         <dl class="tr-evidence">
-          <div><dt>Transiting</dt><dd>${esc(t.transiting)} ${esc(t.transitingPosition)}</dd></div>
-          <div><dt>Your natal ${esc(t.natal)}</dt><dd>${esc(t.natalPosition)}</dd></div>
-          <div><dt>Aspect</dt><dd>${esc(t.aspect)}</dd></div>
+          <div><dt>Transiting</dt><dd>${atlasBodyLinkHtml(t.transiting)} ${esc(t.transitingPosition)}</dd></div>
+          <div><dt>Your natal ${atlasBodyLinkHtml(t.natal)}</dt><dd>${esc(t.natalPosition)}</dd></div>
+          <div><dt>Aspect</dt><dd>${atlasLinkHtml("aspects", t.aspect)}</dd></div>
           <div><dt>Orb</dt><dd>${esc(t.orbLabel)}</dd></div>
           ${t.motion ? `<div><dt>Motion</dt><dd>${esc(t.motion)}</dd></div>` : ""}
           <div><dt>Duration</dt><dd>${esc(t.duration)}</dd></div>
@@ -1147,6 +1147,19 @@ const ATLAS_LINKABLE = Object.freeze({
   modalities: new Set(["cardinal", "fixed", "mutable"]),
   angles: new Set(["ascendant", "descendant", "midheaven", "imum-coeli"]),
 });
+
+/** A planet-or-angle name → Atlas link. "Rising"/"Ascendant" resolve to the
+ *  Ascendant entry; anything unknown stays plain text. */
+function atlasBodyLinkHtml(name, { label } = {}) {
+  const plain = String(name || "").toLowerCase().trim();
+  if (plain === "rising" || plain === "ascendant") {
+    return atlasLinkHtml("angles", "ascendant", { label: label ?? name });
+  }
+  if (plain === "midheaven" || plain === "mc") {
+    return atlasLinkHtml("angles", "midheaven", { label: label ?? name });
+  }
+  return atlasLinkHtml("planets", name, { label });
+}
 
 function atlasLinkHtml(category, name, { label } = {}) {
   const slug = String(name || "").toLowerCase().trim().replace(/\s+/g, "-");
@@ -3293,10 +3306,18 @@ async function runCompatibility() {
 }
 
 function compatFactorHtml(factor) {
+  // Reference links live on their own quiet line rather than inside the
+  // authored sentence — the headline stays a sentence, not an ad break.
+  // Scoring and mode are untouched; these are plain Atlas anchors.
+  const refs = [
+    ...(Array.isArray(factor.bodies) ? factor.bodies.map((b) => atlasBodyLinkHtml(b)) : []),
+    factor.aspect ? atlasLinkHtml("aspects", factor.aspect) : "",
+  ].filter(Boolean).join(" · ");
   return `<li class="compat-factor">
     <p class="compat-factor__headline">${esc(factor.headline)}</p>
     <p class="compat-factor__roles">${esc(factor.roles)}</p>
     <p class="compat-factor__technical">${esc(factor.technical)}</p>
+    ${refs ? `<p class="compat-factor__refs">In the Atlas: ${refs}</p>` : ""}
   </li>`;
 }
 
@@ -3804,7 +3825,10 @@ function readingCardHtml(placement, { role = null } = {}) {
       <p class="reading-card__summary">${esc(placement.reason || "")}</p>
     </article>`;
   }
-  const meta = [placement.position, placement.house ? `House ${placement.house}` : "",
+  // Meta pieces escape individually because the house becomes an Atlas
+  // reference link — esc() over the joined string would flatten it to text.
+  const meta = [esc(placement.position || ""),
+                placement.house ? atlasHouseLinkHtml(placement.house, { label: `House ${placement.house}` }) : "",
                 placement.retrograde ? "Retrograde" : ""].filter(Boolean).join(" · ");
   const body = (placement.detail || []).map((p) => `<p>${esc(p)}</p>`).join("");
   const extras = [
@@ -3816,8 +3840,8 @@ function readingCardHtml(placement, { role = null } = {}) {
     <div class="reading-card__head">
       ${glyphHtml(placement.key)}
       <div class="reading-card__ident">
-        <h3 class="reading-card__title">${esc(placement.planet)}${placement.sign ? ` in ${esc(placement.sign)}` : ""}</h3>
-        <p class="reading-card__meta">${esc(meta)}</p>
+        <h3 class="reading-card__title">${atlasBodyLinkHtml(placement.planet)}${placement.sign ? ` in ${atlasLinkHtml("signs", placement.sign)}` : ""}</h3>
+        <p class="reading-card__meta">${meta}</p>
         ${role ? `<p class="reading-card__role">${esc(role)}</p>` : ""}
       </div>
     </div>
@@ -3839,16 +3863,16 @@ function renderBigThree(bigThree) {
 
 // ── 3. Chart patterns ───────────────────────────────────────────────────────
 
-function balanceBarsHtml(percentages, classMap) {
+function balanceBarsHtml(percentages, classMap, atlasCategory = null) {
   return Object.entries(percentages || {}).map(([key, pct]) => `
     <div class="bar-row">
-      <span class="bar-key">${esc(key)}</span>
+      <span class="bar-key">${atlasCategory ? atlasLinkHtml(atlasCategory, key) : esc(key)}</span>
       <span class="bar-track"><span class="bar-fill ${classMap ? (classMap[key] || "") : ""}" style="width:${Number(pct) || 0}%"></span></span>
       <span class="bar-pct">${esc(String(pct))}%</span>
     </div>`).join("");
 }
 
-function patternBlockHtml(pattern, { title, classMap, countsLabel }) {
+function patternBlockHtml(pattern, { title, classMap, countsLabel, atlasCategory = null }) {
   if (!pattern) return "";
   const extra = [
     pattern.detail ? `<p>${esc(pattern.detail)}</p>` : "",
@@ -3858,7 +3882,7 @@ function patternBlockHtml(pattern, { title, classMap, countsLabel }) {
   return `<div class="pattern-block">
     <h3>${esc(title)}</h3>
     <p class="pattern-block__summary">${esc(pattern.summary)}</p>
-    <div class="bars">${balanceBarsHtml(pattern.percentages, classMap)}</div>
+    <div class="bars">${balanceBarsHtml(pattern.percentages, classMap, atlasCategory)}</div>
     ${extra ? `<details class="reading-card__more">
       <summary><span>What ${esc(title.toLowerCase())} means here</span></summary>
       <div class="reading-card__body">${extra}</div>
@@ -3880,8 +3904,8 @@ function renderPatterns(patterns) {
     return;
   }
   target.innerHTML = `<div class="pattern-row">
-    ${patternBlockHtml(patterns.element, { title: "Element balance", classMap: ELEMENT_CLASS, countsLabel: "Counted placements" })}
-    ${patternBlockHtml(patterns.modality, { title: "Modality balance", classMap: null, countsLabel: "Counted placements" })}
+    ${patternBlockHtml(patterns.element, { title: "Element balance", classMap: ELEMENT_CLASS, countsLabel: "Counted placements", atlasCategory: "elements" })}
+    ${patternBlockHtml(patterns.modality, { title: "Modality balance", classMap: null, countsLabel: "Counted placements", atlasCategory: "modalities" })}
   </div>
   <p class="pattern-note">Counts weigh the ten planets in this chart, with the Sun and Moon carrying extra weight.</p>`;
 }
@@ -3903,7 +3927,7 @@ function renderPlacements(placements) {
 function aspectCardHtml(aspect) {
   return `<article class="aspect-card">
     <div class="aspect-card__head">
-      <h3 class="aspect-card__title">${esc(aspect.a)} ${esc(aspect.aspect.toLowerCase())} ${esc(aspect.b)}</h3>
+      <h3 class="aspect-card__title">${atlasBodyLinkHtml(aspect.a)} ${atlasLinkHtml("aspects", aspect.aspect, { label: aspect.aspect.toLowerCase() })} ${atlasBodyLinkHtml(aspect.b)}</h3>
       ${aspect.orbLabel ? `<span class="aspect-card__orb">${esc(aspect.orbLabel)}</span>` : ""}
     </div>
     <p class="aspect-card__summary">${esc(aspect.headline)}</p>
@@ -5089,10 +5113,10 @@ function positionRowHtml(p) {
   return `<li class="positions-row${p.retrograde ? " is-retrograde" : ""}">
     <span class="positions-row__glyph" aria-hidden="true">${esc(glyph)}</span>
     <span class="positions-row__main">
-      <span class="positions-row__name">${esc(p.name)}</span>
+      <span class="positions-row__name">${atlasBodyLinkHtml(p.name)}</span>
       <span class="positions-row__position">
         <span aria-hidden="true">${esc(signGlyph)}</span>
-        <span>${esc(p.position)}</span>
+        ${p.sign ? `<a class="atlas-ref" href="#symbol-atlas/signs/${esc(String(p.sign).toLowerCase())}">${esc(p.position)}</a>` : `<span>${esc(p.position)}</span>`}
       </span>
       ${p.role ? `<span class="positions-row__role">${esc(p.role)}</span>` : ""}
       ${boundary}

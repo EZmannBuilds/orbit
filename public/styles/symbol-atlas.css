@@ -269,3 +269,12 @@ a.atlas-chip:focus-visible { outline: 2px solid var(--accent, #7c9cff); outline-
 @media (prefers-reduced-motion: reduce) {
   .atlas-card, .atlas-category-card, .atlas-chip { transition: none; }
 }
+
+/* The Atlas reference line under a compatibility factor. Styled here rather
+   than in compatibility.css so 1.12 leaves that file byte-identical. */
+.compat-factor__refs {
+  margin: 0.3rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted, #8b8f9a);
+  overflow-wrap: anywhere;
+}
