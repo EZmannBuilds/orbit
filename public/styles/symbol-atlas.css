@@ -168,6 +168,34 @@
 
 .atlas-list { margin: 0.4rem 0 0; padding-inline-start: 1.1rem; line-height: 1.65; overflow-wrap: anywhere; }
 
+/* Dev Update 3.1 — completed entries and combinations.
+   Prose sections run as prose rather than as cards: an entry that stacks
+   eleven cards reads as a filing cabinet, and the reading width is what makes
+   the long sections finishable. */
+.atlas-prose { max-inline-size: 40rem; }
+.atlas-prose p {
+  margin-block: 0.55rem 0;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+/* Reflection prompts are questions, not instructions. The marker change is
+   deliberately not the only signal — the section heading and the caption above
+   the list both say what they are, so nothing depends on seeing the glyph. */
+.atlas-list--prompts { list-style: "? " outside; }
+.atlas-list--prompts li { padding-inline-start: 0.15rem; }
+
+.atlas-reflect .u-meta { margin-block: 0.3rem 0; }
+
+/* A combination shows several glyphs in one slot; they stay decorative and the
+   composed sentence beside them carries every name in text. */
+.atlas-combination .atlas-entry__glyph {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  font-size: 1.6rem;
+}
+
 .atlas-chip-list {
   list-style: none;
   margin: 0.4rem 0 0;
@@ -265,6 +293,18 @@ a.atlas-chip:focus-visible { outline: 2px solid var(--accent, #7c9cff); outline-
 }
 .atlas-ref:hover { color: var(--accent, #7c9cff); text-decoration-color: currentColor; }
 .atlas-ref:focus-visible { outline: 2px solid var(--accent, #7c9cff); outline-offset: 1px; border-radius: 2px; }
+
+/* A combination link is a whole sentence rather than a name inside one, so it
+   gets its own line and a ≥44px target rather than borrowing the inline
+   treatment above. */
+.reading-card__atlas { margin: 0.35rem 0 0; font-size: 0.875rem; }
+.atlas-ref--combination {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding-block: 0.35rem;
+  overflow-wrap: anywhere;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .atlas-card, .atlas-category-card, .atlas-chip { transition: none; }

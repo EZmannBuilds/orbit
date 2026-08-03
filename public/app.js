@@ -815,13 +815,25 @@ function atlasModule() {
 // Without it, a slow first load can paint an older entry over a newer one.
 const atlasView = { seq: 0, query: "" };
 
-/** "#symbol-atlas/planets/moon" → { category, slug, deep } (all lowercased). */
+/**
+ * "#symbol-atlas/planets/moon" → { category, slug, deep } (all lowercased).
+ *
+ * "combinations" is a reserved first segment rather than a category: it takes
+ * a type and a variable number of slugs, so it is parsed separately and
+ * reported as `combination`. Nothing else in the Atlas accepts more than two
+ * segments, and `deep` still refuses anything longer.
+ */
 function atlasRouteParts() {
   const parts = requestedRoute().split("/").slice(1)
     .map((p) => { try { return decodeURIComponent(p); } catch { return p; } })
     .map((p) => p.toLowerCase().trim())
     .filter(Boolean);
-  return { category: parts[0] || null, slug: parts[1] || null, deep: parts.length > 2 };
+  if (parts[0] === "combinations") {
+    return { category: null, slug: null, deep: false,
+      combination: { type: parts[1] || null, parts: parts.slice(2) } };
+  }
+  return { category: parts[0] || null, slug: parts[1] || null, deep: parts.length > 2,
+    combination: null };
 }
 
 function atlasStatus(message) {
@@ -919,6 +931,18 @@ function atlasHomeHtml(mod) {
         <h2 class="axis-section-title" id="atlas-featured-title">Good places to start</h2>
         <div class="atlas-card-grid">${featured.map((e) => atlasEntryCardHtml(e, mod)).join("")}</div>
       </section>
+      <section class="atlas-block" aria-labelledby="atlas-comb-title">
+        <h2 class="axis-section-title" id="atlas-comb-title">Two symbols together</h2>
+        <p class="atlas-category-desc">A planet in a sign, a planet in a house, two planets in aspect,
+          or a planet close to an angle — explained by composing the entries for each symbol.</p>
+        <ul class="atlas-chip-list">
+          <li><a class="atlas-chip" href="#symbol-atlas/combinations">Browse combinations</a></li>
+          ${mod.COMBINATION_EXAMPLES.slice(0, 3).map((ex) => {
+            const c = mod.composeCombination(ex.type, ex.parts);
+            return c ? `<li><a class="atlas-chip" href="#symbol-atlas/combinations/${esc(ex.type)}/${ex.parts.map(esc).join("/")}">${esc(c.title)}</a></li>` : "";
+          }).join("")}
+        </ul>
+      </section>
       <details class="o-card atlas-method">
         <summary>About this reference</summary>
         <div class="atlas-method__body">
@@ -939,11 +963,23 @@ function atlasCategoryHtml(mod, category) {
     </div>`;
 }
 
+/**
+ * One entry, in the reading order Dev Update 3.1 settled on: definition, then
+ * at-a-glance, then the four questions a reader actually arrives with (how
+ * does this show up, what does it look like working, what does it look like
+ * strained, what does it do in a chart), then something to sit with, then the
+ * technical material behind a disclosure.
+ *
+ * Not every section is a card. Cards are for the parts a reader scans back to
+ * — strengths, challenges, chart role, reflections, related. The prose runs as
+ * prose, because eleven stacked cards is a filing cabinet, not a page.
+ */
 function atlasEntryHtml(mod, entry) {
   const category = mod.CATEGORY_BY_SLUG[entry.category];
   const related = mod.relatedEntries(entry);
   const factRows = Object.entries(entry.facts || {});
-  const list = (items) => items.map((t) => `<li>${esc(t)}</li>`).join("");
+  const list = (items) => (items || []).map((t) => `<li>${esc(t)}</li>`).join("");
+  const paras = (items) => (items || []).map((p) => `<p>${esc(p)}</p>`).join("");
 
   return `
     <article class="atlas-entry">
@@ -952,10 +988,34 @@ function atlasEntryHtml(mod, entry) {
         <p class="atlas-entry__summary">${esc(entry.summary)}</p>
       </header>
 
-      <section class="o-card atlas-block" aria-labelledby="atlas-themes-title">
-        <h2 class="u-card-title" id="atlas-themes-title">Core themes</h2>
+      ${entry.overview?.length ? `
+      <section class="atlas-block atlas-prose" aria-labelledby="atlas-glance-title">
+        <h2 class="axis-section-title" id="atlas-glance-title">At a glance</h2>
+        ${paras(entry.overview)}
+      </section>` : ""}
+
+      <section class="atlas-block" aria-labelledby="atlas-themes-title">
+        <h2 class="axis-section-title" id="atlas-themes-title">Core themes</h2>
         <ul class="atlas-chip-list">${entry.themes.map((t) => `<li><span class="atlas-chip atlas-chip--static">${esc(t)}</span></li>`).join("")}</ul>
       </section>
+
+      ${entry.everyday?.length ? `
+      <section class="o-card atlas-block" aria-labelledby="atlas-everyday-title">
+        <h2 class="u-card-title" id="atlas-everyday-title">How it may show up</h2>
+        <ul class="atlas-list">${list(entry.everyday)}</ul>
+      </section>` : ""}
+
+      ${entry.constructive ? `
+      <section class="atlas-block atlas-prose" aria-labelledby="atlas-constructive-title">
+        <h2 class="axis-section-title" id="atlas-constructive-title">A constructive expression</h2>
+        <p>${esc(entry.constructive)}</p>
+      </section>` : ""}
+
+      ${entry.difficult ? `
+      <section class="atlas-block atlas-prose" aria-labelledby="atlas-difficult-title">
+        <h2 class="axis-section-title" id="atlas-difficult-title">When it becomes difficult</h2>
+        <p>${esc(entry.difficult)}</p>
+      </section>` : ""}
 
       <div class="atlas-two-col">
         <section class="o-card atlas-block" aria-labelledby="atlas-strengths-title">
@@ -971,13 +1031,22 @@ function atlasEntryHtml(mod, entry) {
       <section class="o-card atlas-block" aria-labelledby="atlas-role-title">
         <h2 class="u-card-title" id="atlas-role-title">In a chart</h2>
         <p>${esc(entry.chartRole)}</p>
+        ${entry.whenEmphasized ? `<p><b>When it is emphasised.</b> ${esc(entry.whenEmphasized)}</p>` : ""}
+        ${entry.whenScarce ? `<p><b>When there is little of it.</b> ${esc(entry.whenScarce)}</p>` : ""}
       </section>
+
+      ${entry.reflections?.length ? `
+      <section class="o-card atlas-block atlas-reflect" aria-labelledby="atlas-reflect-title">
+        <h2 class="u-card-title" id="atlas-reflect-title">Questions to sit with</h2>
+        <p class="u-meta">Optional prompts for thinking with, not a questionnaire and not advice.</p>
+        <ul class="atlas-list atlas-list--prompts">${list(entry.reflections)}</ul>
+      </section>` : ""}
 
       ${(entry.advanced.length || factRows.length) ? `
       <details class="o-card atlas-advanced">
         <summary>Advanced</summary>
         <div class="atlas-advanced__body">
-          ${entry.advanced.map((p) => `<p>${esc(p)}</p>`).join("")}
+          ${paras(entry.advanced)}
           ${factRows.length ? `<dl class="atlas-facts">
             ${factRows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
           </dl>` : ""}
@@ -999,6 +1068,94 @@ function atlasEntryHtml(mod, entry) {
         <a href="#symbol-atlas">Symbol Atlas home</a>
       </p>
     </article>`;
+}
+
+/* ── Combination explanations (Dev Update 3.1) ─────────────────────────────
+   Composed from canonical entries by public/symbol-atlas/combinations.js.
+   This function renders; it decides nothing. A combination that does not
+   compose never reaches here — the route falls back to the canonical
+   entries instead, so a missing building block loses an explanation rather
+   than producing a broken one. */
+
+function atlasCombinationsIndexHtml(mod) {
+  const counts = mod.combinationCounts();
+  const types = mod.COMBINATION_TYPE_LIST.map((t) =>
+    `<li><b>${esc(t.label)}</b> — ${counts[t.slug]} combinations</li>`).join("");
+  const examples = mod.COMBINATION_EXAMPLES.map((ex) => {
+    const composed = mod.composeCombination(ex.type, ex.parts);
+    if (!composed) return "";
+    return `<li><a class="atlas-chip" href="#symbol-atlas/combinations/${esc(ex.type)}/${ex.parts.map(esc).join("/")}">${esc(composed.title)}</a></li>`;
+  }).join("");
+
+  return `
+    <p class="atlas-category-desc">Two symbols read together. Each explanation is composed from the
+      Atlas entries for the symbols involved — the same authored material, arranged to answer what
+      the pairing means rather than what each half means separately.</p>
+    <section class="atlas-block" aria-labelledby="atlas-comb-types-title">
+      <h2 class="axis-section-title" id="atlas-comb-types-title">What can be combined</h2>
+      <ul class="atlas-list">${types}</ul>
+    </section>
+    <section class="atlas-block" aria-labelledby="atlas-comb-examples-title">
+      <h2 class="axis-section-title" id="atlas-comb-examples-title">Worked examples</h2>
+      <ul class="atlas-chip-list">${examples}</ul>
+    </section>
+    <p class="atlas-note">${esc(mod.ATLAS_METHODOLOGY_NOTE)}</p>
+    <p class="atlas-backlinks"><a href="#symbol-atlas">Symbol Atlas home</a></p>`;
+}
+
+function atlasCombinationHtml(mod, composed) {
+  const group = (g, i, kind) => `
+    <section class="o-card atlas-block" aria-labelledby="atlas-${esc(kind)}-${i}-title">
+      <h3 class="u-card-title" id="atlas-${esc(kind)}-${i}-title">${esc(g.heading)}</h3>
+      <ul class="atlas-list">${g.items.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
+    </section>`;
+
+  return `
+    <article class="atlas-entry atlas-combination">
+      <header class="atlas-entry__head">
+        <span class="atlas-entry__glyph" aria-hidden="true">${composed.glyphs.map(esc).join(" ")}</span>
+        <p class="atlas-entry__summary">${esc(composed.composed)}</p>
+      </header>
+
+      ${composed.sections.map((s, i) => `
+      <section class="atlas-block atlas-prose" aria-labelledby="atlas-comb-${i}-title">
+        <h2 class="axis-section-title" id="atlas-comb-${i}-title">${esc(s.heading)}</h2>
+        <p>${esc(s.body)}</p>
+      </section>`).join("")}
+
+      <div class="atlas-two-col">
+        ${composed.contributions.map((g, i) => group(g, i, "brings")).join("")}
+      </div>
+      <div class="atlas-two-col">
+        ${composed.tensions.map((g, i) => group(g, i, "strain")).join("")}
+      </div>
+
+      <section class="o-card atlas-block" aria-labelledby="atlas-comb-entries-title">
+        <h2 class="u-card-title" id="atlas-comb-entries-title">The symbols in this combination</h2>
+        <ul class="atlas-chip-list">
+          ${composed.entries.map((r) => `<li><a class="atlas-chip" href="#symbol-atlas/${esc(r.category)}/${esc(r.slug)}">${esc(r.label)}</a></li>`).join("")}
+        </ul>
+      </section>
+
+      <p class="atlas-note">${esc(composed.note)}</p>
+      <p class="atlas-note">${esc(mod.ATLAS_METHODOLOGY_NOTE)}</p>
+      <p class="atlas-backlinks">
+        <a href="#symbol-atlas/combinations">All combinations</a> ·
+        <a href="#symbol-atlas">Symbol Atlas home</a>
+      </p>
+    </article>`;
+}
+
+/** A combination that did not compose still owes the reader its two entries. */
+function atlasCombinationFallbackHtml(mod, type, parts) {
+  const entries = mod.combinationFallbackEntries(type, parts);
+  return `<div class="atlas-empty" role="status">
+    <p>That combination could not be explained on its own${entries.length ? ", but its symbols are here" : ""}.</p>
+    ${entries.length ? `<ul class="atlas-chip-list">
+      ${entries.map((e) => `<li><a class="atlas-chip" href="#symbol-atlas/${esc(e.category)}/${esc(e.slug)}">${esc(e.title)}</a></li>`).join("")}
+    </ul>` : ""}
+    <p><a href="#symbol-atlas/combinations">All combinations</a> · <a href="#symbol-atlas">Return to Symbol Atlas</a></p>
+  </div>`;
 }
 
 function atlasNotFoundHtml(kind, categorySlug) {
@@ -1061,7 +1218,36 @@ async function loadSymbolAtlas() {
   if (seq !== atlasView.seq) return;         // a newer route already took over
   atlasStatus("");
 
-  const { category: categorySlug, slug, deep } = atlasRouteParts();
+  const { category: categorySlug, slug, deep, combination } = atlasRouteParts();
+
+  // Combinations — index, one explanation, or a fallback to the entries.
+  if (combination) {
+    if (!combination.type) {
+      atlasChrome({ title: "Combinations", subtitle: "Two symbols read together.", focusHeading: true,
+        crumbs: [{ label: "Symbol Atlas", href: "#symbol-atlas" }, { label: "Combinations" }] });
+      root.innerHTML = atlasCombinationsIndexHtml(mod);
+      return;
+    }
+    const composed = mod.composeCombination(combination.type, combination.parts);
+    if (!composed) {
+      atlasChrome({ title: "Combinations", subtitle: "", crumbs: [
+        { label: "Symbol Atlas", href: "#symbol-atlas" },
+        { label: "Combinations", href: "#symbol-atlas/combinations" },
+        { label: "Not found" }] });
+      atlasStatus("That Symbol Atlas combination could not be found.");
+      root.innerHTML = atlasCombinationFallbackHtml(mod, combination.type, combination.parts);
+      return;
+    }
+    atlasChrome({ title: composed.title, subtitle: composed.typeLabel, focusHeading: true,
+      crumbs: [
+        { label: "Symbol Atlas", href: "#symbol-atlas" },
+        { label: "Combinations", href: "#symbol-atlas/combinations" },
+        { label: composed.title }] });
+    root.innerHTML = atlasCombinationHtml(mod, composed);
+    root.scrollTop = 0;
+    window.scrollTo({ top: 0 });
+    return;
+  }
 
   // Home
   if (!categorySlug) {
@@ -1166,6 +1352,29 @@ function atlasLinkHtml(category, name, { label } = {}) {
   const text = label ?? name;
   if (!ATLAS_LINKABLE[category]?.has(slug)) return esc(text);
   return `<a class="atlas-ref" href="#symbol-atlas/${esc(category)}/${esc(slug)}">${esc(text)}</a>`;
+}
+
+/**
+ * A contextual link to a combination explanation, for a pairing another Orbit
+ * surface has already established and is already showing.
+ *
+ * Returns "" rather than a link when either half is unknown, so a surface can
+ * call this unconditionally without minting a route that would land on a
+ * fallback page. The check mirrors ATLAS_LINKABLE exactly — this function
+ * cannot see the content module, and guessing would produce dead links.
+ */
+function atlasCombinationLinkHtml(type, parts, label) {
+  const categories = { "planet-in-sign": ["planets", "signs"],
+    "planet-in-house": ["planets", "houses"],
+    "planet-aspect-planet": ["planets", "aspects", "planets"],
+    "planet-with-angle": ["planets", "angles"] }[type];
+  if (!categories || parts.length !== categories.length) return "";
+  const slugs = parts.map((p) => String(p || "").toLowerCase().trim().replace(/\s+/g, "-"));
+  const ok = categories.every((category, i) => category === "houses"
+    ? /^(1st|2nd|3rd|[4-9]th|1[0-2]th)-house$/.test(slugs[i])
+    : ATLAS_LINKABLE[category]?.has(slugs[i]));
+  if (!ok) return "";
+  return `<a class="atlas-ref atlas-ref--combination" href="#symbol-atlas/combinations/${esc(type)}/${slugs.map(esc).join("/")}">${esc(label)}</a>`;
 }
 
 /** House ordinal (1-12) → Atlas link, or plain text for anything unexpected. */
@@ -3843,6 +4052,11 @@ function readingCardHtml(placement, { role = null } = {}) {
         <h3 class="reading-card__title">${atlasBodyLinkHtml(placement.planet)}${placement.sign ? ` in ${atlasLinkHtml("signs", placement.sign)}` : ""}</h3>
         <p class="reading-card__meta">${meta}</p>
         ${role ? `<p class="reading-card__role">${esc(role)}</p>` : ""}
+        ${placement.sign ? (() => {
+          const link = atlasCombinationLinkHtml("planet-in-sign", [placement.planet, placement.sign],
+            `What ${placement.planet} in ${placement.sign} means`);
+          return link ? `<p class="reading-card__atlas">${link}</p>` : "";
+        })() : ""}
       </div>
     </div>
     <p class="reading-card__summary">${esc(placement.summary)}</p>
@@ -3931,6 +4145,11 @@ function aspectCardHtml(aspect) {
       ${aspect.orbLabel ? `<span class="aspect-card__orb">${esc(aspect.orbLabel)}</span>` : ""}
     </div>
     <p class="aspect-card__summary">${esc(aspect.headline)}</p>
+    ${(() => {
+      const link = atlasCombinationLinkHtml("planet-aspect-planet", [aspect.a, aspect.aspect, aspect.b],
+        `What ${aspect.a} ${String(aspect.aspect).toLowerCase()} ${aspect.b} means`);
+      return link ? `<p class="reading-card__atlas">${link}</p>` : "";
+    })()}
     <details class="reading-card__more">
       <summary><span>What this pairing can look like</span></summary>
       <div class="reading-card__body">

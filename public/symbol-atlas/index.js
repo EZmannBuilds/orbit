@@ -19,6 +19,11 @@ import {
 
 export { ATLAS_CATEGORIES, CATEGORY_BY_SLUG, categoryOrder };
 export { searchAtlas, RANK_REASONS } from "./search.js";
+export {
+  COMBINATION_TYPES, COMBINATION_TYPE_LIST, COMBINATION_EXAMPLES,
+  composeCombination, combinationPath, combinationFallbackEntries,
+  validateCombinations, combinationCounts,
+} from "./combinations.js";
 
 /**
  * Every entry, in canonical display order. Authored order inside each file IS

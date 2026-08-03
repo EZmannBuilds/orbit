@@ -86,12 +86,16 @@ test("every content value rendered into atlas markup is escaped", () => {
     if (/\besc\(/.test(expr)) continue;
     if (/\.map\(|\.length|\.join/.test(expr)) continue;   // list plumbing, leaves re-scanned
     if (/^list\(/.test(expr.trim())) continue;              // escapes per item — asserted below
+    if (/^paras\(/.test(expr.trim())) continue;             // ditto (Dev Update 3.1)
     offenders.push(expr.trim().slice(0, 60));
   }
   assert.deepEqual(offenders, [], `unescaped interpolation: ${offenders.join(" | ")}`);
   assert.ok((block.match(/esc\(/g) || []).length > 30, "esc() is barely used — the scan is vacuous");
-  // The list() helper the scan trusts must actually escape per item.
-  assert.match(block, /const list = \(items\) => items\.map\(\(t\) => `<li>\$\{esc\(t\)\}<\/li>`\)/);
+  // The two helpers the scan trusts must actually escape per item. A trusted
+  // helper that stopped escaping would make the whole scan a decoration, so
+  // both are pinned to their exact bodies rather than to their names.
+  assert.match(block, /const list = \(items\) => \(items \|\| \[\]\)\.map\(\(t\) => `<li>\$\{esc\(t\)\}<\/li>`\)/);
+  assert.match(block, /const paras = \(items\) => \(items \|\| \[\]\)\.map\(\(p\) => `<p>\$\{esc\(p\)\}<\/p>`\)/);
 });
 
 test("no raw HTML flows from content files to the page", () => {

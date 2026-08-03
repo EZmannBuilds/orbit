@@ -62,7 +62,7 @@ export const PLANET_ENTRIES = Object.freeze([
     title: "Moon",
     glyph: "☽",
     summary: "The Moon is commonly read as emotional instinct — what a person needs to feel settled, and how they respond before thinking.",
-    role: "emotional instinct, and what a person needs in order to feel settled",
+    role: "emotional instinct and what a person needs in order to feel settled",
     overview: [
       "If the Sun is what a person is growing toward, the Moon is what they reach for without deciding to. It covers the reaction that arrives before the thought, the conditions that make rest possible, and the particular kind of care that actually lands rather than the kind that is theoretically correct.",
       "Modern astrology often frames the Moon as emotional needs and inner life. Traditional approaches emphasise it as the fastest-moving light, the body that carries the sky's changes down to daily life. Interpretations vary by school on how much of it is inherited and how much is formed early — Orbit describes the symbol and leaves the origin question open.",
