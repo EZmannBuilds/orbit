@@ -1288,7 +1288,10 @@ async function loadSymbolAtlas() {
     return;
   }
 
-  atlasChrome({ title: entry.title, subtitle: entry.summary, focusHeading: true,
+  // No subtitle on an entry page: the summary is the article's opening line,
+  // and repeating it under the heading put the same sentence on screen twice
+  // — visible the moment 3.1 added the overview paragraphs beneath it.
+  atlasChrome({ title: entry.title, subtitle: "", focusHeading: true,
     crumbs: [
       { label: "Symbol Atlas", href: "#symbol-atlas" },
       { label: category.name, href: `#symbol-atlas/${category.slug}` },

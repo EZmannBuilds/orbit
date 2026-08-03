@@ -23,7 +23,17 @@
   overflow-wrap: anywhere;
 }
 .atlas-crumbs[hidden] { display: none; }
-.atlas-crumbs a { color: var(--accent, #7c9cff); text-underline-offset: 0.2em; }
+/* Crumbs and backlinks are inline navigation rather than buttons, so the
+   44px rule does not apply — but WCAG's 24px minimum does, and at 0.8125rem
+   the bare line box came in at 21. The padding buys the difference without
+   changing where the text sits. */
+.atlas-crumbs a {
+  color: var(--accent, #7c9cff);
+  text-underline-offset: 0.2em;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.5rem;
+}
 .atlas-crumbs__sep { opacity: 0.6; }
 
 .atlas-status {
@@ -209,8 +219,12 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.5rem 0.8rem;               /* ≥44px targets with line-height */
-  min-block-size: 2.35rem;
+  /* 44px, measured rather than assumed. The 1.12 value was 2.35rem, which the
+     comment beside it called ≥44px; in the browser it rendered at 40. Dev
+     Update 3.1 leans on chips much harder — related symbols, combination
+     links, worked examples — so the number is now the real one. */
+  padding: 0.5rem 0.8rem;
+  min-block-size: 2.75rem;
   border-radius: 999px;
   border: 1px solid var(--border, #2a2d36);
   background: var(--surface-2, #16181e);
@@ -259,7 +273,13 @@ a.atlas-chip:focus-visible { outline: 2px solid var(--accent, #7c9cff); outline-
 }
 
 .atlas-backlinks { font-size: 0.9375rem; }
-.atlas-backlinks a { color: var(--accent, #7c9cff); text-underline-offset: 0.2em; }
+.atlas-backlinks a {
+  color: var(--accent, #7c9cff);
+  text-underline-offset: 0.2em;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 1.5rem;                /* WCAG 2.5.8 minimum, as above */
+}
 
 /* ── Empty / not-found ──────────────────────────────────────────────────── */
 

@@ -106,3 +106,46 @@ test("contextual links never open a new tab, mutate state, or carry data", () =>
     assert.ok(!linksRegion.includes(banned), `link path contains ${banned}`);
   }
 });
+
+// ── Combination links (Dev Update 3.1) ──────────────────────────────────────
+
+test("My Chart offers a combination explanation for a placement and an aspect", () => {
+  const card = fn("readingCardHtml");
+  assert.match(card, /atlasCombinationLinkHtml\("planet-in-sign", \[placement\.planet, placement\.sign\]/,
+    "a reading card should offer the planet-in-sign explanation it already names");
+  const aspect = fn("aspectCardHtml");
+  assert.match(aspect, /atlasCombinationLinkHtml\("planet-aspect-planet", \[aspect\.a, aspect\.aspect, aspect\.b\]/,
+    "an aspect card should offer the explanation for the pairing it already names");
+});
+
+test("a combination link is minted only when both halves are known", () => {
+  const src = fn("atlasCombinationLinkHtml");
+  // Returns "" rather than a link for anything it cannot resolve, so a caller
+  // can ask unconditionally without producing a route that lands on a
+  // fallback page.
+  assert.match(src, /if \(!categories \|\| parts\.length !== categories\.length\) return "";/);
+  assert.match(src, /if \(!ok\) return "";/);
+  // House slugs are checked by shape, since ATLAS_LINKABLE has no house set.
+  assert.match(src, /1st\|2nd\|3rd\|\[4-9\]th\|1\[0-2\]th\)-house/);
+  // Same rules as every other contextual link.
+  assert.ok(!src.includes("target="), "combination link sets target");
+  assert.ok(!src.includes("window.open"), "combination link opens a window");
+  assert.ok(!/[?&]/.test(src.match(/href="[^"]*"/)?.[0] || ""), "combination link carries query data");
+  assert.match(src, /href="#symbol-atlas\/combinations\//, "combination link is an Atlas route");
+});
+
+test("the linkable table and the combination categories cannot drift apart", () => {
+  // atlasCombinationLinkHtml cannot see the content module, so it checks
+  // against ATLAS_LINKABLE. If the two lists disagreed, a link would be minted
+  // for a slug that composes to nothing.
+  const src = fn("atlasCombinationLinkHtml");
+  for (const [type, categories] of Object.entries({
+    "planet-in-sign": ["planets", "signs"],
+    "planet-in-house": ["planets", "houses"],
+    "planet-aspect-planet": ["planets", "aspects", "planets"],
+    "planet-with-angle": ["planets", "angles"],
+  })) {
+    assert.ok(src.includes(`"${type}"`), `${type} missing from the link helper`);
+    for (const c of categories) assert.ok(src.includes(`"${c}"`), `${c} missing from the link helper`);
+  }
+});
