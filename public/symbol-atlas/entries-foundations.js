@@ -1,12 +1,20 @@
-// Orbit Axis :: Symbol Atlas — aspects, elements, modalities, angles (1.12).
+// Orbit Axis :: Symbol Atlas — aspects, elements, modalities, angles (3.1).
 //
 // The grammar under the chart. Aspect entries carry orb facts that mirror the
 // engine's actual values (vendor/orbit-axis-engine synastry + natal rules) —
 // asserted by test, because an Atlas that disagrees with the calculator it
-// sits next to is worse than no Atlas.
+// sits next to is worse than no Atlas. Dev Update 3.1 deepens the copy and
+// leaves every orb number exactly where the engine put it.
 //
 // TONE, inherited from lib/interpretation/aspects.js: squares are not bad and
-// trines are not good.
+// trines are not good. Every aspect entry says so in its own words rather than
+// sharing a sentence, because a reference that repeats one paragraph five
+// times teaches a reader to stop reading.
+//
+// `interaction` is the composition clause: combinations.js reads it as the
+// verb phrase after "…the two functions …", so it stays a lowercase plural
+// verb phrase. `pairNote` is the caution that follows — the reminder that the
+// two bodies involved decide far more than the angle between them does.
 
 export const ASPECT_ENTRIES = Object.freeze([
   {
@@ -15,15 +23,35 @@ export const ASPECT_ENTRIES = Object.freeze([
     title: "Conjunction",
     glyph: "☌",
     summary: "A conjunction joins two planets at the same degree — commonly read as their functions fusing and acting as one.",
+    interaction: "fuse, and tend to act as a single impulse rather than two",
+    pairNote: "A conjunction is the most intense statement the geometry makes and the least self-explanatory: what it means depends almost entirely on which two functions are fused, and whether they want the same things.",
+    overview: [
+      "Two planets at or near the same degree are read as conjunct. It is the tightest contact in the chart and the one with the least built-in verdict: the geometry says these two functions operate together, and stops there. Sun conjunct Jupiter and Mars conjunct Saturn are the same angle describing very different weather.",
+      "Because the two functions are in the same place, there is no distance from which to observe the blend. Readings often note that conjunctions are the hardest aspect to see in yourself — you are inside the combination rather than watching it.",
+    ],
     themes: ["fusion", "intensity", "concentration", "new cycles"],
+    everyday: [
+      "Two things about you that other people can rarely separate",
+      "A strength and a difficulty that turn out to have the same root",
+      "The impulse that arrives already combined, before you can sort it",
+    ],
+    constructive: "Working well, a conjunction concentrates. Two functions pull in the same direction with no negotiation cost, which produces a doubled and unmistakable signal — the kind of capability people describe as natural because it appears without visible effort.",
+    difficult: "The difficulty is that there is no referee. When the two functions want different things, they arrive together anyway, and neither has the distance to moderate the other. Blends involving a heavy body tend to be felt as intensity rather than as two separate influences.",
+    chartRole: "The strongest statement the geometry makes — intense rather than good or bad. What a conjunction means depends almost entirely on which planets are fused.",
+    whenEmphasized: "A tight conjunction involving a personal planet, or a stack of three or more bodies in one place, is commonly read as a focal point of the chart. Readings usually start there, because it concentrates so much of the chart's weight in one house and sign.",
+    reflections: [
+      "Which two sides of yourself do other people tend to describe as one thing?",
+      "Where does a strength of yours come packaged with its own complication?",
+      "What would change if you could watch that combination from outside it?",
+    ],
     strengths: ["Focused power when the blend is easy", "A doubled signal that is hard to miss"],
     challenges: ["No distance between the two functions to referee them", "Hard to see a blend you are standing inside"],
-    chartRole: "The strongest statement the geometry makes — intense rather than good or bad. What a conjunction means depends almost entirely on which planets are fused.",
     advanced: [
       "Angle 0°. Orbit allows an orb of up to 8° (plus 1° when the Sun or Moon is involved). A conjunction begins each planetary pair's cycle, which is why readings often treat it as a seed moment.",
+      "Traditional practice distinguishes conjunctions by the bodies involved rather than treating the angle as one thing: a contact with a benefic and a contact with a malefic are read as different events that happen to share a geometry. Modern practice tends to keep the same distinction in gentler language.",
     ],
     facts: { angle: "0°", orb: "Up to 8° (+1° with a luminary)", quality: "Intense — decided by the planets involved" },
-    keywords: ["conjunction", "fusion", "blend", "together", "0 degrees", "same degree"],
+    keywords: ["conjunction", "fusion", "blend", "together", "0 degrees", "same degree", "stellium", "combined"],
     aliases: ["conjunct"],
     related: ["aspects/opposition", "aspects/square", "aspects/trine", "aspects/sextile"],
   },
@@ -33,16 +61,36 @@ export const ASPECT_ENTRIES = Object.freeze([
     title: "Opposition",
     glyph: "☍",
     summary: "An opposition places two planets across the wheel from each other — commonly read as a tension that wants balancing, not a winner.",
+    interaction: "sit across from one another, and each tends to be seen most clearly from the other's end",
+    pairNote: "An opposition describes a tension seeking balance rather than a fault to be corrected. Which of the two functions gets lived and which gets met in other people is a question about the whole chart, not about the aspect.",
+    overview: [
+      "Two planets roughly half the wheel apart are read as opposed. The image usually offered is a see-saw: both ends are real, both are yours, and the work is holding them at once rather than picking the acceptable one.",
+      "Oppositions have a strong association with relationships, because the end that is harder to own tends to be met in other people instead — reliably, and often with irritation. Readings treat that as information about the axis rather than about the other person.",
+    ],
     themes: ["polarity", "balance", "projection", "awareness"],
+    everyday: [
+      "Two needs of yours that seem to take turns rather than cooperate",
+      "The trait in other people that irritates you more than it warrants",
+      "A situation where both options felt like giving something up",
+    ],
+    constructive: "Used well, an opposition produces perspective that a conjunction cannot: each end can actually see the other. People with strong oppositions are often unusually good at holding two positions without collapsing one into the other, which is a rarer skill than it sounds.",
+    difficult: "Untended, it see-saws. One end gets over-lived and the other gets outsourced, then encountered in a partner or colleague and resisted there. The swing between the two can look like inconsistency from outside and feel like being pulled apart from inside.",
+    chartRole: "Oppositions often play out through relationships: one end of the axis gets lived, the other gets met in someone else until it is claimed.",
+    whenEmphasized: "An opposition involving personal planets, or one that lands across the angles, is commonly read as a defining axis of the chart. Readings usually look for a third body aspecting both ends, since that often describes the route to holding them together.",
+    reflections: [
+      "Which two things do you want that seem to take turns?",
+      "What quality in other people gets under your skin fastest?",
+      "What would holding both ends at once actually require of you?",
+    ],
     strengths: ["Perspective — each end can see the other clearly", "Balance once both ends are owned"],
     challenges: ["See-sawing between the two ends", "Meeting your own other end in other people"],
-    chartRole: "Oppositions often play out through relationships: one end of the axis gets lived, the other gets met in someone else until it is claimed.",
     advanced: [
       "Angle 180°, orb up to 8° (+1° with a luminary). The opposition pairs sign polarities — Aries–Libra, Taurus–Scorpio, and so on — which is why its themes so often involve self versus other.",
+      "Because opposed signs share a modality, the two ends usually approach change at the same speed even while wanting different things. Readings sometimes use that shared modality to describe why the tension repeats in the same rhythm.",
     ],
     facts: { angle: "180°", orb: "Up to 8° (+1° with a luminary)", quality: "Challenging — tension seeking balance" },
-    keywords: ["opposition", "polarity", "tension", "balance", "180 degrees", "across"],
-    aliases: ["opposed", "opposite"],
+    keywords: ["opposition", "polarity", "tension", "balance", "180 degrees", "across", "hard aspect", "projection", "see-saw"],
+    aliases: ["opposed", "opposite", "hard aspect"],
     related: ["aspects/conjunction", "aspects/square", "angles/ascendant", "angles/descendant"],
   },
   {
@@ -51,16 +99,36 @@ export const ASPECT_ENTRIES = Object.freeze([
     title: "Square",
     glyph: "□",
     summary: "A square sets two planets at a right angle — commonly read as productive friction: the aspect of effort, and of what effort builds.",
+    interaction: "press on each other, and progress usually comes from working the friction rather than removing it",
+    pairNote: "A square is not automatically harmful. It describes where two functions obstruct each other, and where the obstruction is the thing that builds capability — which of those a given square is depends on the bodies involved and on what has been done with it.",
+    overview: [
+      "Two planets a quarter of the wheel apart are read as square. The shorthand calls it a hard aspect, and the more useful description is that the two functions get in each other's way: acting on one tends to cost something on the other, and neither will quietly stand down.",
+      "That friction is why squares have a reputation for difficulty and why they are also the aspect most associated with genuine development. The pressure is real, and pressure is also how competence gets built.",
+    ],
     themes: ["friction", "effort", "growth", "breakthrough"],
+    everyday: [
+      "The same argument with yourself, arriving in different costumes",
+      "A goal that reliably costs you something you also wanted",
+      "The skill you got good at because it started out hard",
+    ],
+    constructive: "Constructively, a square supplies drive that easy aspects rarely do. There is something to push against, and pushing produces capability. Much of what people describe as hard-won competence traces back to a square that was worked rather than avoided.",
+    difficult: "Left unworked, the same friction burns in place. The two functions collide on the same terms repeatedly, force gets applied where finesse was the tool, and the resulting frustration reads as a fixed feature rather than a workable tension.",
+    chartRole: "Squares are not bad, whatever shorthand suggests — they mark where two functions push on each other, and where working the tension tends to build real capability.",
+    whenEmphasized: "A square involving personal planets, or several squares forming a pattern, is commonly read as a chart with a lot of internal drive. Readings tend to ask what has been built with it, since the same configuration describes both friction and the capability that came out of friction.",
+    reflections: [
+      "Which internal argument keeps returning in a new outfit?",
+      "What have you become good at that started as an obstacle?",
+      "Where are you applying force to something that needed a different approach?",
+    ],
     strengths: ["Drive that comes from resistance", "Growth that trines rarely demand"],
     challenges: ["Friction spent on the same argument twice a week", "Force applied where finesse was the tool"],
-    chartRole: "Squares are not bad, whatever shorthand suggests — they mark where two functions push on each other, and where working the tension tends to build real capability.",
     advanced: [
       "Angle 90°, orb up to 6° (+1° with a luminary). Squares usually connect signs of the same modality — two cardinal signs, two fixed, two mutable — which readings often use to name the style of the friction.",
+      "Traditional practice counts the square among the hard or difficult aspects and reads it more severely than most modern accounts do. The modern reframing as developmental tension is a change of emphasis rather than a change of geometry; both descriptions are in current use.",
     ],
     facts: { angle: "90°", orb: "Up to 6° (+1° with a luminary)", quality: "Challenging — friction that builds" },
-    keywords: ["square", "friction", "tension", "effort", "challenge", "90 degrees"],
-    aliases: [],
+    keywords: ["square", "friction", "tension", "effort", "challenge", "90 degrees", "hard aspect", "obstacle", "drive"],
+    aliases: ["hard aspect", "squared"],
     related: ["aspects/opposition", "aspects/trine", "modalities/cardinal", "modalities/fixed", "modalities/mutable"],
   },
   {
@@ -69,16 +137,36 @@ export const ASPECT_ENTRIES = Object.freeze([
     title: "Trine",
     glyph: "△",
     summary: "A trine links two planets a third of the wheel apart — commonly read as natural ease: the two functions cooperate without being asked.",
+    interaction: "cooperate without much prompting, which can make the combination easy to overlook",
+    pairNote: "A trine is not automatically good. It describes cooperation between two functions, and cooperation between two difficult functions is still two difficult functions working smoothly together.",
+    overview: [
+      "Two planets a third of the wheel apart are read as trine. The two functions get along: whatever one wants, the other tends to support, with no negotiation required. It is the aspect most often described as talent, because the ability arrives without the person noticing they acquired it.",
+      "The catch is in the same sentence. Nothing about a trine insists, so the gift can sit unused for years without anything going visibly wrong. Readings usually pair a trine with a prompt to actually spend it.",
+    ],
     themes: ["ease", "flow", "talent", "support"],
+    everyday: [
+      "The thing you do well that you assume everyone can do",
+      "An ability you have not developed because it already worked",
+      "Where two parts of your life support each other without effort",
+    ],
+    constructive: "A trine well used is a genuine resource: two functions that reinforce each other reliably, producing capability that stays available under pressure. It is the part of a chart most likely to hold steady when the rest of a situation is not.",
+    difficult: "The difficulty is understatement. Ease is easy to ignore, and a talent that has not been tested by resistance can stay at the level it arrived at. Coasting is the characteristic failure — the aspect asks nothing, so it can be given nothing.",
+    chartRole: "Trines mark where things flow — and, precisely because nothing pushes, where potential can idle. Readings often pair them with a nudge to actually use the gift.",
+    whenEmphasized: "Several trines, particularly a grand trine linking three bodies, is commonly read as a chart with real natural facility. Readings usually look for the chart's squares alongside it, since those tend to describe what made the facility get used.",
+    reflections: [
+      "What comes easily to you that you have not deliberately developed?",
+      "Where are you coasting on something that could be much better?",
+      "Which of your abilities do you undervalue because it cost you nothing?",
+    ],
     strengths: ["Ability that feels like luck from outside", "Support between functions with no friction tax"],
     challenges: ["Ease so quiet its gifts go unused", "Coasting where a square would have trained"],
-    chartRole: "Trines mark where things flow — and, precisely because nothing pushes, where potential can idle. Readings often pair them with a nudge to actually use the gift.",
     advanced: [
       "Angle 120°, orb up to 6° (+1° with a luminary). Trines usually connect signs of the same element — a fire trine, an earth trine — which is why the ease tends to share one temperament.",
+      "Traditional practice groups the trine with the sextile as the easy or soft aspects, and reads the trine as the stronger of the two. Modern accounts keep the grouping and add the caution that ease and benefit are not the same thing.",
     ],
     facts: { angle: "120°", orb: "Up to 6° (+1° with a luminary)", quality: "Easy — natural cooperation" },
-    keywords: ["trine", "ease", "flow", "harmony", "talent", "120 degrees"],
-    aliases: [],
+    keywords: ["trine", "ease", "flow", "harmony", "talent", "120 degrees", "soft aspect", "natural ability", "support"],
+    aliases: ["soft aspect", "easy aspect"],
     related: ["aspects/sextile", "aspects/square", "elements/fire", "elements/earth", "elements/air", "elements/water"],
   },
   {
@@ -87,16 +175,36 @@ export const ASPECT_ENTRIES = Object.freeze([
     title: "Sextile",
     glyph: "⚹",
     summary: "A sextile links two planets a sixth of the wheel apart — commonly read as friendly opportunity: ease that responds to a little initiative.",
+    interaction: "support each other readily, provided a little initiative is supplied",
+    pairNote: "A sextile describes an opening rather than an outcome. Whether it amounts to anything depends on the two functions involved and on whether the person does the small amount of work the aspect is waiting for.",
+    overview: [
+      "Two planets a sixth of the wheel apart are read as sextile. It is the trine's more participatory relative: the two functions cooperate willingly, but the cooperation waits to be started. Nothing about a sextile happens on its own.",
+      "It carries the tightest orb of the five major aspects in Orbit's engine, so it qualifies less often — which is part of why a sextile that does qualify tends to read as deliberate rather than incidental.",
+    ],
     themes: ["opportunity", "cooperation", "learning", "openings"],
+    everyday: [
+      "The opportunity that appeared once you asked one question",
+      "A skill that improves noticeably every time you practise it",
+      "Help that was available the whole time, had you gone and asked",
+    ],
+    constructive: "Used well, a sextile is a door that opens when knocked. Skills in its territory grow quickly with a little attention, and openings tend to appear in response to modest, specific effort rather than to grand plans.",
+    difficult: "The characteristic loss is quiet. Because nothing insists, openings pass unnoticed and the small amount of initiative required does not get supplied. It also gets mistaken for a promise — an invitation read as an assurance that nothing further is needed.",
+    chartRole: "Sextiles are often read as the trine's more participatory sibling — supportive, but only paying out when the person shows up.",
+    whenEmphasized: "Several sextiles are commonly read as a chart with a good supply of workable openings. Readings tend to ask what has been taken up, since the configuration describes availability rather than uptake.",
+    reflections: [
+      "What opportunity is currently waiting on one small action from you?",
+      "Where does a little practice produce a disproportionate improvement?",
+      "What have you assumed was unavailable without checking?",
+    ],
     strengths: ["Doors that open when knocked", "Skills that grow quickly with practice"],
     challenges: ["Openings missed because nothing insisted", "Mistaking an invitation for a promise that nothing is required"],
-    chartRole: "Sextiles are often read as the trine's more participatory sibling — supportive, but only paying out when the person shows up.",
     advanced: [
       "Angle 60°, orb up to 4° (+1° with a luminary) — the tightest allowance of the five major aspects, so sextiles qualify less often and read as more deliberate when they do.",
+      "Sextiles usually link signs of compatible elements — fire with air, earth with water — which readings often use to explain why the cooperation feels easy without feeling automatic.",
     ],
     facts: { angle: "60°", orb: "Up to 4° (+1° with a luminary)", quality: "Easy — opportunity needing initiative" },
-    keywords: ["sextile", "opportunity", "cooperation", "support", "60 degrees"],
-    aliases: [],
+    keywords: ["sextile", "opportunity", "cooperation", "support", "60 degrees", "soft aspect", "opening", "practice"],
+    aliases: ["soft aspect"],
     related: ["aspects/trine", "aspects/conjunction"],
   },
 ]);
