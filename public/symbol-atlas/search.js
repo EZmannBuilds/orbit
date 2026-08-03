@@ -12,15 +12,23 @@
 //   3  keyword match      "career" → Midheaven, 10th House…
 //   4  category match     "planets" → every planet
 //   5  summary substring  "friction" → Square
+//   6  chart-role match   "birth time" → the houses and angles
 //
 // Within a rank, ties break by category order then authored entry order —
 // the same two lists every screen uses — so identical queries return
 // identical orderings, forever. Tested rank by rank.
+//
+// DEV UPDATE 3.1 widened the surface without renumbering it. Themes joined
+// the keyword rank rather than taking a rank of their own, because a theme and
+// a keyword are the same kind of thing — a short topical label — and giving
+// them separate ranks would have said one is a better match than the other
+// without any reason to believe it. Chart role was appended as rank 6, the
+// weakest signal, so nothing above it moved.
 
 import { ATLAS_ENTRIES, ATLAS_CATEGORIES, categoryOrder } from "./index.js";
 
 export const RANK_REASONS = Object.freeze([
-  "exact title", "exact alias", "title prefix", "keyword", "category", "summary",
+  "exact title", "exact alias", "title prefix", "keyword", "category", "summary", "chart role",
 ]);
 
 /** Lowercase, trim, collapse whitespace, strip edge punctuation. */
@@ -58,8 +66,12 @@ function ensureIndex() {
     entry,
     title: normalise(entry.title),
     aliases: (entry.aliases || []).map(normalise),
-    keywords: (entry.keywords || []).map(normalise),
+    // Themes share the keyword rank. Deduplicated because most entries list a
+    // word in both, and a term counted twice would still be one match — but
+    // the smaller set is cheaper to walk fifty times per keystroke.
+    keywords: [...new Set([...(entry.keywords || []), ...(entry.themes || [])].map(normalise))],
     summary: normalise(entry.summary),
+    chartRole: normalise(entry.chartRole),
     category: entry.category,
   }));
   CATEGORY_TERMS = new Map();
@@ -88,10 +100,21 @@ export function searchAtlas(rawQuery, { limit = 30 } = {}) {
       if (item.title === q) { best = Math.min(best, 0); continue; }
       if (item.aliases.some((a) => a === q)) { best = Math.min(best, 1); continue; }
       if (item.title.startsWith(q)) { best = Math.min(best, 2); continue; }
-      if (item.keywords.some((k) => k === q || k.startsWith(q))) { best = Math.min(best, 3); continue; }
+      // An exact keyword matches at any length; a keyword PREFIX needs three
+      // characters. Without the floor, the two-letter angle abbreviations drag
+      // half the library along — "AC" prefix-matches "action", "achievement",
+      // "across", and "activity" before it has said anything.
+      if (item.keywords.some((k) => k === q || (q.length >= 3 && k.startsWith(q)))) {
+        best = Math.min(best, 3); continue;
+      }
       const categoryHit = CATEGORY_TERMS.get(q);
       if (categoryHit && item.category === categoryHit) { best = Math.min(best, 4); continue; }
       if (q.length >= 3 && item.summary.includes(q)) { best = Math.min(best, 5); continue; }
+      // Chart role is the weakest signal and the longest text, so it needs a
+      // longer query than a summary does before it starts matching — "in a
+      // chart" phrasing is common enough that three characters would return
+      // most of the library.
+      if (q.length >= 5 && item.chartRole.includes(q)) { best = Math.min(best, 6); continue; }
     }
     if (best !== Infinity) matches.push({ entry: item.entry, rank: best, reason: RANK_REASONS[best] });
   }

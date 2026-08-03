@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 
 import {
   ATLAS_CATEGORIES, ATLAS_ENTRIES, atlasEntry, categoryEntries, relatedEntries,
-  validateAtlasContent, ATLAS_METHODOLOGY_NOTE,
+  validateAtlasContent, ATLAS_METHODOLOGY_NOTE, renderedStrings,
 } from "../lib/symbol-atlas/index.js";
 import { ORBIT_SYMBOLS } from "../lib/symbols.js";
 
@@ -22,20 +22,116 @@ test("the validator finds nothing wrong with shipped content", () => {
 
 test("the validator actually catches what it claims to catch", () => {
   // A gate that cannot fail is decoration. Feed it one of each defect.
+  //
+  // Every rule the validator enforces gets a case here, including the ones
+  // Dev Update 3.1 added — completion-schema gaps, diagnostic and judgemental
+  // language, second-person verdicts, sign-house and angle-planet conflation,
+  // placeholder copy, Researcher-tier claims, malformed composition clauses,
+  // and a paragraph shared between two entries.
   const good = ATLAS_ENTRIES[0];
+  const other = ATLAS_ENTRIES[1];
+  // The probe is a clone of a real entry, so its long strings are uniquified
+  // first — otherwise every case would also trip the cross-entry duplication
+  // rule and bury the defect each case is actually probing for.
+  const unique = (s) => `${s} Probe copy for the validator test.`;
+  const probe = {
+    ...good,
+    overview: good.overview.map(unique),
+    constructive: unique(good.constructive),
+    difficult: unique(good.difficult),
+    whenEmphasized: unique(good.whenEmphasized),
+    chartRole: unique(good.chartRole),
+    advanced: good.advanced.map(unique),
+    slug: "validator-probe",
+    id: "planets-validator-probe",
+  };
   const cases = [
-    [{ ...good, slug: "Bad Slug!" }, /slug invalid/],
-    [{ ...good, related: ["planets/atlantis"] }, /resolves to nothing/],
-    [{ ...good, summary: "Too short." }, /summary/],
-    [{ ...good, chartRole: "This planet always guarantees success in life and love for everyone." }, /fatalistic/],
-    [{ ...good, title: "<script>alert(1)</script>" }, /angle bracket/],
-    [{ ...good, status: "complete" }, /claims beyond/],
-    [{ ...good, id: "wrong-id" }, /does not derive/],
+    // 1.12 rules, still enforced.
+    [{ slug: "Bad Slug!" }, /slug invalid/],
+    [{ related: ["planets/atlantis"] }, /resolves to nothing/],
+    [{ summary: "Too short." }, /summary/],
+    [{ chartRole: "This planet always guarantees success in life and love for everyone." }, /fatalistic/],
+    [{ title: "<script>alert(1)</script>" }, /angle bracket/],
+    [{ status: "starter" }, /completion status/],
+    [{ id: "wrong-id" }, /does not derive/],
+
+    // Completion schema (Dev Update 3.1).
+    [{ overview: [good.overview[0]] }, /two overview paragraphs/],
+    [{ overview: ["Too short.", "Also short."] }, /too thin to be a paragraph/],
+    [{ everyday: [] }, /two everyday expressions/],
+    [{ constructive: "Short." }, /constructive expression/],
+    [{ difficult: "Short." }, /difficult expression/],
+    [{ whenEmphasized: "" }, /whenEmphasized/],
+    [{ reflections: ["Only one?"] }, /two or three reflection prompts/],
+    [{ reflections: ["This is a statement.", "So is this."] }, /is not a question/],
+    [{ reflections: ["  ", "Fine?"] }, /empty reflection prompt/],
+    [{ aliases: [] }, /at least one search alias/],
+    [{ keywords: ["a", "b", "c"] }, /at least five keywords/],
+    [{ advanced: [] }, /at least one advanced paragraph/],
+
+    // Composition vocabulary — a clause that cannot be dropped into someone
+    // else's sentence would ship a combination page with a seam in it.
+    [{ role: undefined }, /missing composition field "role"/],
+    [{ role: "Identity and vitality" }, /starts with a capital/],
+    [{ role: "identity and vitality." }, /ends with a full stop/],
+
+    // Tone and safety.
+    [{ constructive: "This placement often describes childhood trauma and a personality disorder that shapes every relationship the person has." }, /diagnostic language/],
+    [{ difficult: "This is a bad placement and the person is usually toxic to everyone around them, which makes closeness very hard indeed." }, /judgemental language/],
+    [{ summary: "This placement points to a soulmate connection that arrives whatever else is happening in the chart." }, /fatalistic/],
+    [{ difficult: "You will find that this placement makes life harder than it needs to be, and there is little to be done about that." }, /second-person verdict/],
+    [{ constructive: "You are a natural leader with this placement, and people tend to follow without being asked to do so at all." }, /second-person verdict/],
+    [{ whenEmphasized: "Coming soon — this section has not been written yet for this particular entry." }, /placeholder text/],
+    [{ advanced: ["According to Ptolemy the essential dignity of this body decides the whole reading, as cited in the standard tables."] }, /Researcher-tier claim/],
+
+    // The two conflations the Atlas exists to prevent.
+    [{ chartRole: "The 8th House is Scorpio, so anything placed there takes on that flavour automatically in every chart." }, /sign-house conflation/],
+    [{ chartRole: "Scorpio is the 8th house, which is why the two are read as interchangeable by most beginners starting out." }, /sign-house conflation/],
+    [{ advanced: ["The Ascendant can turn retrograde during the year, which changes how it behaves in a chart quite considerably."] }, /angle-planet conflation/],
+
+    // Cross-entry duplication: two entries may not ship the same paragraph.
+    [{ constructive: other.constructive }, /shares a paragraph/],
   ];
-  for (const [broken, expected] of cases) {
+  for (const [patch, expected] of cases) {
+    // Patch last: a case that overrides slug or id must actually override it.
+    const broken = { ...probe, ...patch };
     const problems = validateAtlasContent({ entries: [...ATLAS_ENTRIES, broken] });
     assert.ok(problems.some((p) => expected.test(p)),
       `validator missed: ${expected} — got ${JSON.stringify(problems.slice(0, 3))}`);
+  }
+});
+
+test("every entry carries the full Dev Update 3.1 completion schema", () => {
+  for (const e of ATLAS_ENTRIES) {
+    assert.ok(e.overview.length >= 2, `${e.id}: overview`);
+    assert.ok(e.everyday.length >= 2, `${e.id}: everyday`);
+    assert.ok(e.constructive?.length >= 120, `${e.id}: constructive`);
+    assert.ok(e.difficult?.length >= 120, `${e.id}: difficult`);
+    assert.ok(e.whenEmphasized?.length >= 60, `${e.id}: whenEmphasized`);
+    assert.ok(e.reflections.length >= 2 && e.reflections.length <= 3, `${e.id}: reflections`);
+    assert.ok(e.reflections.every((p) => p.trim().endsWith("?")), `${e.id}: prompts must be questions`);
+    assert.ok(e.aliases.length >= 1, `${e.id}: aliases`);
+    assert.ok(e.keywords.length >= 5, `${e.id}: keywords`);
+    assert.ok(e.advanced.length >= 1, `${e.id}: advanced`);
+    assert.equal(e.status, "complete", `${e.id}: status`);
+  }
+  // Elements and modalities describe both tails of a balance reading.
+  for (const e of ATLAS_ENTRIES.filter((x) => x.category === "elements" || x.category === "modalities")) {
+    assert.ok(e.whenScarce?.length >= 60, `${e.id}: a balance entry must describe a low count too`);
+  }
+});
+
+test("no two entries ship the same paragraph", () => {
+  // Fifty entries written to one structure is exactly the situation where a
+  // paragraph gets pasted and lightly edited — or not edited at all.
+  const seen = new Map();
+  for (const e of ATLAS_ENTRIES) {
+    for (const s of renderedStrings(e)) {
+      if (s.length < 120) continue;
+      assert.ok(!seen.has(s) || seen.get(s) === e.id,
+        `${e.id} shares a paragraph with ${seen.get(s)}`);
+      seen.set(s, e.id);
+    }
   }
 });
 
