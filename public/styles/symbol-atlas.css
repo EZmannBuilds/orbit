@@ -237,10 +237,17 @@ a.atlas-chip:hover { border-color: var(--accent, #7c9cff); }
 a.atlas-chip:focus-visible { outline: 2px solid var(--accent, #7c9cff); outline-offset: 2px; }
 .atlas-chip--static { color: var(--text-muted, #8b8f9a); }
 
-.atlas-advanced summary {
+/* Both disclosure summaries carry the same padding. The Advanced summary got
+   it in 1.12 and the methodology summary did not, which left "About this
+   reference" at a 22px line box — under WCAG 2.5.8's 24px minimum, and found
+   at 768px during hosted acceptance rather than at 375px where the wrapping
+   happened to hide it. */
+.atlas-advanced summary,
+.atlas-method summary {
   cursor: pointer;
   font-weight: 600;
   padding-block: 0.25rem;
+  min-block-size: 1.5rem;
 }
 .atlas-advanced summary:focus-visible {
   outline: 2px solid var(--accent, #7c9cff);
@@ -292,7 +299,6 @@ a.atlas-chip:focus-visible { outline: 2px solid var(--accent, #7c9cff); outline-
 .atlas-empty p { margin: 0.35rem 0; overflow-wrap: anywhere; }
 .atlas-empty a { color: var(--accent, #7c9cff); }
 
-.atlas-method summary { cursor: pointer; font-weight: 600; }
 .atlas-method summary:focus-visible {
   outline: 2px solid var(--accent, #7c9cff);
   outline-offset: 2px;
