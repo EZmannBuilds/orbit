@@ -18,6 +18,7 @@ import {
   SHOOTING_STAR_KEY, ORIENTATION_NOTE,
 } from "./moon-scene.js";
 import { decideStartupView, STARTUP_VIEW } from "./startup-state.js";
+import { ICON_PATHS } from "./icons.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -367,87 +368,145 @@ function setupPlaceSearch(prefix) {
   });
 }
 
-/* ── Inline icon set (stroke, 24-grid) ───────────────────────────────────
-   One entry per navigable destination, and no more. Every icon here is
-   referenced by a WORKSPACES entry; an icon nobody draws is dead weight that
-   the next person has to check before deleting.
+/* ── Icons ───────────────────────────────────────────────────────────────
+   Phosphor, inlined at build time into ./icons.js — no icon font, no CDN, no
+   network request to draw the app's own navigation. See scripts/build-icons.js.
 
-   The icons SUPPLEMENT the labels — every navigation item shows its name in
-   text, on phone and desktop alike, so nothing here has to carry meaning on
-   its own. They still have to be distinguishable from each other at 20px,
-   which is why Home (a horizon sun) and My Chart (a natal wheel) do not both
-   get to be a circle with rays. */
-const ICONS = {
-  home: '<circle cx="12" cy="13" r="4"/><path d="M12 3v2M5.5 6.5l1.4 1.4M18.5 6.5l-1.4 1.4M3 13h2M19 13h2M4 20h16"/>',
-  // A natal wheel: the outer ring, the axis cross, and the ascendant marker.
-  mychart: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>',
-  transits: '<path d="M12 3a9 9 0 1 0 9 9"/><circle cx="12" cy="12" r="3"/><path d="M20 4l-6 6"/>',
-  tools: '<path d="M3 7h7M3 12h4M3 17h9"/><circle cx="14" cy="7" r="2.5"/><circle cx="11" cy="17" r="2.5"/><path d="M17 12h4M16.5 12a2.5 2.5 0 1 1 5 0 2.5 2.5 0 0 1-5 0z"/>',
-  more: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
+   Two weights, and the difference carries meaning: the outline is the default,
+   the solid marks the destination you are currently on. Everywhere else uses
+   the outline.
 
-  // Secondary destinations. Not in the rail today, but the registry gives
-  // every workspace an icon and the router reads it.
-  history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/>',
-  atlas: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
-  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4.5a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 6.2 8.6l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 12 4.6V4.5a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 12H21a2 2 0 1 1 0 4h-.09z"/>',
-
-  // Unfinished features, kept so an enabled flag in development still draws.
-  tarot: '<path d="M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M12 7l1.2 3.2L16 12l-2.8 1.8L12 17l-1.2-3.2L8 12l2.8-1.8z"/>',
-  learn: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
-  news: '<path d="M4 5h13a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h7M8 13h8M8 17h5"/>',
+   The icons SUPPLEMENT the labels. Every navigation item shows its name in
+   text, on phone and desktop alike, so no glyph here has to carry meaning on
+   its own — but they still have to be distinguishable at 25px, which is why
+   Today (a sun on the horizon) and Sky (a planet) are not both a disc. */
+const icon = (name, cls = "", { size = 0 } = {}) => {
+  const d = ICON_PATHS[name];
+  if (!d) return "";
+  const solid = name.endsWith("-fill");
+  const paint = solid
+    ? 'fill="currentColor"'
+    : 'fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"';
+  const dims = size ? ` width="${size}" height="${size}"` : "";
+  return `<svg class="${cls}" viewBox="0 0 256 256"${dims} ${paint} aria-hidden="true" focusable="false">${d}</svg>`;
 };
-const icon = (name, cls = "rail__icon") =>
-  `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] ?? ""}</svg>`;
 
 /* ── Workspace registry — the single source of the navigation model ──────
-   Dev Update 1.3 made this canonical. Five primary destinations, in this order,
-   with ONE name each. Phone bottom bar, desktop sidebar, page heading, document
-   title, and screen-reader name all read from these entries, so they cannot
-   disagree with each other.
+   Five primary destinations, in this order, with ONE name each. Phone bottom
+   bar, desktop sidebar, page heading, document title, and screen-reader name
+   all read from these entries, so they cannot disagree with each other.
 
-     Home · My Chart · Today's Transits · Tools · More
+     Today · Chart · Sky · Atlas · You
 
-   Everything else is a secondary destination reached from one of those five.
+   WHY THESE FIVE. The previous model spent two of its five tabs on directories:
+   "Tools" was four links to pages that exist elsewhere, and "More" was a
+   settings drawer. Meanwhile the reference library — the deepest finished thing
+   in the app — was two taps down, and the moving sky was split across two
+   destinations that answered nearly the same question.
+
+   So: Tools is dissolved into the surfaces its links pointed at. Positions
+   joins Transits under Sky, because "where are the planets" and "what does that
+   mean for me" are one question asked at two zoom levels, and a segmented
+   control is the honest way to switch between them. The Atlas takes the freed
+   tab. Everything that was in More is still in You, and nothing was deleted.
+
+   `tab` names the PRIMARY destination a secondary page belongs to, so opening
+   Compatibility lights up Chart rather than lighting up nothing. A page you
+   reached from somewhere should keep saying where you are.
+
    `mobileLabel` exists only where the full name will not fit a phone tab; it is
    an abbreviation of the same name, never a different word. */
 const WORKSPACES = [
-  { id: "home", label: "Home", crumb: "Your day", icon: "home", primary: true },
-  { id: "me", label: "My Chart", crumb: "Your chart", icon: "mychart", primary: true },
-  { id: "transits", label: "Today’s Transits", mobileLabel: "Transits", crumb: "Your moving sky", icon: "transits", primary: true },
-  { id: "tools", label: "Tools", crumb: "What Orbit Axis can do", icon: "tools", primary: true },
-  { id: "more", label: "More", crumb: "Account & settings", icon: "more", primary: true },
+  { id: "home", label: "Today", crumb: "Your day", icon: "sun-horizon", primary: true },
+  { id: "me", label: "Chart", crumb: "Your birth chart", icon: "compass-rose", primary: true },
+  { id: "transits", label: "Sky", crumb: "The moving sky", icon: "planet", primary: true },
+  { id: "symbol-atlas", label: "Atlas", crumb: "What the symbols mean", icon: "book-open-text", primary: true },
+  { id: "more", label: "You", crumb: "Account & settings", icon: "user-circle", primary: true },
 
-  // Secondary destinations. Reached from Tools, More, or Technical Sky — they
-  // are real pages with real headings, they simply do not earn a sixth tab.
-  { id: "positions", label: "Current Positions", crumb: "The sky right now", icon: "atlas", primary: false },
-  { id: "history", label: "History", crumb: "Past readings", icon: "history", primary: false },
-  { id: "symbol-atlas", label: "Symbol Atlas", crumb: "What the symbols mean", icon: "atlas", primary: false },
-  { id: "settings", label: "Settings", crumb: "Appearance", icon: "settings", primary: false },
-  { id: "compatibility", label: "Compatibility", crumb: "Two charts compared", icon: "atlas", primary: false },
+  // Secondary destinations. Real pages with real headings; they simply do not
+  // earn a sixth tab, and each one lights the primary tab it belongs to.
+  { id: "positions", label: "Current Positions", crumb: "The sky everyone shares", icon: "globe-hemisphere-west", primary: false, tab: "transits" },
+  { id: "compatibility", label: "Compatibility", crumb: "Two charts compared", icon: "users", primary: false, tab: "me" },
+  { id: "history", label: "History", crumb: "Past readings", icon: "clock-counter-clockwise", primary: false, tab: "more" },
+  { id: "settings", label: "Appearance", crumb: "How Orbit Axis looks", icon: "gear", primary: false, tab: "more" },
 
   // Unfinished features. Absent from production entirely; a flag alone is not
   // enough, the markup has to be present too (see availableWorkspaces).
-  { id: "tarot", label: "Tarot", crumb: "Daily cards", icon: "tarot", primary: false, feature: "tarot" },
-  { id: "learn", label: "Learn", crumb: "Courses", icon: "learn", primary: false, feature: "learn" },
-  { id: "news", label: "News", crumb: "Verified articles", icon: "news", primary: false, feature: "news" },
+  { id: "tarot", label: "Tarot", crumb: "Daily cards", icon: "star", primary: false, tab: "more", feature: "tarot" },
+  { id: "learn", label: "Learn", crumb: "Courses", icon: "book-open-text", primary: false, tab: "symbol-atlas", feature: "learn" },
+  { id: "news", label: "News", crumb: "Verified articles", icon: "file-text", primary: false, tab: "more", feature: "news" },
 ];
+
+/** The primary tab a workspace belongs to — itself, unless it says otherwise. */
+function workspaceTab(id) {
+  return WORKSPACES.find(w => w.id === id)?.tab || id;
+}
+
+/**
+ * Draw every `data-icon="name"` element in a subtree.
+ *
+ * Icons are declared in the markup and painted here, rather than inlined as
+ * SVG in the HTML. That keeps the document readable — `data-icon="trash"` says
+ * what it is where a 40-character path does not — and it means the icon set has
+ * exactly one definition, so changing a glyph is a rebuild rather than a search
+ * across 1,100 lines of markup.
+ *
+ * Idempotent: an element that already holds its icon is skipped, so calling
+ * this after a re-render cannot double up.
+ */
+/**
+ * Force the TEXT presentation of an astrological glyph.
+ *
+ * Several of the glyphs Orbit Axis draws are Unicode characters that also have
+ * an emoji presentation, and Apple platforms prefer it: "♈" rendered as a
+ * purple-gradient emoji tile, and "☉" and "♌" like it. In an interface with one
+ * accent colour, an OS-supplied purple gradient is not a small thing — it was
+ * the loudest colour on the Atlas.
+ *
+ * U+FE0E is the variation selector that asks for the text presentation. The CSS
+ * property that does the same (`font-variant-emoji: text`) is not supported
+ * everywhere yet, so both are applied: the selector here, the property in
+ * symbol-atlas.css. Appending it does not change what a screen reader announces,
+ * and every one of these glyphs is aria-hidden beside its own visible name
+ * anyway.
+ */
+function textGlyph(glyph) {
+  const value = String(glyph ?? "");
+  if (!value) return "";
+  // Only characters that actually have an emoji presentation need it, but
+  // appending unconditionally is harmless for the rest and is one rule instead
+  // of a list to maintain.
+  return value.endsWith("︎") ? value : `${value}︎`;
+}
+
+function hydrateIcons(root = document) {
+  for (const el of root.querySelectorAll("[data-icon]")) {
+    if (el.firstElementChild?.tagName?.toLowerCase() === "svg") continue;
+    const markup = icon(el.dataset.icon);
+    if (markup) el.insertAdjacentHTML("afterbegin", markup);
+  }
+}
 
 /**
  * Retired routes, and where someone holding one should land instead.
  *
  * These hashes were real destinations in earlier versions, so bookmarks, notes,
- * and old links still carry them. Silently dropping someone on Home would look
+ * and old links still carry them. Silently dropping someone on Today would look
  * like the app forgot the page; a redirect plus one plain sentence explains it
  * without an error page. The destination is always a working page that does the
  * nearest equivalent thing.
  */
 const RETIRED_ROUTES = Object.freeze({
-  ask: { to: "home", notice: "Ask Orbit has been retired. Your saved conversations are still yours — you can export or delete them from More." },
-  dashboard: { to: "home", notice: "Overview is now simply Home." },
-  research: { to: "symbol-atlas", notice: "Research is now the Symbol Atlas." },
-  charts: { to: "tools", notice: "Chart tools now live under Tools." },
+  ask: { to: "home", notice: "Ask Orbit has been retired. Your saved conversations are still yours — you can export or delete them from You." },
+  dashboard: { to: "home", notice: "Overview is now simply Today." },
+  research: { to: "symbol-atlas", notice: "Research is now the Atlas." },
+  charts: { to: "me", notice: "Chart tools now live under Chart." },
   chat: { to: "home", notice: "That page has been retired." },
   intelligence: { to: "more", notice: "That page has been retired." },
+  // Tools was a page of links to four pages that all still exist. Each link now
+  // lives on the surface it belongs to, and History — the one thing Tools was
+  // the only route to — is under You.
+  tools: { to: "more", notice: "Tools has moved into the app: History and settings are here, the Atlas has its own tab, and saved charts and Compatibility are under Chart." },
 });
 
 /* ── Personal Transits (Update 5.2b) ───────────────────────────────────────
@@ -835,7 +894,7 @@ function atlasChrome({ title, subtitle, crumbs, focusHeading }) {
   if (h1) h1.textContent = title;
   const sub = $("#atlas-subtitle");
   if (sub) sub.textContent = subtitle || "";
-  document.title = `${title === "Symbol Atlas" ? "Symbol Atlas" : `${title} · Symbol Atlas`} — Orbit Axis`;
+  document.title = title === "Atlas" ? "Orbit Axis — Atlas" : `Orbit Axis — ${title} · Atlas`;
   const nav = $("#atlas-crumbs");
   if (nav) {
     nav.innerHTML = (crumbs || []).map((c, i, all) => i === all.length - 1 && !c.href
@@ -853,7 +912,7 @@ function atlasChrome({ title, subtitle, crumbs, focusHeading }) {
 function atlasEntryCardHtml(entry, mod) {
   const category = mod.CATEGORY_BY_SLUG[entry.category];
   return `<a class="atlas-card" href="#symbol-atlas/${esc(entry.category)}/${esc(entry.slug)}">
-    <span class="atlas-card__glyph" aria-hidden="true">${esc(entry.glyph || "")}</span>
+    <span class="atlas-card__glyph" aria-hidden="true">${esc(textGlyph(entry.glyph))}</span>
     <span class="atlas-card__body">
       <span class="atlas-card__title">${esc(entry.title)}</span>
       <span class="atlas-card__kind">${esc(category?.shortName || entry.category)}</span>
@@ -874,7 +933,7 @@ function atlasHomeHtml(mod) {
   const categories = mod.ATLAS_CATEGORIES.map((c) => {
     const count = mod.categoryEntries(c.slug).length;
     return `<a class="atlas-category-card" href="#symbol-atlas/${esc(c.slug)}">
-      <span class="atlas-category-card__glyph" aria-hidden="true">${esc(c.glyph)}</span>
+      <span class="atlas-category-card__glyph" aria-hidden="true">${esc(textGlyph(c.glyph))}</span>
       <span class="atlas-category-card__name">${esc(c.name)}</span>
       <span class="atlas-category-card__count">${count} entries</span>
       <span class="atlas-category-card__desc">${esc(c.description)}</span>
@@ -931,8 +990,10 @@ function atlasHomeHtml(mod) {
 
 function atlasCategoryHtml(mod, category) {
   const entries = mod.categoryEntries(category.slug);
+  // The description is already the page subtitle (atlasChrome sets it from the
+  // same field), so repeating it here printed the same sentence twice, four
+  // lines apart. The count and the way back are what this line is for.
   return `
-    <p class="atlas-category-desc">${esc(category.description)}</p>
     <p class="u-meta">${entries.length} entries · <a href="#symbol-atlas">Search the Atlas</a></p>
     <div class="atlas-card-grid">
       ${entries.map((e) => atlasEntryCardHtml(e, mod)).join("")}
@@ -948,7 +1009,7 @@ function atlasEntryHtml(mod, entry) {
   return `
     <article class="atlas-entry">
       <header class="atlas-entry__head">
-        <span class="atlas-entry__glyph" aria-hidden="true">${esc(entry.glyph || "")}</span>
+        <span class="atlas-entry__glyph" aria-hidden="true">${esc(textGlyph(entry.glyph))}</span>
         <p class="atlas-entry__summary">${esc(entry.summary)}</p>
       </header>
 
@@ -989,14 +1050,14 @@ function atlasEntryHtml(mod, entry) {
         <h2 class="u-card-title" id="atlas-related-title">Related symbols</h2>
         <ul class="atlas-chip-list">
           ${related.map((r) => `<li><a class="atlas-chip" href="#symbol-atlas/${esc(r.category)}/${esc(r.slug)}">
-            <span aria-hidden="true">${esc(r.glyph || "")}</span> ${esc(r.title)}</a></li>`).join("")}
+            <span class="atlas-chip__glyph" aria-hidden="true">${esc(textGlyph(r.glyph))}</span> ${esc(r.title)}</a></li>`).join("")}
         </ul>
       </section>` : ""}
 
       <p class="atlas-note">${esc(mod.ATLAS_METHODOLOGY_NOTE)}</p>
       <p class="atlas-backlinks">
         <a href="#symbol-atlas/${esc(entry.category)}">Back to ${esc(category?.name || "category")}</a> ·
-        <a href="#symbol-atlas">Symbol Atlas home</a>
+        <a href="#symbol-atlas">Atlas home</a>
       </p>
     </article>`;
 }
@@ -1005,11 +1066,11 @@ function atlasNotFoundHtml(kind, categorySlug) {
   const backToCategory = categorySlug
     ? ` · <a href="#symbol-atlas/${esc(categorySlug)}">Browse that category</a>` : "";
   const message = kind === "category"
-    ? "This Symbol Atlas category could not be found."
-    : "This Symbol Atlas entry could not be found.";
+    ? "This Atlas category could not be found."
+    : "This Atlas entry could not be found.";
   return `<div class="atlas-empty" role="status">
     <p>${esc(message)}</p>
-    <p><a href="#symbol-atlas">Return to Symbol Atlas</a>${backToCategory}</p>
+    <p><a href="#symbol-atlas">Return to the Atlas</a>${backToCategory}</p>
   </div>`;
 }
 
@@ -1044,7 +1105,7 @@ async function loadSymbolAtlas() {
   const root = $("#atlas-root");
   if (!root) return;
 
-  if (!atlasModulePromise) atlasStatus("Loading Symbol Atlas…");
+  if (!atlasModulePromise) atlasStatus("Loading the Atlas…");
   let mod;
   try {
     mod = await atlasModule();
@@ -1053,7 +1114,7 @@ async function loadSymbolAtlas() {
     if (seq !== atlasView.seq) return;
     atlasStatus("");
     root.innerHTML = `<div class="atlas-empty" role="alert">
-      <p>The Symbol Atlas could not be loaded. Check your connection and try again.</p>
+      <p>The Atlas could not be loaded. Check your connection and try again.</p>
       <button type="button" class="o-btn o-btn--secondary" id="atlas-retry">Try again</button>
     </div>`;
     return;
@@ -1065,8 +1126,8 @@ async function loadSymbolAtlas() {
 
   // Home
   if (!categorySlug) {
-    atlasChrome({ title: "Symbol Atlas",
-      subtitle: "Orbit's astrology reference — every symbol, in plain language.",
+    atlasChrome({ title: "Atlas",
+      subtitle: "Every symbol Orbit Axis uses, in plain language.",
       crumbs: [] });
     root.innerHTML = atlasHomeHtml(mod);
     renderAtlasSearch(mod);
@@ -1075,9 +1136,9 @@ async function loadSymbolAtlas() {
 
   const category = mod.CATEGORY_BY_SLUG[categorySlug];
   if (!category || deep) {
-    atlasChrome({ title: "Symbol Atlas", subtitle: "", crumbs: [
-      { label: "Symbol Atlas", href: "#symbol-atlas" }, { label: "Not found" }] });
-    atlasStatus("This Symbol Atlas category could not be found.");
+    atlasChrome({ title: "Atlas", subtitle: "", crumbs: [
+      { label: "Atlas", href: "#symbol-atlas" }, { label: "Not found" }] });
+    atlasStatus("This Atlas category could not be found.");
     root.innerHTML = atlasNotFoundHtml("category", null);
     return;
   }
@@ -1085,7 +1146,7 @@ async function loadSymbolAtlas() {
   // Category page
   if (!slug) {
     atlasChrome({ title: category.name, subtitle: category.description, focusHeading: true,
-      crumbs: [{ label: "Symbol Atlas", href: "#symbol-atlas" }, { label: category.name }] });
+      crumbs: [{ label: "Atlas", href: "#symbol-atlas" }, { label: category.name }] });
     root.innerHTML = atlasCategoryHtml(mod, category);
     return;
   }
@@ -1094,17 +1155,17 @@ async function loadSymbolAtlas() {
   const entry = mod.atlasEntry(categorySlug, slug);
   if (!entry) {
     atlasChrome({ title: category.name, subtitle: "", crumbs: [
-      { label: "Symbol Atlas", href: "#symbol-atlas" },
+      { label: "Atlas", href: "#symbol-atlas" },
       { label: category.name, href: `#symbol-atlas/${category.slug}` },
       { label: "Not found" }] });
-    atlasStatus("This Symbol Atlas entry could not be found.");
+    atlasStatus("This Atlas entry could not be found.");
     root.innerHTML = atlasNotFoundHtml("entry", category.slug);
     return;
   }
 
   atlasChrome({ title: entry.title, subtitle: entry.summary, focusHeading: true,
     crumbs: [
-      { label: "Symbol Atlas", href: "#symbol-atlas" },
+      { label: "Atlas", href: "#symbol-atlas" },
       { label: category.name, href: `#symbol-atlas/${category.slug}` },
       { label: entry.title }] });
   root.innerHTML = atlasEntryHtml(mod, entry);
@@ -1255,10 +1316,206 @@ function workspaceAvailable(id) {
    refresh, open-in-new-tab, and copy-link all work because the hash IS the
    route rather than a side effect of a click handler. */
 function buildRail() {
+  // Both icon weights ship in the markup and CSS shows one. Swapping the SVG on
+  // navigation would let the active glyph drift out of step with aria-current,
+  // which is the attribute that actually tells a screen reader where you are.
   $("#rail-nav").innerHTML = availableWorkspaces().filter(ws => ws.primary).map(ws => `
     <a class="rail__link" id="tab-${ws.id}" href="#${ws.id}" data-ws="${ws.id}">
-      ${icon(ws.icon)}<span class="rail__label" data-mobile-label="${esc(ws.mobileLabel || ws.label)}">${esc(ws.label)}</span>
+      ${icon(ws.icon, "rail__icon rail__icon--line")}${icon(`${ws.icon}-fill`, "rail__icon rail__icon--fill")}<span class="rail__label" data-mobile-label="${esc(ws.mobileLabel || ws.label)}">${esc(ws.label)}</span>
     </a>`).join("");
+}
+
+/* ── Universal search ─────────────────────────────────────────────────────
+   ONE field over the three things a person actually looks for: a page, one of
+   their own saved charts, and a symbol they saw somewhere and did not
+   recognise.
+
+   WHY IT IS LOCAL. Everything it searches is already in the browser — the
+   workspace registry is a constant, the saved charts are in `state`, and the
+   Atlas content is a module the app already lazy-loads for its own reference
+   pages. So there is no request, no spinner, no debounce, and no failure mode
+   where the search is "down". It searches what it has and says so.
+
+   It is deliberately NOT the retired command palette. That was a keyboard
+   shortcut over an interface that already had links; this is a visible field
+   that answers the one question navigation cannot ("what is a stellium?"), and
+   it works by touch. */
+const FIND = { open: false, results: [], active: -1, atlas: null };
+
+/** Load the Atlas content once, so the first keystroke is the only slow one. */
+async function findEnsureAtlas() {
+  if (FIND.atlas) return FIND.atlas;
+  try {
+    const mod = await atlasModule();
+    FIND.atlas = mod;
+  } catch {
+    // The reference library is one of three sources. If it will not load, the
+    // other two still work, and saying nothing is better than an error toast
+    // for a search the user has not finished typing.
+    FIND.atlas = null;
+  }
+  return FIND.atlas;
+}
+
+function findMatches(raw) {
+  const q = String(raw || "").trim().toLowerCase();
+  if (q.length < 2) return [];
+  const out = [];
+
+  // 1. Destinations. Named by the same registry the navigation reads, so a
+  //    search result and a tab can never call the same page two things.
+  for (const ws of availableWorkspaces()) {
+    if (ws.label.toLowerCase().includes(q) || ws.crumb.toLowerCase().includes(q)) {
+      out.push({ kind: "Pages", icon: ws.icon, label: ws.label, sub: ws.crumb, href: `#${ws.id}` });
+    }
+  }
+
+  // 2. Your saved charts.
+  for (const chart of state.charts || []) {
+    const name = chart.nickname || chart.name || "Chart";
+    if (name.toLowerCase().includes(q)) {
+      out.push({ kind: "Your charts", icon: "compass-rose", label: name, sub: relationshipDisplay(chart.relationship) || "Saved chart", href: "#me", chartId: chart.id });
+    }
+  }
+
+  // 3. The reference library.
+  if (FIND.atlas?.searchAtlas) {
+    for (const hit of FIND.atlas.searchAtlas(q, { limit: 8 })) {
+      out.push({
+        kind: "Atlas",
+        icon: "book-open-text",
+        label: hit.entry.title,
+        sub: hit.entry.summary,
+        href: `#symbol-atlas/${hit.entry.category}/${hit.entry.slug}`,
+      });
+    }
+  }
+
+  return out.slice(0, 12);
+}
+
+function findRender() {
+  const panel = $("#find-results");
+  const input = $("#find-input");
+  if (!panel || !input) return;
+
+  if (!FIND.open || !FIND.results.length) {
+    const typing = input.value.trim().length >= 2;
+    if (FIND.open && typing) {
+      panel.innerHTML = `<p class="o-find__empty">Nothing matches “${esc(input.value.trim())}”.</p>`;
+      panel.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+    } else {
+      panel.hidden = true;
+      panel.innerHTML = "";
+      input.setAttribute("aria-expanded", "false");
+    }
+    input.removeAttribute("aria-activedescendant");
+    return;
+  }
+
+  let lastKind = "";
+  panel.innerHTML = FIND.results.map((r, i) => {
+    const head = r.kind !== lastKind ? `<p class="o-find__group u-eyebrow">${esc(r.kind)}</p>` : "";
+    lastKind = r.kind;
+    return `${head}<a class="o-find__option" id="find-opt-${i}" role="option" href="${esc(r.href)}"
+      aria-selected="${i === FIND.active}" data-index="${i}">
+      ${icon(r.icon)}
+      <span class="o-find__label">${esc(r.label)}${r.sub ? `<span class="o-find__sub">${esc(r.sub)}</span>` : ""}</span>
+    </a>`;
+  }).join("");
+  panel.hidden = false;
+  input.setAttribute("aria-expanded", "true");
+  if (FIND.active >= 0) input.setAttribute("aria-activedescendant", `find-opt-${FIND.active}`);
+  else input.removeAttribute("aria-activedescendant");
+}
+
+function findClose() {
+  FIND.open = false;
+  FIND.active = -1;
+  findRender();
+}
+
+function findMove(step) {
+  if (!FIND.results.length) return;
+  FIND.active = (FIND.active + step + FIND.results.length) % FIND.results.length;
+  findRender();
+  $(`#find-opt-${FIND.active}`)?.scrollIntoView({ block: "nearest" });
+}
+
+/**
+ * Make a saved chart the active one, then repaint what depends on it.
+ *
+ * A failed activation leaves the previous chart active and says so, rather than
+ * navigating to a page that would then be reading for someone else.
+ */
+async function findActivateChart(id) {
+  const previousId = state.activeChartId;
+  axisClearPersonalReading();
+  try {
+    await post(`/api/charts/${id}/activate`, {});
+    await loadSavedCharts();
+    await refreshActiveExperience();
+  } catch {
+    state.activeChartId = previousId;
+    toast("We couldn't switch charts just now. Your saved charts are safe.");
+  }
+}
+
+function findChoose(index) {
+  const hit = FIND.results[index];
+  if (!hit) return false;
+  const input = $("#find-input");
+  if (input) input.value = "";
+  findClose();
+  // A chart result switches to that chart AND opens the chart page, because
+  // "find Mum's chart" means "show me it", not "take me to a list it is in".
+  if (hit.chartId && hit.chartId !== state.activeChartId) findActivateChart(hit.chartId);
+  location.hash = hit.href.replace(/^#/, "");
+  return true;
+}
+
+function wireFind() {
+  const input = $("#find-input");
+  const panel = $("#find-results");
+  if (!input || input._wired) return;
+  input._wired = true;
+
+  const run = async () => {
+    await findEnsureAtlas();
+    FIND.results = findMatches(input.value);
+    FIND.active = FIND.results.length ? 0 : -1;
+    FIND.open = true;
+    findRender();
+  };
+
+  input.addEventListener("input", run);
+  input.addEventListener("focus", () => { if (input.value.trim().length >= 2) run(); });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") { event.preventDefault(); findMove(1); }
+    else if (event.key === "ArrowUp") { event.preventDefault(); findMove(-1); }
+    else if (event.key === "Enter") {
+      if (FIND.open && findChoose(FIND.active)) event.preventDefault();
+    } else if (event.key === "Escape") {
+      if (FIND.open) { event.stopPropagation(); findClose(); }
+      else input.value = "";
+    }
+  });
+
+  panel?.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-index]");
+    if (!option) return;
+    event.preventDefault();
+    findChoose(Number(option.dataset.index));
+  });
+
+  // Clicking away closes it. Focus leaving does too, but only after the click
+  // that caused it has had a chance to land on an option.
+  document.addEventListener("click", (event) => {
+    if (!FIND.open) return;
+    if (!event.target.closest("#find")) findClose();
+  });
 }
 
 /** The hash as written, with the leading "#" and any query junk removed. */
@@ -1350,16 +1607,20 @@ function renderRoute() {
     $(`#tab-${gated.id}`)?.remove();
   }
 
+  // The tab that should read as current. A secondary destination lights the
+  // primary one it belongs to — arriving at Compatibility from Chart and being
+  // told you are nowhere is worse than being told you are still in Chart.
+  const activeTab = workspaceTab(id);
+
   WORKSPACES.forEach(w => {
     const panel = $(`#panel-${w.id}`);
     const link = $(`#tab-${w.id}`);
-    const active = w.id === id;
-    if (panel) panel.hidden = !active;
+    if (panel) panel.hidden = w.id !== id;
     // aria-current is the whole current-page story for a list of links. It is
     // removed rather than set to "false" when inactive, because "false" is
     // still an announced value in some screen readers.
     if (link) {
-      if (active) link.setAttribute("aria-current", "page");
+      if (w.id === activeTab) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     }
   });
@@ -1372,14 +1633,46 @@ function renderRoute() {
   showRouteNotice();
 }
 
-/* ── Upcoming sky events → the Today's Transits timeline ───────────────── */
+/* ── Upcoming sky events → the Sky timeline ─────────────────────────────
+   The API's `title` carries a trailing glyph ("Full Moon 🌕", "Sun enters Virgo
+   ♍"). That field is a response contract other clients may read, so it is left
+   alone — but a decorative character inside a sentence is presentation, and
+   presentation is this function's job.
+
+   So the glyph is stripped from the rendered title and replaced by an icon
+   chosen from the event's own `kind`. That is strictly better than what the
+   string gave us: one consistent icon column instead of a mix of full-colour
+   emoji (🌕) and monochrome symbols (☿) whose rendering depends on the
+   platform's emoji font — which is how a purple-gradient ♍ ended up as the
+   loudest thing on a page with one accent colour. */
+const EVENT_ICONS = Object.freeze({
+  // The Moon's two weights carry the fact: a solid disc is full, an outline
+  // crescent is new. Two crescents that differ only in their little stars is a
+  // distinction nobody makes at 17px.
+  full_moon: "moon-fill",
+  new_moon: "moon",
+  sun_ingress: "sun",
+  mercury_rx: "arrow-clockwise",
+  mercury_direct: "arrow-right",
+});
+
+/** The event title, with any trailing symbol or emoji removed. */
+function eventTitleText(title) {
+  return String(title ?? "")
+    .replace(/[\s‍️︎]*[←-➿⬀-⯿\u{1f000}-\u{1faff}][‍️︎\u{1f000}-\u{1faff}]*\s*$/u, "")
+    .trim();
+}
+
 function renderEvents(events) {
   $("#events-count").textContent = `${events.length} upcoming`;
   $("#events-timeline").innerHTML = events.map(e => `
     <div class="o-timeline__item">
       <div class="o-timeline__date">${esc(formatLocalDateKey(e.date))}</div>
       <div class="o-timeline__body">
-        <div class="o-timeline__title">${esc(e.title)}</div>
+        <div class="o-timeline__title">
+          <span class="o-timeline__icon" aria-hidden="true">${icon(EVENT_ICONS[e.kind] || "sparkle")}</span>
+          ${esc(eventTitleText(e.title))}
+        </div>
         <div class="o-timeline__detail">${esc(e.detail)}</div>
       </div>
     </div>`).join("");
@@ -3614,6 +3907,10 @@ async function boot() {
   await loadFeatureFlags();
   await loadFeaturePanels();
   buildRail();
+  // Icons are declared with data-icon in the markup and painted here, once the
+  // feature panels have been injected so their icons are covered too.
+  hydrateIcons();
+  wireFind();
   wireSettings();
   wireAuth();
   setupPlaceSearch("ob");
@@ -3710,7 +4007,7 @@ function glyphFor(key) {
 function glyphHtml(key) {
   const glyph = glyphFor(key);
   if (!glyph) return "";
-  return `<span class="reading-card__glyph" aria-hidden="true">${esc(glyph)}</span>`;
+  return `<span class="reading-card__glyph" aria-hidden="true">${esc(textGlyph(glyph))}</span>`;
 }
 
 // ── Reading state ───────────────────────────────────────────────────────────
@@ -4410,17 +4707,29 @@ async function axisInit() {
   }
   const scope = $("#history-scope");
   if (scope) scope.addEventListener("change", () => axisLoadHistory(scope.value));
-  // History loads when its workspace opens (and once now if it's the route).
-  window.addEventListener("hashchange", () => { if (currentWorkspace() === "history") axisLoadHistory($("#history-scope")?.value || "active"); });
+  // History loads from renderRoute(), and ONLY from renderRoute().
+  //
+  // There used to be a second hashchange listener here doing the same thing.
+  // Both fired on the same navigation, both fetched, and both rendered into
+  // #history-body — so whichever response landed second replaced the DOM the
+  // first had already finished with. Harmless while nothing touched that DOM
+  // afterwards; not harmless once the week strip started asking History to open
+  // a specific entry, because the second render wiped it back shut.
+  //
+  // Two loaders for one page is one more than the number that can be right.
 
   axisWireChartPicker();
   axisWireSkyControls();
+  wireDayStrip();
   await axisSyncCurrentTimezone();
   axisLoadDetail();
   // A signed-in returning user already had Today loaded during session restore;
   // loading it again here would double every startup request.
   if (!AXIS.loadedOnce) axisLoadToday();
-  if (currentWorkspace() === "history") axisLoadHistory("active");
+  // One history request, two surfaces: the week strip on Today and the History
+  // page itself. It runs whichever page you landed on, because the strip is
+  // part of Today and Today is where most people land.
+  axisLoadHistory($("#history-scope")?.value || "active");
 }
 
 // ── Today ────────────────────────────────────────────────────────────────────
@@ -4892,16 +5201,129 @@ function axisRenderSetup(message = "Orbit Axis reads today's sky against your bi
   });
 }
 
+/* ── The week strip ───────────────────────────────────────────────────────
+   Seven days ending today, across the top of Today.
+
+   WHAT IT IS BUILT FROM. Your own reading history, and nothing else. A day is
+   shown as readable only when Orbit Axis actually wrote you a reading that day;
+   the rest say so and are not tappable, because a control that opens nothing
+   reads as a bug and teaches people to stop trusting the row.
+
+   WHAT IT IS NOT. It is not a date picker for the chart engine. Orbit Axis
+   calculates today's sky, not an arbitrary day's, so offering tomorrow would be
+   offering something the app cannot deliver. Seven days back, ending now. */
+const DAY_STRIP = { days: [], pendingDate: null };
+
+/** Local-midnight date key, matching how the API stores fortune_date. */
+function dayKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function axisRenderDayStrip(fortunes = []) {
+  const strip = $("#today-days");
+  if (!strip) return;
+
+  // The history endpoint returns entries for whichever charts the scope covers;
+  // one reading per day per chart. A day counts as "read" if anything landed on
+  // it for the chart currently being shown.
+  const byDate = new Map();
+  for (const f of fortunes) {
+    const key = String(f.fortune_date || "").slice(0, 10);
+    if (key && !byDate.has(key)) byDate.set(key, f);
+  }
+
+  const today = new Date();
+  const todayKey = dayKey(today);
+  DAY_STRIP.days = [];
+  for (let back = 6; back >= 0; back -= 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - back);
+    const key = dayKey(date);
+    DAY_STRIP.days.push({
+      key,
+      isToday: key === todayKey,
+      letter: date.toLocaleDateString("en-US", { weekday: "narrow" }),
+      weekday: date.toLocaleDateString("en-US", { weekday: "long" }),
+      number: date.getDate(),
+      long: date.toLocaleDateString("en-US", { month: "long", day: "numeric" }),
+      reading: byDate.get(key) || null,
+    });
+  }
+
+  strip.innerHTML = DAY_STRIP.days.map((day) => {
+    // Three states, and each one says what it is to a screen reader rather than
+    // relying on the dot: today, a day you have a reading for, and a day you do
+    // not.
+    const state = day.isToday ? "today" : day.reading ? "read" : "empty";
+    const label = day.isToday
+      ? `Today, ${day.long}`
+      : day.reading
+        ? `${day.weekday} ${day.long} — open your reading`
+        : `${day.weekday} ${day.long} — no reading saved`;
+    const inner = `
+      <span class="day-strip__letter" aria-hidden="true">${esc(day.letter)}</span>
+      <span class="day-strip__num" aria-hidden="true">${day.number}</span>
+      <span class="day-strip__dot" aria-hidden="true"></span>`;
+    if (day.isToday) {
+      return `<span class="day-strip__day" data-state="${state}" aria-current="date" aria-label="${esc(label)}">${inner}</span>`;
+    }
+    if (day.reading) {
+      return `<button type="button" class="day-strip__day" data-state="${state}" data-date="${esc(day.key)}" aria-label="${esc(label)}">${inner}</button>`;
+    }
+    return `<span class="day-strip__day" data-state="${state}" aria-label="${esc(label)}">${inner}</span>`;
+  }).join("");
+
+  strip.hidden = false;
+}
+
+/** Opening a past day means opening that reading, not a list it appears in. */
+function wireDayStrip() {
+  const strip = $("#today-days");
+  if (!strip || strip._wired) return;
+  strip._wired = true;
+  strip.addEventListener("click", (event) => {
+    const day = event.target.closest("[data-date]");
+    if (!day) return;
+    DAY_STRIP.pendingDate = day.dataset.date;
+    navigate("history");
+  });
+}
+
+/**
+ * Open and focus the entry the week strip asked for, once History has rendered.
+ *
+ * A date that is not in the rendered list is not an error worth reporting —
+ * scope may have been switched to a different chart — so it is simply dropped.
+ */
+function openPendingHistoryEntry() {
+  const key = DAY_STRIP.pendingDate;
+  if (!key) return;
+  DAY_STRIP.pendingDate = null;
+  const entry = $(`#history-body [data-date="${CSS.escape(key)}"]`);
+  if (!entry) return;
+  entry.open = true;
+  entry.scrollIntoView({ block: "center", behavior: "smooth" });
+  entry.querySelector("summary")?.focus?.({ preventScroll: true });
+}
+
 // ── History ──────────────────────────────────────────────────────────────────
 async function axisLoadHistory(scope = "active") {
   const body = $("#history-body");
   if (!body) return;
   try {
     const r = await get(`/api/fortune/history?scope=${encodeURIComponent(scope)}&limit=30`);
+    // The week strip reads the same response. One request feeds both surfaces,
+    // so they can never disagree about which days you have a reading for.
+    axisRenderDayStrip(r.fortunes || []);
     if (!r.fortunes || r.fortunes.length === 0) return axisRenderHistoryEmpty();
     axisRenderHistory(r.fortunes);
+    openPendingHistoryEntry();
   } catch {
     // Not signed in → no persisted history yet. Honest empty state (no fabrication).
+    axisRenderDayStrip([]);
     axisRenderHistoryEmpty();
   }
 }
@@ -4918,7 +5340,7 @@ function axisRenderHistoryEmpty() {
 function axisRenderHistory(entries) {
   const adv = true;   // Update 5.2: history always shows the full entry
   $("#history-body").innerHTML = `<div class="history-list">${entries.map(f => `
-    <details class="history-entry">
+    <details class="history-entry" data-date="${esc(String(f.fortune_date || "").slice(0, 10))}">
       <summary>
         <div class="history-entry__top">
           <span class="history-entry__date">${esc(formatLocalDateKey(f.fortune_date))}</span>
@@ -5111,7 +5533,7 @@ function positionRowHtml(p) {
   const boundary = p.approachingBoundary
     ? `<span class="positions-row__note">Approaching the end of ${esc(p.sign)}</span>` : "";
   return `<li class="positions-row${p.retrograde ? " is-retrograde" : ""}">
-    <span class="positions-row__glyph" aria-hidden="true">${esc(glyph)}</span>
+    <span class="positions-row__glyph" aria-hidden="true">${esc(textGlyph(glyph))}</span>
     <span class="positions-row__main">
       <span class="positions-row__name">${atlasBodyLinkHtml(p.name)}</span>
       <span class="positions-row__position">

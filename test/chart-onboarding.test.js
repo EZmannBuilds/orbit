@@ -312,7 +312,12 @@ test("the dialog is sized so a mobile keyboard cannot cover Save", () => {
 test("the sticky action bar does not let the form show through beneath it", () => {
   const scroll = componentsCss.slice(componentsCss.indexOf(".o-modal__scroll {"), componentsCss.indexOf(".o-modal__panel--form .o-modal__actions"));
   assert.ok(!/padding-bottom/.test(scroll), "bottom padding here sits below the sticky bar");
-  assert.match(componentsCss, /\.o-modal__panel--form \.o-modal__actions \{[\s\S]{0,260}background: var\(--color-surface-elevated\)/);
+  // Opaque, and the SAME fill as the panel it sits in — a translucent bar, or
+  // one filled with a different surface token, lets the last field show through
+  // underneath Save.
+  assert.match(componentsCss, /\.o-modal__panel--form \.o-modal__actions \{[\s\S]{0,400}background: var\(--color-surface\)/);
+  assert.match(componentsCss, /\.o-modal__panel \{[\s\S]{0,400}background: var\(--color-surface\)/,
+    "the bar's fill has to match the panel's, so they are asserted together");
 });
 
 test("form controls meet the touch target and do not trigger iOS zoom", () => {
