@@ -265,3 +265,49 @@ test("every surface titles the tab the same way round", () => {
     }
   }
 });
+
+// ── 6. Every page resolves the theme before it paints ───────────────────────
+//
+// Found on an iOS simulator, not in a test: /reset-password rendered BLACK on a
+// light-mode phone. The six standalone pages — privacy, terms, support, source,
+// account-deletion, reset-password — carry no theme script, so they had no
+// data-theme at all and fell through to the dark default, while the app beside
+// them had resolved `system` to light.
+//
+// They are linked directly from the You surface and from password-reset emails,
+// so this is the transition a reader actually makes.
+
+// The recovery page is deliberately excluded from the preference-reading rule:
+// it holds a live credential and touches NO storage (auth-database.test.js
+// enforces that). It still follows the device setting, checked separately below.
+const STANDALONE_PAGES = ["privacy", "terms", "support", "source", "account-deletion"];
+
+test("every page resolves the theme before first paint", () => {
+  for (const name of [...STANDALONE_PAGES, "index"]) {
+    const page = read("public", `${name}.html`);
+    assert.match(page, /localStorage\.getItem\("orbit\.theme"\)/,
+      `${name}.html does not read the theme preference — it will always render dark`);
+    assert.match(page, /prefers-color-scheme: light/,
+      `${name}.html does not fall back to the device setting`);
+    // BEFORE the stylesheets, or the wrong theme paints first and flashes.
+    const script = page.indexOf("orbit.theme");
+    const firstSheet = page.indexOf('<link rel="stylesheet"');
+    assert.ok(script > -1 && script < firstSheet,
+      `${name}.html resolves the theme after its stylesheets — that is a flash of the wrong theme`);
+    assert.ok(!/<script[^>]+src=[^>]*theme/i.test(page),
+      `${name}.html links its theme script; it has to be inline to beat the stylesheets`);
+  }
+});
+
+test("the recovery page follows the device without reading storage", () => {
+  const page = read("public", "reset-password.html");
+  assert.match(page, /prefers-color-scheme: light/,
+    "it still has to follow the device, or a light-mode phone gets a black page");
+  const script = page.indexOf("prefers-color-scheme");
+  const firstSheet = page.indexOf('<link rel="stylesheet"');
+  assert.ok(script > -1 && script < firstSheet, "and it has to resolve before the stylesheets");
+  // The important half: a page holding a live recovery credential touches no
+  // storage at all, so there is nothing to reason about about what leaked.
+  assert.doesNotMatch(page, /localStorage|sessionStorage/,
+    "the recovery page must not touch storage, not even to read a theme");
+});

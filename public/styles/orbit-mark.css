@@ -39,9 +39,15 @@
   border: 3px solid var(--color-bg);
 }
 
-/* Inside a card, the cut-out has to match the card rather than the page. */
+/* Inside a card, the cut-out has to match the CARD rather than the page.
+   Left at the page colour it renders as a black ring on a grey card — which is
+   exactly what shipped, because this override named only `.auth-mark` and the
+   password-reset page uses the older `.chat-orbit`. Both names, always
+   together; that is the whole reason they are defined as one mark above. */
 .auth-card .auth-mark span,
-.startup-card .auth-mark span { border-color: var(--color-surface); }
+.auth-card .chat-orbit span,
+.startup-card .auth-mark span,
+.startup-card .chat-orbit span { border-color: var(--color-surface); }
 
 @media (max-width: 560px) {
   .auth-mark, .chat-orbit { width: 40px; height: 40px; }
