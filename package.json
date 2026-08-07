@@ -19,6 +19,7 @@
     "test:local": "node scripts/test-local.js",
     "build": "node scripts/build.js",
     "icons:build": "node scripts/build-icons.js",
+    "app:icon": "node scripts/build-app-icon.js",
     "app:config": "node scripts/app-config.js",
     "app:check": "node scripts/app-check.js",
     "app:build": "npm run build && npm run app:check && npx cap sync ios",
