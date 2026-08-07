@@ -187,6 +187,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 :root[data-theme="light"] .o-select,
 :root[data-theme="light"] select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='none' stroke='%2356565a' stroke-width='16' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='208 96 128 176 48 96'/%3E%3C/svg%3E");
+  /* The repeat, position and size are restated deliberately. This selector
+     outranks a plain `.some-select` rule, so if one of those used the
+     `background:` shorthand its reset survives here — and re-declaring only the
+     IMAGE gave a caret tiled six times across the control. Light theme only,
+     which is why it never showed up on a dark desktop. */
+  background-repeat: no-repeat;
+  background-position: right var(--space-md) center;
+  background-size: 14px;
 }
 
 /* ── Search — a pill, matching the CTA grammar ───────────────────────────── */
@@ -678,7 +686,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* ── Modal ───────────────────────────────────────────────────────────────────
    One dialog shell. Focus is trapped while open, Escape closes, focus returns
    to whatever opened it (app.js owns that behaviour; this owns the surface). */
-.o-modal { position: fixed; inset: 0; z-index: 110; display: grid; place-items: center; padding: var(--space-md); }
+/* Pinned to the VISIBLE region, not the layout viewport.
+   `inset: 0` anchors a fixed element to the layout viewport — which on iOS
+   Safari does not move or shrink when the keyboard opens. The dialog would
+   therefore centre itself in a box a third of which was behind the keys.
+   --vv-height and --vv-top are published by trackVisualViewport() in app.js;
+   the fallbacks are what every non-iOS browser uses, and they are correct
+   there. */
+.o-modal {
+  position: fixed;
+  top: var(--vv-top, 0);
+  left: 0;
+  right: 0;
+  height: var(--vv-height, 100dvh);
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: var(--space-md);
+}
 .o-modal[hidden] { display: none; }
 
 .o-modal__backdrop {
@@ -691,7 +716,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .o-modal__panel {
   position: relative;
   width: min(680px, 100%);
-  max-height: calc(100vh - var(--space-xl));
+  max-height: calc(var(--vv-height, 100vh) - var(--space-xl));
   overflow-y: auto;
   display: grid;
   gap: var(--space-md);
@@ -734,7 +759,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
    keyboard opens, `vh` does not, so Save stays reachable. The header is fixed
    and only the body scrolls. */
 .o-modal__panel--form {
-  max-height: min(calc(100dvh - var(--space-xl)), 860px);
+  max-height: min(calc(var(--vv-height, 100dvh) - var(--space-xl)), 860px);
   grid-template-rows: auto 1fr;
   overflow: hidden;
   padding-bottom: var(--space-md);
@@ -761,14 +786,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 @media (max-width: 560px) {
   .o-modal { padding: var(--space-sm); }
-  .o-modal__panel { padding: var(--space-md); max-height: calc(100dvh - var(--space-lg)); }
-  .o-modal__panel--form { max-height: calc(100dvh - var(--space-md)); }
+  .o-modal__panel { padding: var(--space-md); max-height: calc(var(--vv-height, 100dvh) - var(--space-lg)); }
+  .o-modal__panel--form { max-height: calc(var(--vv-height, 100dvh) - var(--space-md)); }
   .o-modal__actions { justify-content: stretch; }
   .o-modal__actions .o-btn { flex: 1 1 auto; }
 }
 @media (max-height: 520px) {
   .o-modal { padding: var(--space-xs); }
-  .o-modal__panel--form { max-height: calc(100dvh - var(--space-sm)); }
+  .o-modal__panel--form { max-height: calc(var(--vv-height, 100dvh) - var(--space-sm)); }
 }
 
 :root[data-motion="reduced"] .o-modal__panel { animation: none; }

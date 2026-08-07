@@ -479,6 +479,40 @@ function textGlyph(glyph) {
   return value.endsWith("︎") ? value : `${value}︎`;
 }
 
+/* ── The visual viewport ──────────────────────────────────────────────────
+   WHY THIS EXISTS, and it is not theoretical: on iOS Safari the chart form's
+   Save button sat behind the on-screen keyboard, unreachable.
+
+   The dialog was built on `100dvh`, on the understanding that the dynamic
+   viewport shrinks when the keyboard opens. It does on Android Chrome. It does
+   NOT on iOS Safari — there the keyboard overlays the page and the LAYOUT
+   viewport is left at its full height, so `dvh` reports the same number with
+   the keyboard up as with it down. A dialog sized to it keeps its bottom third
+   underneath the keys.
+
+   The visual viewport is the only thing that knows. It reports the region
+   actually on screen, and it moves as the keyboard opens, closes, and as the
+   page is pinch-zoomed. Publishing its height and offset as custom properties
+   lets the dialog size and position against what the reader can see.
+
+   Browsers without the API keep the `100dvh` fallback in the CSS, which is
+   correct for every one of them — this is an iOS-shaped hole, patched where the
+   hole is. */
+function trackVisualViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const root = document.documentElement;
+  const apply = () => {
+    root.style.setProperty("--vv-height", `${Math.round(vv.height)}px`);
+    // offsetTop is how far the visible region has been pushed down, which is
+    // what a fixed overlay has to be nudged by to stay inside it.
+    root.style.setProperty("--vv-top", `${Math.round(vv.offsetTop)}px`);
+  };
+  vv.addEventListener("resize", apply);
+  vv.addEventListener("scroll", apply);
+  apply();
+}
+
 function hydrateIcons(root = document) {
   for (const el of root.querySelectorAll("[data-icon]")) {
     if (el.firstElementChild?.tagName?.toLowerCase() === "svg") continue;
@@ -3915,6 +3949,7 @@ async function boot() {
   // Icons are declared with data-icon in the markup and painted here, once the
   // feature panels have been injected so their icons are covered too.
   hydrateIcons();
+  trackVisualViewport();
   wireFind();
   wireSettings();
   wireAuth();

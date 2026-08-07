@@ -311,3 +311,57 @@ test("the recovery page follows the device without reading storage", () => {
   assert.doesNotMatch(page, /localStorage|sessionStorage/,
     "the recovery page must not touch storage, not even to read a theme");
 });
+
+// ── 7. Dialogs measure the VISIBLE viewport, not the layout viewport ────────
+//
+// Found on an iPhone, and only there. The chart form is sized so that Save
+// stays reachable when the on-screen keyboard opens — built on `100dvh`, on the
+// understanding that the dynamic viewport shrinks for the keyboard.
+//
+// It does on Android Chrome. It does NOT on iOS Safari: there the keyboard
+// OVERLAYS the page and the layout viewport keeps its full height, so `dvh`
+// reports the same number either way. Save sat behind the keys, unreachable,
+// on the single most important form in the app.
+//
+// A desktop browser at 375px cannot reproduce this — it has no keyboard to
+// open — which is why it survived the whole redesign.
+
+test("dialogs size and position against the visual viewport", () => {
+  const components = read("public", "styles", "components.css");
+
+  const shell = components.slice(components.indexOf(".o-modal {"), components.indexOf(".o-modal[hidden]"));
+  assert.match(shell, /height: var\(--vv-height, 100dvh\)/,
+    "the dialog shell must take the visible height, with dvh only as a fallback");
+  assert.match(shell, /top: var\(--vv-top, 0\)/,
+    "and follow the visible region's offset, or it centres itself behind the keyboard");
+  assert.ok(!/inset: 0/.test(shell),
+    "`inset: 0` re-anchors the shell to the layout viewport, which is the bug");
+
+  // Every max-height on a panel has to use the same measurement. One left on
+  // plain dvh reintroduces the failure at whichever breakpoint it governs.
+  // Declarations only — `@media (max-height: 520px)` is a query, not a cap, and
+  // matching it made this test fail on its own regex rather than on the CSS.
+  const caps = [...components.matchAll(/max-height: ([^;{]+);/g)].map((m) => m[1].trim());
+  assert.ok(caps.length >= 4, `expected the panel caps, found ${caps.length}: ${caps.join(" | ")}`);
+  for (const cap of caps) {
+    assert.match(cap, /--vv-height/,
+      `a dialog cap reads "${cap}" — it must measure --vv-height, not the layout viewport`);
+  }
+});
+
+test("the visual viewport is published, and kept current", () => {
+  const fn = appJs.slice(appJs.indexOf("function trackVisualViewport"),
+                         appJs.indexOf("function hydrateIcons"));
+  assert.ok(fn.length > 0, "the tracker should exist");
+  assert.match(fn, /window\.visualViewport/);
+  assert.match(fn, /if \(!vv\) return;/,
+    "browsers without the API keep the CSS fallback rather than getting a broken value");
+  // Both events. `resize` alone misses the keyboard being dismissed by a scroll,
+  // and `scroll` alone misses it opening.
+  assert.match(fn, /vv\.addEventListener\("resize"/);
+  assert.match(fn, /vv\.addEventListener\("scroll"/);
+  assert.match(fn, /--vv-height/);
+  assert.match(fn, /--vv-top/);
+  // And it has to run at boot, not only on the first resize.
+  assert.match(appJs, /trackVisualViewport\(\);/);
+});

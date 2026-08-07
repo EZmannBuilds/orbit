@@ -505,7 +505,10 @@
   padding: 8px 12px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: var(--color-surface-elevated);
+  /* background-COLOR, not the shorthand: the shorthand resets
+     background-repeat/-size/-position, and the caret this select inherits from
+     the component library then tiles across it. */
+  background-color: var(--color-surface-elevated);
   color: inherit;
   font: inherit;
   max-width: 260px;
@@ -743,7 +746,7 @@
 .tr-switcher__select {
   min-height: 44px; padding: 8px 12px; font: inherit; color: inherit;
   border: 1px solid var(--color-border); border-radius: 8px;
-  background: var(--color-surface-elevated); max-width: 100%;
+  background-color: var(--color-surface-elevated); max-width: 100%;
 }
 .tr-status:empty { display: none; }
 .tr-status { margin: 0 0 8px; font-size: 14px; color: var(--color-secondary); }
