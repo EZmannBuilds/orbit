@@ -3681,7 +3681,12 @@ function renderCompatResult(c) {
   // <h1> underneath it still read Compatibility.
   $("#compatibility-title").textContent = c.framing.title;
   $("#compat-subtitle").textContent = c.framing.subtitle;
-  document.title = `${c.framing.title} · Orbit Axis`;
+  // Same shape as every other destination — the tab must not change format just
+  // because a comparison finished. The value itself still comes from the result
+  // rather than the registry, because comparing a chart with itself is titled
+  // "Self Pattern Comparison": nobody is in a relationship with themselves, and
+  // that is the whole reason this override exists.
+  document.title = `Orbit Axis — ${c.framing.title}`;
 
   $("#compat-result").innerHTML = `
     <section class="o-card compat-overall" aria-labelledby="compat-overall-title">

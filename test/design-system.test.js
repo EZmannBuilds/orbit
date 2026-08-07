@@ -243,3 +243,25 @@ test("native form controls inherit the one accent", () => {
   // chose — which is exactly what happened to the birth-time radio.
   assert.match(read("public", "styles", "base.css"), /accent-color: var\(--color-accent\)/);
 });
+
+// ── 5. One document-title format ────────────────────────────────────────────
+//
+// The browser tab is the only label some people ever see for a page — in a
+// window of twenty tabs, or read aloud by a screen reader on switch. Two
+// surfaces used to invert the format the moment they rendered ("Symbol Atlas —
+// Orbit Axis", "Compatibility · Orbit Axis"), so the tab changed shape
+// depending on what had finished loading.
+
+test("every surface titles the tab the same way round", () => {
+  const titles = [...appJs.matchAll(/document\.title = ([^;]+);/g)].map((m) => m[1].trim());
+  assert.ok(titles.length >= 3, `expected the title setters, found ${titles.length}`);
+  for (const expression of titles) {
+    // Every branch of every setter has to start with the product name. A
+    // ternary is allowed; a branch that puts "Orbit Axis" last is not.
+    const branches = expression.split(/\?|:/).map((b) => b.trim()).filter((b) => b.startsWith("`") || b.startsWith('"'));
+    for (const branch of branches) {
+      assert.match(branch, /^[`"]Orbit Axis — /,
+        `a title branch reads ${branch} — every tab must start "Orbit Axis — "`);
+    }
+  }
+});
