@@ -93,6 +93,78 @@ export function apiUrl(path) {
   return `${base.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+/* ── The session, in the native container only ───────────────────────────────
+   THE WEB IS UNTOUCHED BY EVERYTHING BELOW. Every function returns nothing, or
+   an empty object, unless isNativeApp() is true — so the browser keeps signing
+   in exactly as it always has, with an HttpOnly cookie no script can read.
+
+   THE DEFECT THIS FIXES. The app is served from capacitor://localhost and its
+   API is somewhere else, so every request it makes is cross-origin. A
+   cross-origin fetch with `credentials: "same-origin"` does not send a cookie
+   and does not keep one a response sets. Sign-in therefore succeeded — 200,
+   with the user — and left the app holding nothing: the very next request was
+   a 401, which is what put "We couldn't load your saved charts" on screen.
+
+   WHY A HEADER AND NOT A COOKIE. Making the cookie cross-site needs
+   SameSite=None, which requires Secure, which a plain-HTTP local dev server
+   cannot set; and WKWebView's tracking prevention may drop it regardless. The
+   server hands the container the same opaque blob in a readable header instead,
+   and it comes back in Authorization. One session format, two ways to carry it.
+
+   WHERE IT IS KEPT. localStorage inside the app's own WebView. That is weaker
+   than HttpOnly — script in this container can read it — but the container runs
+   one origin's code, which is the app's own bundle. The web, where a stray
+   third-party script is a real risk, never takes this path. */
+
+const SESSION_KEY = "orbit.session";
+const SESSION_HEADER = "X-Orbit-Session";
+
+/** The stored session blob, or "" — always "" in a browser. */
+export function sessionToken() {
+  if (!isNativeApp()) return "";
+  try { return globalThis.localStorage?.getItem(SESSION_KEY) || ""; }
+  catch { return ""; }   // Private modes can throw rather than return null.
+}
+
+/**
+ * Authorization header for an API call, or nothing to add.
+ *
+ * Spread into a fetch's headers. In a browser it contributes no header at all,
+ * so the request on the wire is byte for byte the one Orbit has always sent.
+ */
+export function authHeaders() {
+  const token = sessionToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * Take the session from a response, if it carried one.
+ *
+ * Called after every API call rather than only after sign-in, because the
+ * server rotates the session when it is close to expiring. A container that
+ * only read the header once would keep presenting a token the server has
+ * already replaced, and would be signed out mid-use for no visible reason.
+ *
+ * An empty header is sign-out: the server said so, so the token is dropped.
+ *
+ * @param {Response} response
+ */
+export function rememberSession(response) {
+  if (!isNativeApp()) return;
+  const value = response?.headers?.get?.(SESSION_HEADER);
+  if (value === null || value === undefined) return;   // absent: leave as is
+  try {
+    if (value) globalThis.localStorage?.setItem(SESSION_KEY, value);
+    else globalThis.localStorage?.removeItem(SESSION_KEY);
+  } catch { /* Storage is a convenience here; failing it must not break a request. */ }
+}
+
+/** Forget the session. Used when the app decides, rather than the server. */
+export function clearSession() {
+  if (!isNativeApp()) return;
+  try { globalThis.localStorage?.removeItem(SESSION_KEY); } catch { /* see above */ }
+}
+
 /**
  * A Capacitor plugin, if the native bridge has registered it.
  *

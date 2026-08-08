@@ -77,7 +77,14 @@ test("application code reaches the platform through the adapter, not Capacitor",
   const appJs = read("public/app.js");
   assert.ok(!/window\.Capacitor|globalThis\.Capacitor/.test(appJs),
     "public/app.js must not reference Capacitor directly");
-  assert.match(appJs, /import \{ apiUrl \} from "\.\/platform\.js"/);
+  // The import list grew when the native container needed to carry its own
+  // session, so this pins the SOURCE rather than one exact set of names — the
+  // guarantee is that platform knowledge arrives from one module, not that the
+  // module exports exactly what it did on the day this was written.
+  assert.match(appJs, /^import \{[^}]*\} from "\.\/platform\.js";$/m,
+    "public/app.js must import its platform knowledge from platform.js");
+  assert.match(appJs, /import \{[^}]*\bapiUrl\b[^}]*\} from "\.\/platform\.js"/,
+    "apiUrl() is how every API path is resolved");
 });
 
 test("no API call bypasses the platform adapter", () => {

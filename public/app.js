@@ -19,7 +19,7 @@ import {
 } from "./moon-scene.js";
 import { decideStartupView, STARTUP_VIEW } from "./startup-state.js";
 import { ICON_PATHS } from "./icons.js";
-import { apiUrl } from "./platform.js";
+import { apiUrl, authHeaders, rememberSession } from "./platform.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -127,13 +127,20 @@ async function request(path, { method = "GET", body = null } = {}) {
     // covered by this one call.
     response = await fetch(apiUrl(path), {
       method,
-      headers: { "Content-Type": "application/json" },
+      // authHeaders() adds NOTHING in a browser. In the native container it
+      // carries the session, which a cookie cannot: the app's requests are
+      // cross-origin, and a cross-origin fetch neither sends a cookie nor
+      // keeps one. See public/platform.js.
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       // same-origin keeps the Orbit session cookie AND, on a protected Vercel
       // Preview, the Vercel access cookie attached. A cross-origin call would
       // lose both and be answered by a login page instead of the application.
       credentials: "same-origin",
       body: body ? JSON.stringify(body) : undefined,
     });
+    // The server rotates the session as it nears expiry, so this reads every
+    // response and not only the one from sign-in.
+    rememberSession(response);
   } catch {
     const error = new Error("Orbit could not be reached. Check your connection and try again.");
     error.status = 0;
@@ -303,8 +310,10 @@ async function runPlaceSearch(prefix, query) {
   setPlaceStatus(prefix, "Searching…");
   try {
     const response = await fetch(apiUrl(`/api/locations/search?q=${encodeURIComponent(query)}&limit=5`), {
+      headers: { ...authHeaders() },
       credentials: "same-origin", signal: controller.signal,
     });
+    rememberSession(response);
     const parsed = await readApiResponse(response);
     if (parsed.kind !== "json") throw new Error(apiTransportMessage(parsed.kind, parsed.status));
     const data = parsed.data ?? {};
@@ -2096,10 +2105,11 @@ function wireAccountExport() {
       // timestamp printed beside the UTC one inside the file.
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
       const res = await fetch(apiUrl(`/api/v1/account/export?timezone=${encodeURIComponent(timezone)}`), {
-        headers: { Accept: "application/json" },
+        headers: { Accept: "application/json", ...authHeaders() },
         credentials: "same-origin",
         cache: "no-store",
       });
+      rememberSession(res);
       // Through the shared reader, so a login wall, a rewrite, or a hosting
       // provider's HTML 404 is reported as a transport problem rather than
       // being parsed as if it were the export.
@@ -2292,9 +2302,10 @@ function wireAccountDeletion() {
     try {
       const res = await fetch(apiUrl("/api/v1/account"), {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ confirmation: REQUIRED }),
       });
+      rememberSession(res);
       const parsed = await readApiResponse(res);
       const payload = parsed.data;
 
@@ -2952,9 +2963,10 @@ async function uploadChartAvatar(chart, blob) {
     response = await fetch(apiUrl(`/api/charts/${encodeURIComponent(chart.id)}/avatar?expectedVersion=${Number(chart.avatar_version) || 0}`), {
       method: "POST",
       credentials: "same-origin",
-      headers: { "content-type": "image/webp" },
+      headers: { "content-type": "image/webp", ...authHeaders() },
       body: blob,
     });
+    rememberSession(response);
   } catch {
     const error = new Error("Orbit could not be reached. Check your connection and try again.");
     error.kind = "network";
