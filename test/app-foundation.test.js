@@ -102,11 +102,43 @@ test("no bare module specifier is imported by browser-served code", () => {
   // Orbit ships no bundler, so `import "@capacitor/browser"` is unresolvable
   // in both the browser and the WebView. Plugins are reached through the
   // global bridge instead.
+  //
+  // Matched as STATEMENTS, not as the substring `from "…"`. The looser version
+  // read English: a comment saying one thing is different `from "Leo season"`
+  // was reported as a bare import, and the failure named a specifier that does
+  // not exist. A guard that fires on prose is a guard people learn to silence.
+  const SPECIFIERS = [
+    /^[ \t]*(?:import|export)[^\n]*?\bfrom\s+"([^"]+)"/gm,  // import x from "…"
+    /^[ \t]*import\s+"([^"]+)"/gm,                          // side-effect import
+    /\bimport\(\s*"([^"]+)"\s*\)/g,                        // dynamic import()
+  ];
   for (const file of ["public/platform.js", "public/native-shell.js", "public/app.js"]) {
     const source = read(file);
-    const bareImports = source.match(/from\s+"[^./][^"]*"|import\("[^./][^"]*"\)/g) || [];
-    assert.deepEqual(bareImports, [], `${file} must not import a bare specifier`);
+    const bare = [];
+    for (const pattern of SPECIFIERS) {
+      for (const [, specifier] of source.matchAll(pattern)) {
+        // Relative or absolute resolves without a bundler; anything else does not.
+        if (!specifier.startsWith(".") && !specifier.startsWith("/")) bare.push(specifier);
+      }
+    }
+    assert.deepEqual(bare, [], `${file} must not import a bare specifier`);
   }
+});
+
+test("the bare-specifier guard actually detects one", () => {
+  // The regexes above are the whole test, so they get their own fixture — the
+  // previous version passed for years while matching the wrong thing.
+  const fixture = [
+    'import { a } from "@capacitor/core";',
+    'import "./fine.js";',
+    'const m = await import("/also-fine.js");',
+    '// a comment that is different from "Leo season"',
+  ].join("\n");
+  const found = [...fixture.matchAll(/^[ \t]*(?:import|export)[^\n]*?\bfrom\s+"([^"]+)"/gm)]
+    .map((m) => m[1])
+    .filter((s) => !s.startsWith(".") && !s.startsWith("/"));
+  assert.deepEqual(found, ["@capacitor/core"],
+    "the guard must catch a real bare import and ignore prose");
 });
 
 // ── Capacitor configuration ─────────────────────────────────────────────────
