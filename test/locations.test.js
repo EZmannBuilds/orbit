@@ -150,6 +150,54 @@ test("an injected transport does not read or write the provider cache", async ()
   assert.equal(locationCacheStats().size, 0, "a stubbed transport must not populate the cache");
 });
 
+// The cache's value was estimated by simulation; this line is how the estimate
+// gets checked against production. The privacy half is the part that has to be
+// enforced rather than intended: a birthplace is among the most identifying
+// things Orbit holds, so the query must never reach a log.
+test("the cache reports its hit rate without ever logging what was searched", async () => {
+  process.env.GEOAPIFY_API_KEY = "unit-test-location-secret";
+  resetLocationCache();
+  const fetchImpl = async () => ({
+    ok: true,
+    async json() {
+      return { features: [{ properties: { formatted: PLACE.label, place_id: PLACE.provider_place_id, lat: PLACE.latitude, lon: PLACE.longitude } }] };
+    },
+  });
+
+  const lines = [];
+  const realLog = console.log;
+  console.log = (...args) => { lines.push(args.join(" ")); };
+  try {
+    // 49 distinct misses, then one repeat: quiet until the cadence is reached.
+    for (let i = 0; i < 49; i++) await searchGeoapify(`Testville${i}`, { fetchImpl, cache: true });
+    assert.equal(lines.length, 0, "reporting is cadenced, not one line per lookup");
+    await searchGeoapify("Testville0", { fetchImpl, cache: true });
+  } finally {
+    console.log = realLog;
+  }
+
+  assert.equal(lines.length, 1, "one report at the cadence boundary");
+  const line = lines[0];
+  assert.match(line, /^\[locations\] /, "house log format");
+
+  const payload = JSON.parse(line.slice("[locations] ".length));
+  assert.equal(payload.lookups, 50);
+  assert.equal(payload.hits, 1);
+  assert.equal(payload.misses, 49);
+  assert.equal(payload.hit_rate_pct, 2);
+  assert.equal(payload.entries, 49);
+
+  // The whole point. No query text, no place label, no coordinates.
+  assert.doesNotMatch(line, /Testville/, "a birthplace query must never be logged");
+  assert.doesNotMatch(line, /Paris|Ile-de-France|France/, "nor a returned place label");
+  assert.doesNotMatch(line, /48\.85|2\.35/, "nor coordinates");
+  assert.deepEqual(
+    Object.keys(payload).sort(),
+    ["entries", "hit_rate_pct", "hits", "lookups", "misses"],
+    "counters only — a new field here is a new disclosure",
+  );
+});
+
 test("Geoapify search handles empty, provider, timeout, malformed, and missing-key cases", async () => {
   process.env.GEOAPIFY_API_KEY = "unit-test-location-secret";
   const empty = await searchGeoapify("Nowhere", {
