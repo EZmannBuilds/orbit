@@ -32,6 +32,7 @@
 .auth-gate[hidden] { display: none; }
 
 .auth-card {
+  position: relative; /* anchors .auth-close */
   width: min(440px, 100%);
   max-height: none;
   display: grid;
@@ -63,6 +64,56 @@
   text-align: center;
   font-size: var(--type-body);
   line-height: var(--lead-body);
+}
+
+/* ── The way out ─────────────────────────────────────────────────────────────
+   The gate is dismissible now, so a mouse user needs a control and not just the
+   Escape key. "Not now" rather than an X: it declines an offer, which is what
+   this actually is, and it says the offer will still be there. */
+.auth-close {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  padding: var(--space-xxs) var(--space-xs);
+  min-height: 44px;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-secondary);
+  font-size: var(--type-fine);
+  cursor: pointer;
+}
+.auth-close:hover { color: var(--color-primary); }
+
+/* ── What the account buys ───────────────────────────────────────────────────
+   The half of the exchange the old gate never showed. Left-aligned against the
+   centred headline on purpose: a list is read down its left edge, and centring
+   these three lines turned them into decoration. */
+.auth-benefits {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-xs);
+}
+.auth-benefits li {
+  position: relative;
+  padding-left: calc(var(--space-md) + 2px);
+  text-align: left;
+  font-size: var(--type-fine);
+  line-height: 1.5;
+  color: var(--color-secondary);
+}
+.auth-benefits li::before {
+  content: "";
+  position: absolute;
+  left: var(--space-xs);
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent, currentColor);
 }
 
 /* The mode switch is the segmented control, not a bespoke pair of buttons. */
@@ -110,7 +161,9 @@
   min-width: 0;
 }
 
-/* What is collected and why, before it is asked for. */
+/* What is collected and why, before it is asked for — now behind a summary.
+   Still ahead of the submit button, still in full, but no longer the largest
+   element on a card whose headline had fallen below the fold. */
 .auth-privacy {
   width: 100%;
   padding: var(--space-sm) var(--space-md);
@@ -118,8 +171,19 @@
   border-radius: var(--radius-md);
   background: var(--color-surface-sunken);
 }
-.auth-privacy p { margin: 0 0 var(--space-xs); font-size: var(--type-fine); line-height: 1.55; text-align: left; }
-.auth-privacy p:last-child { margin-bottom: 0; }
+.auth-privacy p { margin: var(--space-xs) 0 0; font-size: var(--type-fine); line-height: 1.55; text-align: left; }
+.auth-privacy summary {
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-secondary);
+  /* A 14px line of text is not a 44px target. The padding is what makes this
+     tappable; the negative margin keeps it from inflating the collapsed box,
+     which is the whole reason this became a summary. */
+  padding: var(--space-xs) 0;
+  margin: calc(var(--space-xs) * -1) 0;
+}
+/* --focus-ring is a box-shadow value in tokens.css, not an outline one. */
+.auth-privacy summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
 
 /* ── Terms, privacy, and support ─────────────────────────────────────────────
    These sit inline inside a sentence, where a 44px-tall box would break the

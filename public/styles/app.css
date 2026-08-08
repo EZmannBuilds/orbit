@@ -91,6 +91,27 @@
 .rail__label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rail__spacer { flex: 1; }
 
+/* ── The standing offer ──────────────────────────────────────────────────────
+   Signed-out only, and below the spacer so it can never be mistaken for a sixth
+   destination. Quiet by construction: the button carries the one accent this
+   interface allows, and everything under it is small print. It is on screen
+   from every page because opening the app no longer demands an account — this
+   is how someone who changes their mind says so. */
+.rail__cta { display: grid; gap: var(--space-xxs); justify-items: stretch; padding-top: var(--space-sm); }
+.rail__cta[hidden] { display: none; }
+.rail__cta-btn { width: 100%; }
+.rail__cta-note {
+  margin: 0;
+  text-align: center;
+  font-size: var(--type-fine);
+  color: var(--color-secondary);
+}
+.rail__cta-signin {
+  font-size: var(--type-fine);
+  color: var(--color-secondary);
+  padding: var(--space-xxs) 0;
+}
+
 /* ── The frosted sub-nav ─────────────────────────────────────────────────── */
 .topnav {
   position: sticky; top: 0; z-index: 40;
@@ -225,7 +246,10 @@
     border-right: 0;
     border-top: var(--border-width) solid var(--glass-border);
   }
-  .rail__brand, .rail__section-label, .rail__spacer { display: none; }
+  /* The rail is a five-column tab bar here. The standing offer would either
+     become a sixth column or sit on top of one, and Today already carries the
+     same call to action at full width — so it is dropped, not shrunk. */
+  .rail__brand, .rail__section-label, .rail__spacer, .rail__cta { display: none; }
 
   /* Five equal columns. Five labelled tabs fit a 375px screen; six turn the
      labels into ellipses, and the failure is silent. */

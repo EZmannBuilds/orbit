@@ -2019,6 +2019,18 @@ function wireAuth() {
   };
 
   modeButtons.forEach(btn => btn.addEventListener("click", () => setMode(btn.dataset.authMode)));
+  // Hand the mode switch to openAuthGate, so a contextual prompt can open on
+  // the tab that matches what was asked for. Everything mode-dependent — the
+  // confirm field, the autocomplete hint, the submit label — moves together
+  // because it all still goes through this one function.
+  authGate.setMode = setMode;
+  setMode("signup");
+  $("#auth-close")?.addEventListener("click", () => hideAuthGate());
+
+  // The signed-out half of the "You" panel. Static markup, so wired once here
+  // rather than re-bound by every renderAccount().
+  $("#account-create")?.addEventListener("click", () => openAuthGate("account"));
+  $("#account-signin")?.addEventListener("click", () => openAuthGate("signin"));
   $("#auth-toggle-password")?.addEventListener("click", () => {
     const input = $("#auth-password");
     const button = $("#auth-toggle-password");
@@ -2272,7 +2284,20 @@ function clearPrivateState({ purgeLocalData = false } = {}) {
   renderSavedCharts();
   if (!$("#chart-modal").hidden) closeModal($("#chart-modal"));
   $("#today-chart-error").hidden = true;
-  showAuthGate();
+
+  // Signing out drops you into the signed-out app, not onto a wall — the sky is
+  // still there to read. It has to be *repainted*, though: the lines above just
+  // cleared the cached reading, and nothing else is coming to fill it now that
+  // a gate no longer covers the gap.
+  //
+  // Deliberately not awaited; this function is synchronous and its callers are
+  // finishing a sign-out. Every section inside axisLoadToday renders its own
+  // failure state, so the only thing this catch can see is an unexpected throw
+  // — which must be reported, not left to surface as an unhandled rejection on
+  // the way out of an account.
+  axisLoadToday().catch(error => {
+    console.error("[orbit] sign-out repaint failed", { message: error?.message });
+  });
 }
 
 /* ── Permanent account deletion ────────────────────────────────────────────
@@ -2370,23 +2395,98 @@ function wireAccountDeletion() {
   });
 }
 
-/* ── The authentication gate ───────────────────────────────────────────────
-   Routed through the same dialog machinery as every other modal so that focus
-   trapping, background inertness, and accessibility-tree removal cannot drift
-   apart from the rest of the app. It is opened and closed by exactly two
-   functions, because five scattered `hidden = ...` assignments is how three of
-   them end up forgetting the inert shell. */
-function showAuthGate() {
+/* ── The account prompt ────────────────────────────────────────────────────
+   This used to be a wall. It opened on boot for every signed-out visitor, marked
+   the whole shell inert, and refused Escape — so the first thing anyone saw of
+   Orbit Axis was an empty password field, with the headline and every reason to
+   care pushed under the fold on a laptop. We asked for a password before making
+   a single promise.
+
+   It is now a prompt, asked at the point an account starts paying for itself.
+   Today's sky is calculated from astronomy alone — no account, no database — so
+   a visitor reads the real product first. The ask arrives when they reach their
+   own birth chart, which needs somewhere to keep birth details and a geocoder
+   we pay for per lookup. Value first, ask second.
+
+   It is dismissible now, because there is finally something behind it to go
+   back to. That is the same reason Escape was refused before, read the other
+   way round.
+
+   `reason` is what turns a generic form into an answer to the question the
+   visitor just asked. Each entry is the headline they earned by getting here,
+   so the prompt never opens on "Sign in" for someone who has never heard of us —
+   a returning user recognises their own name for this, and a new one is offered
+   the thing they were reaching for. */
+const AUTH_REASONS = {
+  // Reached the account panel deliberately, or asked for it by name.
+  account: {
+    title: "Keep your sky",
+    body: "A free account saves your birth chart and your daily readings, on every device you use.",
+    mode: "signup",
+  },
+  // The big one: they want the reading to be about them, not about everyone.
+  chart: {
+    title: "Make this about you",
+    body: "You're reading the sky everyone shares. Add your birth details and Orbit Axis reads today against the sky the day you were born.",
+    mode: "signup",
+  },
+  compatibility: {
+    title: "Compare two charts",
+    body: "Compatibility works from saved charts, so Orbit Axis needs somewhere to keep them first.",
+    mode: "signup",
+  },
+  history: {
+    title: "Keep your readings",
+    body: "Your past readings are saved to your account, so the week strip fills in as you go.",
+    mode: "signup",
+  },
+  // Asked for by name, from the "Sign in" control. Opens on the sign-in tab.
+  signin: {
+    title: "Welcome back",
+    body: "Sign in to restore your chart and your saved readings.",
+    mode: "signin",
+  },
+};
+
+/* Set by wireAuth so the prompt can open on the right tab. Held here rather
+   than reaching into the DOM, because the mode also drives the confirm field,
+   the autocomplete hint and the submit label, and clicking the tab button is
+   how those three used to drift apart. */
+const authGate = { setMode: null };
+
+/**
+ * Ask for an account, in the words of whatever the visitor was reaching for.
+ * Safe to call when the prompt is already open — it re-points the copy.
+ */
+function openAuthGate(reason = "account") {
   const gate = $("#auth-gate");
-  if (!gate || !gate.hidden) return;
-  // Nothing behind this to go back to, so Escape must not dismiss it.
-  openModal(gate, { dismissible: false, initialFocus: $("#auth-email") });
+  if (!gate) return;
+  const copy = AUTH_REASONS[reason] || AUTH_REASONS.account;
+  $("#auth-gate-title").textContent = copy.title;
+  $("#auth-gate-description").textContent = copy.body;
+  authGate.setMode?.(copy.mode);
+  if (!gate.hidden) return;
+  openModal(gate, { dismissible: true, initialFocus: $("#auth-email") });
 }
 
 function hideAuthGate() {
   const gate = $("#auth-gate");
   if (!gate || gate.hidden) return;
   closeModal(gate);
+}
+
+/**
+ * Guard an action that genuinely needs an account. Returns true when the caller
+ * may proceed; otherwise it has already asked, in that action's own words.
+ *
+ * Everything routed through here is something the server would refuse anyway —
+ * saving a chart, comparing two, reading history. Nothing that merely *reads*
+ * the sky belongs here; that is the whole point of the signed-out preview.
+ */
+function requireAccount(reason) {
+  if (authSignedIn()) return true;
+  openAuthGate(reason);
+  return false;
 }
 
 // Startup runs in a fixed order: resolve auth -> load saved charts -> decide.
@@ -2401,7 +2501,10 @@ async function restoreSession() {
     if (data.signed_in) {
       await applySignedIn(data.user, { quiet: true });
     } else {
-      // Signed-out local preview: existing behavior, untouched.
+      // Signed-out preview. Not a stub and not a teaser: Today, Sky, Positions
+      // and the Atlas are calculated from astronomy alone and are the same
+      // pages a signed-in user reads. The only thing missing is the part that
+      // is about *them*, which is exactly what we ask for later.
       state.auth.user = null;
       state.charts = [];
       state.activeChartId = null;
@@ -2409,14 +2512,14 @@ async function restoreSession() {
       state.activeNatalChart = null;
       state.chartsStatus = "idle";
       clearPositions();
-      showAuthGate();
       renderAccount();
       renderSavedCharts();
     }
   } catch {
-    // Couldn't even resolve the session — show the sign-in gate, not onboarding.
+    // Couldn't even resolve the session. Treat it as signed out rather than
+    // blocking: the sky does not depend on knowing who is reading it, and a
+    // failed session request is the worst possible moment to demand a password.
     state.auth.user = null;
-    showAuthGate();
   } finally {
     state.auth.restoring = false;
     finishStartup();
@@ -2496,7 +2599,46 @@ function finishStartup() {
 }
 
 function renderAccount() {
+  const signedIn = authSignedIn();
   $("#account-email").textContent = state.auth.user?.email || "Not signed in";
+
+  // The "You" panel is reachable without an account now. Every control below is
+  // one the server would refuse, and two of them are worse than a refusal:
+  // "Sign out" of nothing reads as a broken app, and "Delete your account"
+  // offers to permanently destroy something the visitor does not have. They are
+  // hidden rather than disabled — a greyed-out Delete still says we think you
+  // might want to.
+  const toggle = (id, shown) => { const el = $(id); if (el) el.hidden = !shown; };
+  toggle("#account-signed-in", signedIn);
+  toggle("#account-password-message", signedIn);
+  toggle("#account-signed-out", !signedIn);
+  toggle("#account-export-group", signedIn);
+  toggle("#danger-zone", signedIn);
+
+  renderAuthCta();
+}
+
+/**
+ * The standing offer in the rail, for signed-out visitors only.
+ *
+ * Opening the app no longer demands an account, which leaves a real question:
+ * how does someone who decides they want one actually say so? This is the
+ * answer — one persistent, ignorable control, in the one place that is on
+ * screen from every page. It states the price, because "free" unasked is the
+ * objection people bring to a sign-up button, and answering it after they have
+ * already hesitated is too late.
+ */
+function renderAuthCta() {
+  const slot = $("#rail-cta");
+  if (!slot) return;
+  if (authSignedIn()) { slot.innerHTML = ""; slot.hidden = true; return; }
+  slot.hidden = false;
+  slot.innerHTML = `
+    <button type="button" class="rail__cta-btn o-btn o-btn--primary" id="rail-cta-create">Create your chart</button>
+    <p class="rail__cta-note">Free · no card</p>
+    <button type="button" class="linklike rail__cta-signin" id="rail-cta-signin">Already have an account?</button>`;
+  $("#rail-cta-create").addEventListener("click", () => openAuthGate("chart"));
+  $("#rail-cta-signin").addEventListener("click", () => openAuthGate("signin"));
 }
 
 /* ── The chart form ──────────────────────────────────────────────────────
@@ -2800,6 +2942,12 @@ function openChartForm(mode, chart = null) {
 
 /** Kept as the old name so existing call sites read unchanged. */
 function openChartModal(chart = null) {
+  // The one door into the chart form, from four call sites — so it is the one
+  // place the account has to be asked for. The form cannot succeed without one:
+  // birthplace search is an authenticated, per-user rate-limited call to a
+  // geocoder we pay for, and there is nowhere to save the result. Asking here
+  // beats letting someone fill in their birth details and meet a 401.
+  if (!requireAccount("chart")) return undefined;
   if (chart) return openChartForm("edit", chart);
   const first = authSignedIn() && state.charts.length === 0;
   return openChartForm(first ? "first" : "add");
@@ -3461,9 +3609,18 @@ function renderSavedCharts() {
   const setStatus = (text) => statusTargets.forEach((status) => { status.textContent = text; });
   const setLists = (html) => listTargets.forEach((list) => { list.innerHTML = html; });
   if (!authSignedIn()) {
-    setStatus("Sign in to save and restore charts.");
-    setLists("");
-    renderChartPlaceholder("empty", { message: "Sign in to see your chart." });
+    // These two used to read "Sign in to save and restore charts." and "Sign in
+    // to see your chart." — true, and useless. They stated our architecture to
+    // someone who had just asked for their chart, and gave them nothing to
+    // press. This panel is reachable without an account now, so it is a place
+    // to make the offer, not to explain the refusal.
+    setStatus("Your charts live in your account, so they follow you between devices.");
+    setLists(`<div class="me-empty me-empty--compact">
+      <button type="button" class="o-btn o-btn--primary" data-action="add-chart">Create your chart — free</button>
+    </div>`);
+    renderChartPlaceholder("empty", {
+      message: "Add your birth date, time and place, and every placement below fills in.",
+    });
     return;
   }
   if (state.chartsStatus === "loading" && !state.charts.length) {
@@ -3624,7 +3781,22 @@ async function loadCompatibility() {
   $("#compat-subtitle").textContent = "How two saved charts meet.";
   document.title = "Orbit Axis — Compatibility";
 
-  if (!authSignedIn()) { compatStatus("Sign in to compare your saved charts."); return; }
+  // Reachable without an account now, so it makes the offer rather than
+  // reporting the refusal. compatStatus escapes its message by design, so the
+  // button is appended rather than passed through it.
+  if (!authSignedIn()) {
+    compatStatus("Compatibility reads two saved charts against each other, so it starts with yours.");
+    const status = $("#compat-status");
+    if (status) {
+      const cta = document.createElement("button");
+      cta.type = "button";
+      cta.className = "o-btn o-btn--primary";
+      cta.textContent = "Create your chart — free";
+      cta.addEventListener("click", () => openAuthGate("compatibility"));
+      status.append(document.createElement("br"), cta);
+    }
+    return;
+  }
   compatStatus("Loading your saved charts…");
   try {
     const data = await get("/api/compatibility/options");
@@ -4840,7 +5012,13 @@ async function axisLoadToday() {
     .catch(() => axisRenderSkyError("We couldn't reach the current sky just now."));
 
   // Fortune: prefer the signed-in path; fall back to a local preview.
+  // Skipped entirely when signed out. The endpoint is authenticated and a daily
+  // reading is written against a saved chart, so there is nothing to find — the
+  // catch below already handled the 401, but asking produced one logged failure
+  // per page view for every visitor who has not signed up, which is now most of
+  // them. Not asking is both quieter and faster.
   try {
+    if (!authSignedIn()) throw new Error("signed out");
     const r = await get("/api/fortune/today");
     AXIS.lastFortune = r.fortune;
     axisShowReadingFor(r.chart?.nickname || "My Chart");
@@ -5249,9 +5427,19 @@ function axisRenderTechnicalSky(sky) {
           <a class="o-btn o-btn--secondary o-btn--sm" href="#positions">See every position in Current Positions</a>
         </div>
       </details>
+      <!-- The refine-by-location control resolves the timezone server-side,
+           against an authenticated endpoint. Offered signed-out it would ask
+           for the browser's location permission and then fail with "Could not
+           resolve a timezone" — a permission prompt spent on nothing. The
+           device timezone is already correct for almost everyone, so the
+           sentence stands alone and the button waits for an account. -->
       <div class="current-sky__location">
-        <span class="u-caption" id="current-sky-location-status">Using your device timezone. Sharing your location can refine this to where you are right now.</span>
-        <button type="button" class="o-btn o-btn--ghost o-btn--sm" id="current-sky-use-location">Use my current location</button>
+        <span class="u-caption" id="current-sky-location-status">${authSignedIn()
+          ? "Using your device timezone. Sharing your location can refine this to where you are right now."
+          : "Using your device timezone."}</span>
+        ${authSignedIn()
+          ? `<button type="button" class="o-btn o-btn--ghost o-btn--sm" id="current-sky-use-location">Use my current location</button>`
+          : ""}
       </div>
     </section>`;
 }
@@ -5264,22 +5452,34 @@ function axisRenderTechnicalSky(sky) {
  * account to save a chart to, and birthplace search requires a session, so the
  * form's only possible outcome for them was an error under the Save button.
  *
- * It is now a call to action that opens the one real form — or, when signed
- * out, says plainly that an account comes first.
+ * It is now a call to action that opens the one real form. The signed-out
+ * branch used to end the conversation here — "Sign in first" is a fact about
+ * our architecture, not an offer, and it left the single highest-intent moment
+ * in the app with nothing to click. Both branches now lead somewhere: signed in
+ * to the form, signed out to the prompt that unlocks it.
+ *
+ * This card sits directly under a reading the visitor has just found accurate
+ * about the shared sky, which is the whole argument for the personal one. It
+ * says what they get, not what we require.
  */
 function axisRenderSetup(message = "Orbit Axis reads today's sky against your birth chart. Create one and your daily reading appears here.") {
   const signedIn = authSignedIn();
   $("#today-fortune").innerHTML = `
     <div class="fortune-card">
-      <h2>Create your birth chart</h2>
+      <h2>${signedIn ? "Create your birth chart" : "This is the sky everyone shares"}</h2>
       <div class="fortune-setup">
-        <p>${esc(message)}</p>
-        ${signedIn
-          ? `<button type="button" class="o-btn o-btn--primary" id="oa-open-chart-form">Create your birth chart</button>`
-          : `<p class="fortune-card__sub">Sign in first — your chart is saved to your account so it follows you between devices.</p>`}
+        <p>${esc(signedIn ? message : "Add your birth date, time and place, and Orbit Axis reads today against the sky the day you were born — not against your sun sign.")}</p>
+        <button type="button" class="o-btn o-btn--primary" id="oa-open-chart-form">
+          ${signedIn ? "Create your birth chart" : "Create my chart — free"}
+        </button>
+        ${signedIn ? "" : `<p class="fortune-card__sub">Takes about a minute. No card, and you can export or delete everything at any time.</p>`}
       </div>
     </div>`;
   $("#oa-open-chart-form")?.addEventListener("click", () => {
+    // The account is what the chart form needs, so the ask happens here rather
+    // than under a Save button the visitor can only reach by filling in a form
+    // that was never going to succeed.
+    if (!requireAccount("chart")) return;
     openChartForm(state.charts.length === 0 ? "first" : "add");
   });
 }
@@ -5396,7 +5596,10 @@ function openPendingHistoryEntry() {
 async function axisLoadHistory(scope = "active") {
   const body = $("#history-body");
   if (!body) return;
+  // Same as the daily reading: history is per-account, so signed out there is
+  // nothing to ask for. Falls through to the honest empty state below.
   try {
+    if (!authSignedIn()) throw new Error("signed out");
     const r = await get(`/api/fortune/history?scope=${encodeURIComponent(scope)}&limit=30`);
     // The week strip reads the same response. One request feeds both surfaces,
     // so they can never disagree about which days you have a reading for.
@@ -5412,12 +5615,22 @@ async function axisLoadHistory(scope = "active") {
 }
 
 function axisRenderHistoryEmpty() {
+  // Signed out, "come back tomorrow and your readings will collect" is a
+  // promise the app cannot keep: history is written against an account, so
+  // returning tomorrow without one produces this same empty page. The page is
+  // reachable without an account now, so it has to say which of the two
+  // situations the reader is actually in.
+  const signedIn = authSignedIn();
   $("#history-body").innerHTML = `
     <div class="history-empty">
       <div class="history-empty__art"><div class="axis-moon" style="--moon-size:96px" aria-hidden="true"><span class="axis-moon__halo"></span></div></div>
       <h2>No readings yet</h2>
-      <p>Your daily readings will collect here as you return to Orbit Axis. Come back tomorrow to start your history.</p>
+      ${signedIn
+        ? `<p>Your daily readings will collect here as you return to Orbit Axis. Come back tomorrow to start your history.</p>`
+        : `<p>Daily readings are written against your birth chart and kept in your account. Create one and your history starts with tomorrow's.</p>
+           <button type="button" class="o-btn o-btn--primary" id="history-create">Create your chart — free</button>`}
     </div>`;
+  $("#history-create")?.addEventListener("click", () => openAuthGate("history"));
 }
 
 function axisRenderHistory(entries) {
