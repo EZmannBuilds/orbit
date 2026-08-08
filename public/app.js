@@ -2179,7 +2179,11 @@ function wireAccountExport() {
    pretend to have forgotten it. */
 function wireAccountPasswordReset() {
   const button = $("#account-password-reset");
-  const message = $("#account-export-message");
+  // Its OWN status line, in the Account card. This used to write into
+  // #account-export-message, which lives two sections down under Data: the
+  // confirmation was produced correctly and rendered somewhere the person
+  // pressing the button could not see, so the button read as broken.
+  const message = $("#account-password-message");
   if (!button || !message) return;
 
   button.addEventListener("click", async () => {

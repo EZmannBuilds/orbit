@@ -365,3 +365,67 @@ test("the visual viewport is published, and kept current", () => {
   // And it has to run at boot, not only on the first resize.
   assert.match(appJs, /trackVisualViewport\(\);/);
 });
+
+// ── Feedback lands where the person is looking ──────────────────────────────
+//
+// Found in production use, not by a test: pressing "Reset password" on the You
+// screen appeared to do nothing. The request succeeded and the confirmation was
+// written correctly — into #account-export-message, which lives two sections
+// further down under Data, well off screen. A control whose feedback renders
+// somewhere else is indistinguishable from a broken control.
+
+test("the password-reset confirmation renders in the card that triggered it", () => {
+  const resetHtml = read("public", "index.html");
+
+  // The element exists at all.
+  assert.match(resetHtml, /id="account-password-message"/,
+    "the Account card needs its own status line");
+
+  // And it is INSIDE the account card, not merely present somewhere.
+  const card = resetHtml.slice(
+    resetHtml.indexOf('id="account-card"'),
+    resetHtml.indexOf('id="you-library-title"'));
+  assert.ok(card.includes('id="account-password-reset"'), "the button is in the account card");
+  assert.ok(card.includes('id="account-password-message"'),
+    "its status line must be in the SAME card, not a later section");
+
+  // The handler must target it rather than the export line it used to share.
+  const wiring = appJs.slice(appJs.indexOf("function wireAccountPasswordReset"));
+  const body = wiring.slice(0, wiring.indexOf("\n}"));
+  assert.match(body, /\$\("#account-password-message"\)/);
+
+  // Matched as a SELECTOR CALL, not as a substring. The first version of this
+  // assertion searched the whole function body and failed on the comment above
+  // that explains the fix — the same way the bare-specifier guard once failed
+  // on the phrase `from "Leo season"`. A check that reads prose is a check
+  // people learn to silence.
+  assert.ok(!/\$\("#account-export-message"\)/.test(body),
+    "password-reset feedback must not be written into the export status line");
+});
+
+// ── Standalone pages use the same button grammar ────────────────────────────
+//
+// reset-password.html is reached from an email, so nobody sees it during normal
+// development — the same reason it once shipped without auth.css at all. Its
+// submit button had no classes and rendered as a small native control beside a
+// full-width pill everywhere else in the app.
+
+test("the reset-password page's controls carry the button grammar", () => {
+  const page = read("public", "reset-password.html");
+
+  const buttons = page.match(/<button[^>]*>/g) || [];
+  assert.ok(buttons.length > 0, "the page has controls to check");
+  for (const button of buttons) {
+    assert.match(button, /class="[^"]*\bo-btn\b/,
+      `a control on the reset page has no button grammar: ${button}`);
+  }
+
+  // The primary action is a full-width pill, matching sign-in's #auth-submit.
+  assert.match(page, /id="reset-submit"[^>]*class="[^"]*o-btn--block/,
+    "the primary action must be full width, as it is on the sign-in card");
+
+  // And the page must load the stylesheet that defines those classes, or the
+  // markup above is decoration that does nothing.
+  assert.match(page, /href="\/styles\/components\.css"/,
+    "o-btn is defined in components.css; without it the classes are inert");
+});

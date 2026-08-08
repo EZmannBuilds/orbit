@@ -509,6 +509,11 @@
                   <span class="o-row__main"><span class="o-row__title">Sign out</span></span>
                 </button>
               </div>
+              <!-- Feedback for "Reset password" belongs BESIDE the button that
+                   causes it. It previously wrote into the export status line
+                   two sections further down, so pressing the button appeared to
+                   do nothing at all — the confirmation was real and off-screen. -->
+              <div class="auth-message" id="account-password-message" role="status" aria-live="polite" aria-atomic="true"></div>
             </section>
 
             <section class="more-section" aria-labelledby="you-library-title">
