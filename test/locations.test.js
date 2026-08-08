@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   cleanLocationQuery,
+  locationCacheStats,
   normalizeGeoapifyFeature,
+  resetLocationCache,
   safePlaceForClient,
   searchGeoapify,
   verifyPlaceSignature,
@@ -71,6 +73,81 @@ test("Geoapify search returns safe client results with a mocked fetch", async ()
   assert.ok(results[0].selection_token);
   assert.equal(calls[0].searchParams.get("text"), "Paris");
   assert.equal(calls[0].searchParams.get("format"), "geojson");
+});
+
+// Every autocomplete request is a billed credit, so "did it actually skip the
+// provider" is the assertion that matters — a cache that quietly still fetches
+// saves nothing and would never show up in the results.
+test("a repeated place search is served from cache without calling the provider", async () => {
+  process.env.GEOAPIFY_API_KEY = "unit-test-location-secret";
+  resetLocationCache();
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls++;
+    return {
+      ok: true,
+      async json() {
+        return { features: [{ properties: { formatted: PLACE.label, place_id: PLACE.provider_place_id, lat: PLACE.latitude, lon: PLACE.longitude } }] };
+      },
+    };
+  };
+
+  const first = await searchGeoapify("Paris", { fetchImpl, cache: true });
+  const second = await searchGeoapify("Paris", { fetchImpl, cache: true });
+  assert.equal(calls, 1, "the second identical search must not reach Geoapify");
+  assert.deepEqual(second, first, "and must return the same places");
+
+  // Case and surrounding whitespace are the same query to a person, so they
+  // must be the same query to the meter.
+  await searchGeoapify("  paris  ", { fetchImpl, cache: true });
+  assert.equal(calls, 1, "case and spacing must not mint a second credit");
+
+  // A different result limit is a different response, so it must not reuse one.
+  await searchGeoapify("Paris", { fetchImpl, cache: true, limit: 8 });
+  assert.equal(calls, 2, "a different limit is a different request");
+
+  const stats = locationCacheStats();
+  assert.equal(stats.hits, 2);
+  assert.equal(stats.misses, 2);
+});
+
+test("cached places are signed with the key in force, never the key they were fetched under", async () => {
+  process.env.GEOAPIFY_API_KEY = "first-secret";
+  resetLocationCache();
+  const fetchImpl = async () => ({
+    ok: true,
+    async json() {
+      return { features: [{ properties: { formatted: PLACE.label, place_id: PLACE.provider_place_id, lat: PLACE.latitude, lon: PLACE.longitude } }] };
+    },
+  });
+
+  const before = await searchGeoapify("Paris", { fetchImpl, cache: true });
+  // Rotate the secret. The cache still holds the place; the token must not be
+  // the stale one, or a rotation would hand out selections the server rejects.
+  process.env.GEOAPIFY_API_KEY = "second-secret";
+  const after = await searchGeoapify("Paris", { fetchImpl, cache: true });
+
+  assert.notEqual(after[0].selection_token, before[0].selection_token,
+    "a rotated key must produce a new token");
+  assert.equal(verifyPlaceSignature(after[0], after[0].selection_token), true,
+    "and that token must verify under the current key");
+  process.env.GEOAPIFY_API_KEY = "unit-test-location-secret";
+});
+
+test("an injected transport does not read or write the provider cache", async () => {
+  process.env.GEOAPIFY_API_KEY = "unit-test-location-secret";
+  resetLocationCache();
+  const fetchImpl = async () => ({
+    ok: true,
+    async json() {
+      return { features: [{ properties: { formatted: PLACE.label, place_id: PLACE.provider_place_id, lat: PLACE.latitude, lon: PLACE.longitude } }] };
+    },
+  });
+  await searchGeoapify("Berlin", { fetchImpl });
+  await searchGeoapify("Berlin", { fetchImpl });
+  // This is what keeps the error-path tests below honest: a stub that returns
+  // one thing must never be able to answer for a stub that returns another.
+  assert.equal(locationCacheStats().size, 0, "a stubbed transport must not populate the cache");
 });
 
 test("Geoapify search handles empty, provider, timeout, malformed, and missing-key cases", async () => {
