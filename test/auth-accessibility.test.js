@@ -104,20 +104,39 @@ test("focus restoration has a real target when the opener is gone", () => {
   assert.match(fn, /\.workspace-panel:not\(\[hidden\]\) h1/);
 });
 
-test("the gate is opened through the shared dialog machinery, not a raw toggle", () => {
-  assert.match(appJs, /function showAuthGate/);
+test("the prompt is opened through the shared dialog machinery, not a raw toggle", () => {
+  assert.match(appJs, /function openAuthGate/);
   assert.match(appJs, /function hideAuthGate/);
-  assert.match(appJs, /openModal\(gate, \{ dismissible: false/,
-    "the gate opens as a dialog so it inherits the focus trap and inertness");
+  assert.match(appJs, /openModal\(gate, \{ dismissible: true/,
+    "the prompt opens as a dialog so it inherits the focus trap and inertness");
   // Five scattered `hidden` assignments is how three of them forget the shell.
   const raw = appJs.match(/\$\("#auth-gate"\)\.hidden\s*=/g) || [];
-  assert.equal(raw.length, 0, "no code path may toggle the gate's `hidden` directly");
+  assert.equal(raw.length, 0, "no code path may toggle the prompt's `hidden` directly");
 });
 
-test("Escape does not dismiss the gate, because there is nothing behind it", () => {
-  assert.match(appJs, /dismissible = true/, "every other dialog stays dismissible by default");
+test("opening the app never demands an account", () => {
+  // The gate used to open on boot for every signed-out visitor, with the shell
+  // marked inert behind it. Today's sky is calculated from astronomy alone and
+  // needs no account, so a boot-time prompt is asking for a password before
+  // making a promise. This is the assertion that stops it coming back.
+  const fn = appJs.slice(
+    appJs.indexOf("async function restoreSession"),
+    appJs.indexOf("async function applySignedIn"),
+  );
+  assert.ok(fn.length > 0, "restoreSession must still exist to be checked");
+  assert.doesNotMatch(fn, /openAuthGate\(/,
+    "session restore may never open the account prompt — signed out is a usable state");
+});
+
+test("the prompt is dismissible, because there is now an app behind it", () => {
+  // The inverse of the old rule. Escape was refused when the gate covered an
+  // empty shell; it is honoured now that declining returns you to a working
+  // Today. Both halves of openModal's contract still have to be present.
+  assert.match(appJs, /dismissible = true/, "dialogs stay dismissible by default");
   assert.match(appJs, /if \(!dismissible\) return;/,
-    "the non-dismissible case must be handled before preventDefault and close");
+    "the non-dismissible case is still handled before preventDefault and close");
+  assert.doesNotMatch(appJs, /openModal\(gate, \{ dismissible: false/,
+    "nothing may reinstate a prompt the visitor cannot escape");
 });
 
 test("initial focus lands inside the gate once it is actually visible", () => {

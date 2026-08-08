@@ -385,9 +385,28 @@ test("the form invents no legal facts", () => {
   }
 });
 
-test("Home's no-chart state stopped being a third form", () => {
+test("Home's no-chart state stopped being a third form, and is never a dead end", () => {
   const fn = appJs.slice(appJs.indexOf("function axisRenderSetup"), appJs.indexOf("// ── History"));
   assert.ok(!/<form/.test(fn), "it is a call to action now");
   assert.match(fn, /openChartForm\(/, "which opens the one real form");
-  assert.match(fn, /Sign in first/, "and says plainly that signed-out visitors need an account");
+  // The signed-out branch used to end at "Sign in first — your chart is saved
+  // to your account". True, and a dead end: the highest-intent card in the app
+  // stated our architecture and gave the visitor nothing to press.
+  assert.doesNotMatch(fn, /Sign in first/,
+    "signed-out visitors are offered the chart, not told what we require");
+  assert.match(fn, /requireAccount\(/,
+    "the account is asked for when the button is pressed, not implied by a missing button");
+});
+
+test("the chart form asks for an account at its one door", () => {
+  // Four call sites reach the form and all of them go through openChartModal.
+  // The guard belongs there: birthplace search is authenticated and per-user
+  // rate limited, so a signed-out visitor who reaches the fields can only meet
+  // a 401 under the Save button.
+  const fn = appJs.slice(appJs.indexOf("function openChartModal"), appJs.indexOf("/* ── Chart identity editor"));
+  assert.match(fn, /requireAccount\("chart"\)/, "the one door carries the one guard");
+  assert.ok(
+    fn.indexOf("requireAccount") < fn.indexOf("openChartForm"),
+    "the guard runs before any form is opened",
+  );
 });

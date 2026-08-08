@@ -14,6 +14,29 @@
 
 .more-stack { display: grid; gap: var(--space-xl); }
 .more-section { display: grid; gap: 0; }
+
+/* ── The account offer ───────────────────────────────────────────────────────
+   Stands where the signed-in account rows do, for visitors who have not made
+   one. It leads by saying what already works without an account, because the
+   panel is titled "Account" and arriving at a sales pitch under that heading
+   is what makes a free app feel like a trial. */
+.account-offer {
+  display: grid;
+  gap: var(--space-sm);
+  justify-items: start;
+  padding: var(--space-md);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.account-offer[hidden] { display: none; }
+.account-offer__lead { margin: 0; color: var(--color-primary); line-height: var(--lead-body); }
+.account-offer__sub {
+  margin: 0;
+  color: var(--color-secondary);
+  font-size: var(--type-fine);
+  line-height: 1.55;
+}
 .more-details { margin-top: var(--space-sm); }
 .more-disclaimer { text-align: center; padding: 0 var(--space-md); }
 .more-note { color: var(--color-secondary); font-size: var(--type-caption); line-height: var(--lead-body); }

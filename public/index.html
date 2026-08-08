@@ -66,6 +66,12 @@
       </div>
 
       <div class="rail__spacer"></div>
+
+      <!-- The standing offer, for signed-out visitors only. Populated by
+           renderAuthCta() and emptied the moment someone signs in, so a paying
+           customer is never sold to. Below the spacer on purpose: it is an
+           offer, not a destination, and it must not compete with navigation. -->
+      <div class="rail__cta" id="rail-cta" hidden></div>
     </nav>
 
     <!-- ── Main area ──────────────────────────────────────────────────── -->
@@ -492,7 +498,13 @@
           <div class="more-stack">
             <section class="more-section" id="account-card" aria-labelledby="you-account-title">
               <h2 class="o-group__label" id="you-account-title">Account</h2>
-              <div class="o-group">
+
+              <!-- This panel is reachable without an account now, which the
+                   rows below were never written for: signed out, they offered
+                   to sign you out of nothing, reset a password that does not
+                   exist, and — worst — permanently delete an account you have
+                   not got. renderAccount() swaps the two blocks. -->
+              <div class="o-group" id="account-signed-in" hidden>
                 <div class="o-row">
                   <span class="o-row__icon" data-icon="user"></span>
                   <span class="o-row__main">
@@ -512,8 +524,19 @@
               <!-- Feedback for "Reset password" belongs BESIDE the button that
                    causes it. It previously wrote into the export status line
                    two sections further down, so pressing the button appeared to
-                   do nothing at all — the confirmation was real and off-screen. -->
-              <div class="auth-message" id="account-password-message" role="status" aria-live="polite" aria-atomic="true"></div>
+                   do nothing at all — the confirmation was real and off-screen.
+
+                   Hidden with the signed-in rows: it is the live region for a
+                   control that is not on the page when signed out, and a live
+                   region announcing for an absent button is worse than absent. -->
+              <div class="auth-message" id="account-password-message" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
+              <div class="account-offer" id="account-signed-out" hidden>
+                <p class="account-offer__lead">You're using Orbit Axis without an account. Today's sky, the Atlas, and every position are yours either way.</p>
+                <p class="account-offer__sub">An account adds the part that's about you: your birth chart, your daily reading, and your history — on every device.</p>
+                <button type="button" class="o-btn o-btn--primary" id="account-create">Create your chart — free</button>
+                <button type="button" class="linklike" id="account-signin">Already have an account?</button>
+              </div>
             </section>
 
             <section class="more-section" aria-labelledby="you-library-title">
@@ -558,7 +581,10 @@
 
             <section class="more-section" aria-labelledby="you-data-title">
               <h2 class="o-group__label" id="you-data-title">Your data</h2>
-              <div class="o-group">
+              <!-- Signed-in only: there is nothing to export without an
+                   account, and the request 401s. The privacy prose below stays
+                   visible either way — that is what someone came here to read. -->
+              <div class="o-group" id="account-export-group" hidden>
                 <button type="button" class="o-row o-row--link" id="account-export">
                   <span class="o-row__icon" data-icon="download-simple"></span>
                   <span class="o-row__main">
@@ -788,13 +814,35 @@
        aria-labelledby="auth-gate-title" aria-describedby="auth-gate-description">
     <div class="auth-card">
       <div class="auth-mark" aria-hidden="true"><span></span></div>
+      <!-- Dismissible now, so it needs a way out that isn't the Escape key.
+           There is a working app behind this; trapping a mouse user in front of
+           a form they have decided against is how you lose the visit and the
+           account. -->
+      <button type="button" class="auth-close" id="auth-close" aria-label="Close">Not now</button>
+
       <div class="auth-intro">
-        <h1 id="auth-gate-title">Welcome to Orbit Axis</h1>
-        <p id="auth-gate-description">Sign in to save charts, restore your active chart, and keep daily readings across devices.</p>
+        <!-- Both strings are replaced by openAuthGate() with copy for whatever
+             the visitor was reaching for. These are the defaults. -->
+        <h1 id="auth-gate-title">Make this about you</h1>
+        <p id="auth-gate-description">You're reading the sky everyone shares. Add your birth details and Orbit Axis reads today against the sky the day you were born.</p>
       </div>
+
+      <!-- What the account buys, before the fields that cost something to fill.
+           This is the half of the exchange the old gate never stated: it opened
+           with a password box and a privacy disclosure, so the only thing above
+           the fold was what we wanted from you. -->
+      <ul class="auth-benefits">
+        <li>Your birth chart, calculated from real astronomy — not a sun-sign horoscope</li>
+        <li>A daily reading written against your chart, in plain language</li>
+        <li>Free, no card. Your birth data is yours: export or delete it any time</li>
+      </ul>
+
+      <!-- Create account leads, and is the default tab: most people opening
+           this have no account yet, and a returning user recognises the tab
+           they need without being defaulted onto it. -->
       <div class="auth-tabs o-segment o-segment--block" role="group" aria-label="Account action">
-        <button type="button" data-auth-mode="signin" aria-pressed="true">Sign in</button>
-        <button type="button" data-auth-mode="signup" aria-pressed="false">Create account</button>
+        <button type="button" data-auth-mode="signup" aria-pressed="true">Create account</button>
+        <button type="button" data-auth-mode="signin" aria-pressed="false">Sign in</button>
       </div>
       <form id="auth-form" class="auth-form">
         <label for="auth-email">Email</label>
@@ -817,8 +865,17 @@
           <button type="button" class="linklike" id="auth-forgot">Forgot your password?</button>
         </p>
         <!-- Before any account or birth data is requested, say plainly what is
-             collected and where the full answers live. -->
-        <div class="auth-privacy" id="auth-privacy">
+             collected and where the full answers live.
+
+             Collapsed, not cut. Every word here is still one tap away and still
+             ahead of the submit button — but as a two-paragraph grey slab it was
+             the largest thing on a card whose headline had already fallen below
+             the fold, so the first impression of Orbit Axis was a disclosure
+             about data collection. The promise is a good one; it converts as a
+             benefit in the list above and reassures as detail down here. It does
+             not need to be both, twice. -->
+        <details class="auth-privacy" id="auth-privacy">
+          <summary class="auth-footnote">What Orbit Axis collects, and what it never does</summary>
           <p class="auth-footnote">
             Orbit Axis asks for your birth date, birth time, and birthplace so it
             can calculate your chart. That data is stored in your account, is
@@ -829,7 +886,7 @@
             Your chart, transits, and daily readings are calculated by Orbit's
             own astronomy engine. They do not depend on generative AI.
           </p>
-        </div>
+        </details>
         <p class="auth-footnote auth-legal">
           By continuing you agree to the <a href="/terms">Terms of Use</a>
           and <a href="/privacy">Privacy Policy</a>.
