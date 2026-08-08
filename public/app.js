@@ -196,6 +196,24 @@ function esc(text) {
       the in-flight one is aborted, so results from an abandoned query cannot
       replace results for what the user is actually typing. */
 
+/* These two were raised to cut the Geoapify bill, and then measured, and the
+   measurement said not to. Over 2000 simulated birthplace entries with
+   Zipf-weighted city choice, the server-side cache in lib/locations/geoapify.js
+   took 6146 billed credits down to 265; moving the debounce from 300ms to 400ms
+   on top of that saved a further six. Six. The cache does effectively all of the
+   work, because this is PREFIX traffic and prefixes are shared both between
+   people and between cities — "lon" serves London and Londonderry, and after a
+   few hundred visitors almost every prefix anyone types is already held.
+
+   So the debounce stays where it was. It is worth 2% of a bill that caching has
+   already paid, and it is spent on the highest-intent field in the app: 100ms of
+   extra lag on birthplace search costs more in abandoned sign-ups than it saves
+   in credits.
+
+   The 3-character floor stays too. Ely, Rye, Ufa, Jos and Aba are real places,
+   and a 4-character minimum would make them unsearchable to save one request —
+   the exact request the cache serves for free, because short prefixes are the
+   ones everybody types. Cheap to change, expensive to be wrong about. */
 const PLACE_MIN_QUERY = 3;
 const PLACE_DEBOUNCE_MS = 300;
 

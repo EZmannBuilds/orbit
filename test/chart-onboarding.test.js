@@ -224,7 +224,20 @@ test("the result count is announced, not just rendered", () => {
 });
 
 test("search is debounced and a slow answer cannot overwrite a fast one", () => {
-  assert.match(appJs, /const PLACE_DEBOUNCE_MS = 300/);
+  // Asserted as a RANGE, not a literal. Every search that gets through is a
+  // billed Geoapify credit, so this number is a cost/latency dial someone will
+  // legitimately turn — but both ends of it are real failures. Too low and a
+  // slow typist pays one credit per keystroke; too high and the birthplace
+  // field feels broken on the form that decides whether anyone signs up.
+  const debounce = Number(appJs.match(/const PLACE_DEBOUNCE_MS = (\d+)/)?.[1]);
+  assert.ok(Number.isFinite(debounce), "the debounce must be a plain literal we can audit");
+  assert.ok(debounce >= 250, `debounce ${debounce}ms is low enough to bill a credit per keystroke`);
+  assert.ok(debounce <= 600, `debounce ${debounce}ms makes birthplace search feel broken`);
+
+  // The 3-character floor is deliberate: Ely, Rye, Ufa and Jos are real places.
+  const minQuery = Number(appJs.match(/const PLACE_MIN_QUERY = (\d+)/)?.[1]);
+  assert.equal(minQuery, 3, "raising this to save a request makes short place names unsearchable");
+
   assert.match(appJs, /state\.places\.controllers\[prefix\]\?\.abort\(\)/);
   assert.match(appJs, /if \(error\.name === "AbortError"\) return;/);
 });
