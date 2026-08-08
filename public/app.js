@@ -2430,6 +2430,14 @@ const AUTH_REASONS = {
     body: "You're reading the sky everyone shares. Add your birth details and Orbit Axis reads today against the sky the day you were born.",
     mode: "signup",
   },
+  // CHECK THIS BEFORE SETTING ORBIT_ENTITLEMENTS_ENFORCED=true. The v1 matrix
+  // gives `free` "chart.compatibility": false, so once enforcement stops being
+  // dark, a visitor who signs up from this prompt gets an account that cannot
+  // do the thing the prompt offered — "Comparing two charts is part of a paid
+  // plan" under a button they pressed to compare two charts. The wording below
+  // is careful (it promises a saved chart, not a comparison) but the intent of
+  // the surface is not, and the adjacent button says "free". Decide the copy
+  // with the pricing, not after it. See lib/entitlements/plans.js.
   compatibility: {
     title: "Compare two charts",
     body: "Compatibility works from saved charts, so Orbit Axis needs somewhere to keep them first.",
