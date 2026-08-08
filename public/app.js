@@ -2430,17 +2430,19 @@ const AUTH_REASONS = {
     body: "You're reading the sky everyone shares. Add your birth details and Orbit Axis reads today against the sky the day you were born.",
     mode: "signup",
   },
-  // CHECK THIS BEFORE SETTING ORBIT_ENTITLEMENTS_ENFORCED=true. The v1 matrix
-  // gives `free` "chart.compatibility": false, so once enforcement stops being
-  // dark, a visitor who signs up from this prompt gets an account that cannot
-  // do the thing the prompt offered — "Comparing two charts is part of a paid
-  // plan" under a button they pressed to compare two charts. The wording below
-  // is careful (it promises a saved chart, not a comparison) but the intent of
-  // the surface is not, and the adjacent button says "free". Decide the copy
-  // with the pricing, not after it. See lib/entitlements/plans.js.
+  // The one prompt that must not say "free". `free` has
+  // "chart.compatibility": false in the v1 matrix (lib/entitlements/plans.js) —
+  // confirmed as the intended boundary, not an oversight. So this surface sells
+  // the CHART, which a free account really does get, and never the comparison,
+  // which it does not.
+  //
+  // It also does not announce a price. Enforcement is still dark, so today a
+  // free account can compare; saying "part of a paid plan" would be false in
+  // the other direction. Describe the prerequisite, let the entitlement layer
+  // speak for itself when it is switched on, and the copy stays true either way.
   compatibility: {
-    title: "Compare two charts",
-    body: "Compatibility works from saved charts, so Orbit Axis needs somewhere to keep them first.",
+    title: "Start with your chart",
+    body: "Compatibility reads two saved charts against each other, so Orbit Axis needs yours before it can compare anything.",
     mode: "signup",
   },
   history: {
@@ -3799,7 +3801,12 @@ async function loadCompatibility() {
       const cta = document.createElement("button");
       cta.type = "button";
       cta.className = "o-btn o-btn--primary";
-      cta.textContent = "Create your chart — free";
+      // No "— free" here, unlike every other chart CTA in the app. Creating a
+      // chart is free; comparing two is not (`free` has
+      // "chart.compatibility": false in the v1 matrix). Pricing the chart on
+      // the one page that exists to sell the comparison is how a sign-up button
+      // becomes a bait-and-switch the day enforcement stops being dark.
+      cta.textContent = "Create your chart";
       cta.addEventListener("click", () => openAuthGate("compatibility"));
       status.append(document.createElement("br"), cta);
     }
